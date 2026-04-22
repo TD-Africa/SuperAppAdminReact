@@ -1,7 +1,26 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
-import { Loader2, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import {
+  Card,
+  Input,
+  Typography,
+  App as AntdApp,
+  Table,
+  Button,
+  Space,
+  Tag,
+  Modal,
+  Form,
+  Skeleton,
+  Checkbox,
+} from "antd";
+import type { TableColumnsType } from "antd";
+import {
+  EditOutlined,
+  PlusOutlined,
+  DeleteOutlined,
+  SearchOutlined,
+} from "@ant-design/icons";
 import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api";
 import type {
   AdminRoleDto,
@@ -14,39 +33,12 @@ import { PERMISSION_GROUPS, humanPermissionName } from "@/lib/permissionGroups";
 import { Permission } from "@/lib/permissions";
 import { useAuthStore } from "@/stores/auth";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { cn } from "@/lib/utils";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { DataTablePagination } from "@/components/DataTablePagination";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 export default function RolesPage() {
   const queryClient = useQueryClient();
   const canEdit = useAuthStore((s) => s.hasPermission(Permission.CanEditRoles));
-  const canCreate = useAuthStore((s) =>
-    s.hasPermission(Permission.CanCreateRoles),
-  );
+  const canCreate = useAuthStore((s) => s.hasPermission(Permission.CanCreateRoles));
   const canDelete = useAuthStore((s) => s.hasPermission(Permission.CanEditRoles));
 
   const [keyword, setKeyword] = useState("");
@@ -94,132 +86,104 @@ export default function RolesPage() {
   const rows = data?.data ?? [];
   const totalItems = Number(data?.count ?? 0);
 
+  const columns: TableColumnsType<RoleResponse> = [
+    {
+      title: "Name",
+      key: "name",
+      render: (_, r) => (
+        <div>
+          <div className="font-medium">{r.name}</div>
+          <div className="font-mono text-xs text-muted-foreground">
+            {r.id.slice(0, 8)}
+          </div>
+        </div>
+      ),
+    },
+    {
+      title: "Permissions",
+      dataIndex: "permissions",
+      align: "right",
+      render: (v: unknown[]) => <Tag>{v?.length ?? 0}</Tag>,
+    },
+    {
+      title: "",
+      key: "actions",
+      width: 100,
+      align: "right",
+      render: (_, r) => (
+        <Space size={4}>
+          {canEdit && (
+            <Button size="small" icon={<EditOutlined />} onClick={() => setEditId(r.id)} />
+          )}
+          {canDelete && (
+            <Button
+              size="small"
+              danger
+              icon={<DeleteOutlined />}
+              onClick={() => setDeleteTarget(r)}
+            />
+          )}
+        </Space>
+      ),
+    },
+  ];
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Roles</h1>
-          <p className="text-sm text-muted-foreground">
+          <Typography.Title level={3} className="!m-0">
+            Roles
+          </Typography.Title>
+          <Typography.Text type="secondary">
             Define permission bundles and assign them to admin users.
-          </p>
+          </Typography.Text>
         </div>
         {canCreate && (
-          <Button onClick={() => setCreateOpen(true)}>
-            <Plus className="h-4 w-4" /> New role
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>
+            New role
           </Button>
         )}
       </div>
 
-      <Card>
-        <CardContent className="p-4">
-          <Input
-            placeholder="Search by role name…"
-            value={keyword}
-            onChange={(e) => {
-              setPage(1);
-              setKeyword(e.target.value);
-            }}
-          />
-        </CardContent>
+      <Card styles={{ body: { padding: 16 } }}>
+        <Input
+          placeholder="Search by role name…"
+          value={keyword}
+          allowClear
+          onChange={(e) => {
+            setPage(1);
+            setKeyword(e.target.value);
+          }}
+        />
       </Card>
 
-      <div className="text-sm text-muted-foreground">
-        {isFetching && !isLoading ? "Refreshing…" : null}
-      </div>
-
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead className="text-right">Permissions</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                Array.from({ length: 6 }).map((_, i) => (
-                  <TableRow key={i}>
-                    <TableCell colSpan={3}>
-                      <Skeleton className="h-8 w-full" />
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : rows.length === 0 ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={3}
-                    className="py-10 text-center text-muted-foreground"
-                  >
-                    No roles defined yet.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                rows.map((r) => (
-                  <TableRow key={r.id}>
-                    <TableCell>
-                      <div className="font-medium">{r.name}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {r.id.slice(0, 8)}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Badge variant="secondary">
-                        {r.permissions?.length ?? 0}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        {canEdit && (
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => setEditId(r.id)}
-                            title="Edit"
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                        )}
-                        {canDelete && (
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="h-8 w-8 text-destructive"
-                            onClick={() => setDeleteTarget(r)}
-                            title="Delete"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-          <DataTablePagination
-            page={page}
-            pageSize={pageSize}
-            totalItems={totalItems}
-            onPageChange={setPage}
-            onPageSizeChange={(s) => {
-              setPageSize(s);
-              setPage(1);
-            }}
-          />
-        </CardContent>
+      <Card styles={{ body: { padding: 0 } }}>
+        <Table<RoleResponse>
+          rowKey="id"
+          dataSource={rows}
+          columns={columns}
+          loading={isLoading || isFetching}
+          pagination={{
+            current: page,
+            pageSize,
+            total: totalItems,
+            showSizeChanger: true,
+            pageSizeOptions: [10, 20, 50, 100],
+            onChange: (p, ps) => {
+              setPage(p);
+              setPageSize(ps);
+            },
+          }}
+          locale={{ emptyText: "No roles defined yet." }}
+        />
       </Card>
 
       <CreateRoleModal
         open={createOpen}
         onOpenChange={setCreateOpen}
         permissions={permissions ?? []}
-        onCreated={() =>
-          queryClient.invalidateQueries({ queryKey: ["admin-roles"] })
-        }
+        onCreated={() => queryClient.invalidateQueries({ queryKey: ["admin-roles"] })}
       />
 
       <EditRoleModal
@@ -227,9 +191,7 @@ export default function RolesPage() {
         open={!!editId}
         onOpenChange={(v) => !v && setEditId(null)}
         permissions={permissions ?? []}
-        onUpdated={() =>
-          queryClient.invalidateQueries({ queryKey: ["admin-roles"] })
-        }
+        onUpdated={() => queryClient.invalidateQueries({ queryKey: ["admin-roles"] })}
       />
 
       <ConfirmDialog
@@ -244,11 +206,7 @@ export default function RolesPage() {
           const res = await apiDelete<boolean>(
             `Authentication/DeleteRole/${deleteTarget.id}`,
           );
-          if (!res.status) {
-            toast.error(res.message ?? "Delete failed");
-            throw new Error("delete-failed");
-          }
-          toast.success(res.message ?? "Role deleted");
+          if (!res.status) throw new Error("delete-failed");
           queryClient.invalidateQueries({ queryKey: ["admin-roles"] });
         }}
       />
@@ -256,7 +214,7 @@ export default function RolesPage() {
   );
 }
 
-// --- Create role modal ---
+// --- Create ---
 function CreateRoleModal({
   open,
   onOpenChange,
@@ -268,6 +226,7 @@ function CreateRoleModal({
   permissions: PermissionResponse[];
   onCreated: () => void;
 }) {
+  const { message } = AntdApp.useApp();
   const [name, setName] = useState("");
   const [permissionIds, setPermissionIds] = useState<string[]>([]);
 
@@ -289,52 +248,43 @@ function CreateRoleModal({
       return res.message ?? "Role created";
     },
     onSuccess: (msg) => {
-      toast.success(msg);
+      message.success(msg);
       onCreated();
       onOpenChange(false);
     },
-    onError: (err: Error) => toast.error(err.message),
+    onError: (err: Error) => message.error(err.message),
   });
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>New role</DialogTitle>
-          <DialogDescription>
-            Bundle a set of permissions under a named role.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4">
-          <div className="space-y-1.5">
-            <Label>Name</Label>
-            <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Warehouse Manager"
-            />
-          </div>
-          <PermissionMatrix
-            permissions={permissions}
-            value={permissionIds}
-            onChange={setPermissionIds}
+    <Modal
+      open={open}
+      onCancel={() => onOpenChange(false)}
+      title="New role"
+      width={1000}
+      confirmLoading={mutation.isPending}
+      okText="Create role"
+      onOk={() => mutation.mutate()}
+      destroyOnClose
+    >
+      <Form layout="vertical" requiredMark={false}>
+        <Form.Item label="Name" required>
+          <Input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. Warehouse Manager"
           />
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button onClick={() => mutation.mutate()} disabled={mutation.isPending}>
-            {mutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-            Create role
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </Form.Item>
+      </Form>
+      <PermissionMatrix
+        permissions={permissions}
+        value={permissionIds}
+        onChange={setPermissionIds}
+      />
+    </Modal>
   );
 }
 
-// --- Edit role modal ---
+// --- Edit ---
 function EditRoleModal({
   roleId,
   open,
@@ -348,6 +298,7 @@ function EditRoleModal({
   permissions: PermissionResponse[];
   onUpdated: () => void;
 }) {
+  const { message } = AntdApp.useApp();
   const [name, setName] = useState("");
   const [permissionIds, setPermissionIds] = useState<string[]>([]);
 
@@ -384,51 +335,41 @@ function EditRoleModal({
       return res.message ?? "Role updated";
     },
     onSuccess: (msg) => {
-      toast.success(msg);
+      message.success(msg);
       onUpdated();
       onOpenChange(false);
     },
-    onError: (err: Error) => toast.error(err.message),
+    onError: (err: Error) => message.error(err.message),
   });
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{data?.name ?? "Edit role"}</DialogTitle>
-          <DialogDescription>
-            Rename the role or change its permission set.
-          </DialogDescription>
-        </DialogHeader>
-        {isLoading || !data ? (
-          <div className="space-y-3">
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-80 w-full" />
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <div className="space-y-1.5">
-              <Label>Name</Label>
+    <Modal
+      open={open}
+      onCancel={() => onOpenChange(false)}
+      title={data?.name ?? "Edit role"}
+      width={1000}
+      confirmLoading={mutation.isPending}
+      okText="Save changes"
+      onOk={() => mutation.mutate()}
+      destroyOnClose
+    >
+      {isLoading || !data ? (
+        <Skeleton active paragraph={{ rows: 8 }} />
+      ) : (
+        <>
+          <Form layout="vertical" requiredMark={false}>
+            <Form.Item label="Name" required>
               <Input value={name} onChange={(e) => setName(e.target.value)} />
-            </div>
-            <PermissionMatrix
-              permissions={permissions}
-              value={permissionIds}
-              onChange={setPermissionIds}
-            />
-          </div>
-        )}
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button onClick={() => mutation.mutate()} disabled={mutation.isPending}>
-            {mutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-            Save changes
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+            </Form.Item>
+          </Form>
+          <PermissionMatrix
+            permissions={permissions}
+            value={permissionIds}
+            onChange={setPermissionIds}
+          />
+        </>
+      )}
+    </Modal>
   );
 }
 
@@ -452,11 +393,8 @@ function PermissionMatrix({ permissions, value, onChange }: PermissionMatrixProp
   const valueSet = useMemo(() => new Set(value), [value]);
 
   function toggle(id: string) {
-    if (valueSet.has(id)) {
-      onChange(value.filter((v) => v !== id));
-    } else {
-      onChange([...value, id]);
-    }
+    if (valueSet.has(id)) onChange(value.filter((v) => v !== id));
+    else onChange([...value, id]);
   }
 
   const groups = useMemo(() => {
@@ -481,8 +419,7 @@ function PermissionMatrix({ permissions, value, onChange }: PermissionMatrixProp
     const ids = groupItems.map((p) => p.id);
     const idSet = new Set(ids);
     if (select) {
-      const next = Array.from(new Set([...value, ...ids]));
-      onChange(next);
+      onChange(Array.from(new Set([...value, ...ids])));
     } else {
       onChange(value.filter((id) => !idSet.has(id)));
     }
@@ -493,49 +430,36 @@ function PermissionMatrix({ permissions, value, onChange }: PermissionMatrixProp
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="text-sm">
           <span className="font-medium">{value.length}</span>
-          <span className="text-muted-foreground">
-            {" "}
-            of {permissions.length} selected
-          </span>
+          <span className="text-muted-foreground"> of {permissions.length} selected</span>
         </div>
-        <div className="flex gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => onChange(permissions.map((p) => p.id))}
-          >
+        <Space size={4}>
+          <Button size="small" onClick={() => onChange(permissions.map((p) => p.id))}>
             Select all
           </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => onChange([])}
-          >
+          <Button size="small" onClick={() => onChange([])}>
             Clear all
           </Button>
-        </div>
+        </Space>
       </div>
 
-      <div className="relative">
-        <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          className="pl-8"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Filter permissions…"
-        />
-      </div>
+      <Input
+        prefix={<SearchOutlined />}
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="Filter permissions…"
+        allowClear
+      />
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
         {groups.map((g) => {
           const allSelected = g.items.every((p) => valueSet.has(p.id));
           const someSelected = g.items.some((p) => valueSet.has(p.id));
           return (
-            <Card key={g.key} className={cn(someSelected && "border-primary/40")}>
-              <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
-                <CardTitle className="text-sm">{g.label}</CardTitle>
+            <Card
+              key={g.key}
+              size="small"
+              title={g.label}
+              extra={
                 <button
                   type="button"
                   className="text-xs text-primary hover:underline"
@@ -543,23 +467,25 @@ function PermissionMatrix({ permissions, value, onChange }: PermissionMatrixProp
                 >
                   {allSelected ? "Clear" : "Select all"}
                 </button>
-              </CardHeader>
-              <CardContent className="space-y-1 pt-0">
+              }
+              className={someSelected ? "border-primary/40" : undefined}
+            >
+              <div className="space-y-1">
                 {g.items.map((p) => (
-                  <Label
+                  <label
                     key={p.id}
                     className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 hover:bg-accent"
                   >
                     <Checkbox
                       checked={valueSet.has(p.id)}
-                      onCheckedChange={() => toggle(p.id)}
+                      onChange={() => toggle(p.id)}
                     />
-                    <span className="text-sm font-normal">
+                    <span className="text-sm">
                       {humanPermissionName(p.name)}
                     </span>
-                  </Label>
+                  </label>
                 ))}
-              </CardContent>
+              </div>
             </Card>
           );
         })}

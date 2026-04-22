@@ -1,14 +1,5 @@
 import { useState } from "react";
-import { Loader2 } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
+import { Modal } from "antd";
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -44,26 +35,18 @@ export function ConfirmDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-sm">
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          {description && <DialogDescription>{description}</DialogDescription>}
-        </DialogHeader>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            {cancelLabel}
-          </Button>
-          <Button
-            variant={destructive ? "destructive" : "default"}
-            onClick={handleConfirm}
-            disabled={loading}
-          >
-            {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-            {confirmLabel}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <Modal
+      open={open}
+      title={title}
+      onOk={handleConfirm}
+      onCancel={() => onOpenChange(false)}
+      confirmLoading={loading}
+      okText={confirmLabel}
+      cancelText={cancelLabel}
+      okButtonProps={destructive ? { danger: true } : undefined}
+      destroyOnClose
+    >
+      {description && <p className="text-sm text-muted-foreground">{description}</p>}
+    </Modal>
   );
 }

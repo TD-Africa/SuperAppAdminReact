@@ -1,7 +1,28 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
-import { Ban, Download, Pencil, Plus, RotateCcw } from "lucide-react";
+import {
+  Card,
+  Input,
+  Select,
+  Typography,
+  App as AntdApp,
+  Table,
+  Button,
+  Space,
+  Tag,
+  Switch,
+  DatePicker,
+  Form,
+} from "antd";
+import type { TableColumnsType } from "antd";
+import {
+  DownloadOutlined,
+  EditOutlined,
+  PlusOutlined,
+  StopOutlined,
+  UndoOutlined,
+} from "@ant-design/icons";
+import type { Dayjs } from "dayjs";
 import { apiGet, apiPatch, API_BASE_URL } from "@/lib/api";
 import type {
   CustomerResponse,
@@ -12,49 +33,34 @@ import { UserStatusValues } from "@/lib/types";
 import { Permission } from "@/lib/permissions";
 import { useAuthStore } from "@/stores/auth";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { DataTablePagination } from "@/components/DataTablePagination";
+import { formatDate, formatNumber } from "@/lib/utils";
 import { PromptDialog } from "@/components/PromptDialog";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { CreateCustomerModal } from "@/components/customers/CreateCustomerModal";
 import { EditCustomerModal } from "@/components/customers/EditCustomerModal";
-import { formatDate, formatNumber } from "@/lib/utils";
 
+const { RangePicker } = DatePicker;
 const ALL = "__all__";
+
+const statusColor: Record<UserStatus, "success" | "warning" | "error" | "default"> = {
+  Active: "success",
+  Pending: "warning",
+  Suspended: "error",
+  Rejected: "error",
+  Incomplete: "default",
+};
 
 export default function CustomersPage() {
   const queryClient = useQueryClient();
+  const { message } = AntdApp.useApp();
   const canEdit = useAuthStore((s) => s.hasPermission(Permission.CanEditUser));
   const canCreate = useAuthStore((s) => s.hasPermission(Permission.CanCreateUser));
 
   const [keyword, setKeyword] = useState("");
   const debouncedKeyword = useDebouncedValue(keyword, 350);
   const [status, setStatus] = useState<string>(ALL);
-  const [joinedStart, setJoinedStart] = useState("");
-  const [joinedEnd, setJoinedEnd] = useState("");
-  const [orderStart, setOrderStart] = useState("");
-  const [orderEnd, setOrderEnd] = useState("");
+  const [joinedRange, setJoinedRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
+  const [orderRange, setOrderRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
 
@@ -70,12 +76,14 @@ export default function CustomersPage() {
     params.set("PageNumber", String(page));
     if (debouncedKeyword.trim()) params.set("SearchString", debouncedKeyword.trim());
     if (status !== ALL) params.set("status", status);
-    if (joinedStart) params.set("joinedStartDate", joinedStart);
-    if (joinedEnd) params.set("joinedEndDate", joinedEnd);
-    if (orderStart) params.set("orderStartDate", orderStart);
-    if (orderEnd) params.set("orderEndDate", orderEnd);
+    const [js, je] = joinedRange ?? [null, null];
+    if (js) params.set("joinedStartDate", js.format("YYYY-MM-DD"));
+    if (je) params.set("joinedEndDate", je.format("YYYY-MM-DD"));
+    const [os, oe] = orderRange ?? [null, null];
+    if (os) params.set("orderStartDate", os.format("YYYY-MM-DD"));
+    if (oe) params.set("orderEndDate", oe.format("YYYY-MM-DD"));
     return params;
-  }, [pageSize, page, debouncedKeyword, status, joinedStart, joinedEnd, orderStart, orderEnd]);
+  }, [pageSize, page, debouncedKeyword, status, joinedRange, orderRange]);
 
   const queryKey = ["customers", queryParams.toString()];
 
@@ -104,10 +112,10 @@ export default function CustomersPage() {
       enableCreditTransactions: value,
     });
     if (!res.status) {
-      toast.error(res.message ?? "Update failed");
+      message.error(res.message ?? "Update failed");
       queryClient.setQueryData(queryKey, prev);
     } else {
-      toast.success(res.message ?? "Updated");
+      message.success(res.message ?? "Updated");
     }
   }
 
@@ -117,10 +125,10 @@ export default function CustomersPage() {
       reasonForSuspension: reason,
     });
     if (!res.status) {
-      toast.error(res.message ?? "Suspend failed");
+      message.error(res.message ?? "Suspend failed");
       return;
     }
-    toast.success(res.message ?? "Customer suspended");
+    message.success(res.message ?? "Customer suspended");
     refetch();
   }
 
@@ -129,10 +137,10 @@ export default function CustomersPage() {
       suspend: false,
     });
     if (!res.status) {
-      toast.error(res.message ?? "Reactivate failed");
+      message.error(res.message ?? "Reactivate failed");
       return;
     }
-    toast.success(res.message ?? "Customer reactivated");
+    message.success(res.message ?? "Customer reactivated");
     refetch();
   }
 
@@ -147,253 +155,185 @@ export default function CustomersPage() {
   function clearFilters() {
     setKeyword("");
     setStatus(ALL);
-    setJoinedStart("");
-    setJoinedEnd("");
-    setOrderStart("");
-    setOrderEnd("");
+    setJoinedRange(null);
+    setOrderRange(null);
     setPage(1);
   }
 
   const rows = data?.data ?? [];
   const totalItems = Number(data?.count ?? 0);
 
-  const statusVariant: Record<UserStatus, "success" | "warning" | "destructive" | "secondary"> = {
-    Active: "success",
-    Pending: "warning",
-    Suspended: "destructive",
-    Rejected: "destructive",
-    Incomplete: "secondary",
-  };
+  const columns: TableColumnsType<CustomerResponse> = [
+    { title: "Company", dataIndex: "companyName", render: (v) => <span className="font-medium">{v ?? "—"}</span> },
+    { title: "Email", dataIndex: "email", render: (v) => <span className="text-xs">{v ?? "—"}</span> },
+    { title: "Phone", dataIndex: "phoneNumber", render: (v) => <span className="text-xs">{v ?? "—"}</span> },
+    {
+      title: "Dynamics ID",
+      dataIndex: "dynamicsId",
+      render: (v) => <span className="text-xs text-muted-foreground">{v ?? "—"}</span>,
+    },
+    {
+      title: "Status",
+      dataIndex: "userStatus",
+      render: (v: UserStatus) => <Tag color={statusColor[v] ?? "default"}>{v}</Tag>,
+    },
+    {
+      title: "Orders",
+      dataIndex: "numberOfOrders",
+      align: "right",
+      render: (v) => formatNumber(v ?? 0),
+    },
+    {
+      title: "Last order",
+      dataIndex: "lastOrderDate",
+      render: (v) => <span className="text-xs text-muted-foreground">{v ? formatDate(v) : "—"}</span>,
+    },
+    {
+      title: "Credit txns",
+      dataIndex: "isCreditTransactionEnabled",
+      render: (v: boolean, r) => (
+        <Switch checked={v} disabled={!canEdit} onChange={(val) => toggleCreditTransactions(r, val)} />
+      ),
+    },
+    {
+      title: "",
+      key: "actions",
+      width: 140,
+      align: "right",
+      render: (_, r) => (
+        <Space size={4}>
+          <Button
+            size="small"
+            icon={<EditOutlined />}
+            onClick={() => {
+              setEditId(r.id);
+              setEditOpen(true);
+            }}
+          />
+          {canEdit && !r.isSuspended && (
+            <Button
+              size="small"
+              danger
+              icon={<StopOutlined />}
+              onClick={() => setSuspendTarget(r)}
+              title="Suspend"
+            />
+          )}
+          {canEdit && r.isSuspended && (
+            <Button
+              size="small"
+              icon={<UndoOutlined />}
+              onClick={() => setReactivateTarget(r)}
+              title="Reactivate"
+            />
+          )}
+        </Space>
+      ),
+    },
+  ];
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Customers</h1>
-          <p className="text-sm text-muted-foreground">
+          <Typography.Title level={3} className="!m-0">
+            Customers
+          </Typography.Title>
+          <Typography.Text type="secondary">
             Browse partner/reseller accounts, credit status, and order history.
-          </p>
+          </Typography.Text>
         </div>
         {canCreate && (
-          <Button onClick={() => setCreateOpen(true)}>
-            <Plus className="h-4 w-4" /> New customer
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>
+            New customer
           </Button>
         )}
       </div>
 
-      <Card>
-        <CardContent className="grid gap-3 p-4 md:grid-cols-12">
-          <Input
-            className="md:col-span-8"
-            placeholder="Search by company, email, phone, Dynamics ID…"
-            value={keyword}
-            onChange={(e) => {
-              setPage(1);
-              setKeyword(e.target.value);
-            }}
-          />
-          <Select
-            value={status}
-            onValueChange={(v) => {
-              setPage(1);
-              setStatus(v);
-            }}
-          >
-            <SelectTrigger className="md:col-span-4">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>All statuses</SelectItem>
-              {UserStatusValues.map((s) => (
-                <SelectItem key={s} value={s}>
-                  {s}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <div className="space-y-2 md:col-span-6">
-            <Label className="text-xs text-muted-foreground">Joined date range</Label>
-            <div className="grid grid-cols-2 gap-2">
+      <Card styles={{ body: { padding: 16 } }}>
+        <Form layout="vertical">
+          <div className="grid gap-3 md:grid-cols-12">
+            <Form.Item className="md:col-span-8 !mb-0" label="Search">
               <Input
-                type="date"
-                value={joinedStart}
+                placeholder="Search by company, email, phone, Dynamics ID…"
+                value={keyword}
+                allowClear
                 onChange={(e) => {
                   setPage(1);
-                  setJoinedStart(e.target.value);
+                  setKeyword(e.target.value);
                 }}
               />
-              <Input
-                type="date"
-                value={joinedEnd}
-                onChange={(e) => {
+            </Form.Item>
+            <Form.Item className="md:col-span-4 !mb-0" label="Status">
+              <Select
+                value={status}
+                onChange={(v) => {
                   setPage(1);
-                  setJoinedEnd(e.target.value);
+                  setStatus(v);
                 }}
+                options={[
+                  { value: ALL, label: "All statuses" },
+                  ...UserStatusValues.map((s) => ({ value: s, label: s })),
+                ]}
               />
-            </div>
+            </Form.Item>
+            <Form.Item className="md:col-span-6 !mb-0" label="Joined date range">
+              <RangePicker
+                className="w-full"
+                value={joinedRange}
+                onChange={(v) => setJoinedRange(v ? [v[0], v[1]] : null)}
+              />
+            </Form.Item>
+            <Form.Item className="md:col-span-6 !mb-0" label="Order date range">
+              <RangePicker
+                className="w-full"
+                value={orderRange}
+                onChange={(v) => setOrderRange(v ? [v[0], v[1]] : null)}
+              />
+            </Form.Item>
           </div>
-          <div className="space-y-2 md:col-span-6">
-            <Label className="text-xs text-muted-foreground">Order date range</Label>
-            <div className="grid grid-cols-2 gap-2">
-              <Input
-                type="date"
-                value={orderStart}
-                onChange={(e) => {
-                  setPage(1);
-                  setOrderStart(e.target.value);
-                }}
-              />
-              <Input
-                type="date"
-                value={orderEnd}
-                onChange={(e) => {
-                  setPage(1);
-                  setOrderEnd(e.target.value);
-                }}
-              />
-            </div>
-          </div>
-
-          <div className="flex items-end md:col-span-12">
-            <Button variant="outline" size="sm" onClick={clearFilters}>
+          <div className="mt-3">
+            <Button size="small" onClick={clearFilters}>
               Clear filters
             </Button>
           </div>
-        </CardContent>
+        </Form>
       </Card>
 
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="text-sm text-muted-foreground">
+        <span className="text-sm text-muted-foreground">
           {isFetching && !isLoading ? "Refreshing…" : null}
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={downloadFiltered}>
-            <Download className="h-4 w-4" /> Download (filtered)
+        </span>
+        <Space>
+          <Button icon={<DownloadOutlined />} onClick={downloadFiltered}>
+            Download (filtered)
           </Button>
-          <Button variant="outline" onClick={downloadAll}>
-            <Download className="h-4 w-4" /> Download all
+          <Button icon={<DownloadOutlined />} onClick={downloadAll}>
+            Download all
           </Button>
-        </div>
+        </Space>
       </div>
 
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Company</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Phone</TableHead>
-                <TableHead>Dynamics ID</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Orders</TableHead>
-                <TableHead>Last order</TableHead>
-                <TableHead>Credit txns</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                Array.from({ length: 6 }).map((_, i) => (
-                  <TableRow key={i}>
-                    <TableCell colSpan={9}>
-                      <Skeleton className="h-8 w-full" />
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : rows.length === 0 ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={9}
-                    className="py-10 text-center text-muted-foreground"
-                  >
-                    No customers match the current filters.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                rows.map((c) => (
-                  <TableRow key={c.id}>
-                    <TableCell className="font-medium">
-                      {c.companyName ?? "—"}
-                    </TableCell>
-                    <TableCell className="text-xs">{c.email ?? "—"}</TableCell>
-                    <TableCell className="text-xs">{c.phoneNumber ?? "—"}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {c.dynamicsId ?? "—"}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={statusVariant[c.userStatus] ?? "default"}>
-                        {c.userStatus}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {formatNumber(c.numberOfOrders ?? 0)}
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {c.lastOrderDate ? formatDate(c.lastOrderDate) : "—"}
-                    </TableCell>
-                    <TableCell>
-                      <Switch
-                        checked={c.isCreditTransactionEnabled}
-                        disabled={!canEdit}
-                        onCheckedChange={(v) => toggleCreditTransactions(c, v)}
-                      />
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => {
-                            setEditId(c.id);
-                            setEditOpen(true);
-                          }}
-                          title="Edit"
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        {canEdit && !c.isSuspended && (
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="h-8 w-8 text-destructive"
-                            onClick={() => setSuspendTarget(c)}
-                            title="Suspend"
-                          >
-                            <Ban className="h-4 w-4" />
-                          </Button>
-                        )}
-                        {canEdit && c.isSuspended && (
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="h-8 w-8 text-emerald-600"
-                            onClick={() => setReactivateTarget(c)}
-                            title="Reactivate"
-                          >
-                            <RotateCcw className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-          <DataTablePagination
-            page={page}
-            pageSize={pageSize}
-            totalItems={totalItems}
-            onPageChange={setPage}
-            onPageSizeChange={(s) => {
-              setPageSize(s);
-              setPage(1);
-            }}
-          />
-        </CardContent>
+      <Card styles={{ body: { padding: 0 } }}>
+        <Table<CustomerResponse>
+          rowKey="id"
+          dataSource={rows}
+          columns={columns}
+          loading={isLoading || isFetching}
+          pagination={{
+            current: page,
+            pageSize,
+            total: totalItems,
+            showSizeChanger: true,
+            pageSizeOptions: [10, 20, 50, 100],
+            onChange: (p, ps) => {
+              setPage(p);
+              setPageSize(ps);
+            },
+          }}
+          scroll={{ x: 1200 }}
+          locale={{ emptyText: "No customers match the current filters." }}
+        />
       </Card>
 
       <CreateCustomerModal

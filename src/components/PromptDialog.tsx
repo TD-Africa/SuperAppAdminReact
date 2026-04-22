@@ -1,16 +1,5 @@
 import { useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { Modal, Input, Form } from "antd";
 
 interface PromptDialogProps {
   open: boolean;
@@ -60,36 +49,33 @@ export function PromptDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          {description && <DialogDescription>{description}</DialogDescription>}
-        </DialogHeader>
-        <div className="space-y-2">
-          <Label htmlFor="prompt-value">{label}</Label>
-          <Textarea
-            id="prompt-value"
+    <Modal
+      open={open}
+      title={title}
+      onOk={handleConfirm}
+      onCancel={() => onOpenChange(false)}
+      confirmLoading={loading}
+      okText={confirmLabel}
+      cancelText={cancelLabel}
+      okButtonProps={{
+        danger: destructive,
+        disabled: required && !value.trim(),
+      }}
+      destroyOnClose
+    >
+      {description && (
+        <p className="mb-3 text-sm text-muted-foreground">{description}</p>
+      )}
+      <Form layout="vertical">
+        <Form.Item label={label} className="!mb-0">
+          <Input.TextArea
             rows={3}
             value={value}
             placeholder={placeholder}
             onChange={(e) => setValue(e.target.value)}
           />
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            {cancelLabel}
-          </Button>
-          <Button
-            variant={destructive ? "destructive" : "default"}
-            onClick={handleConfirm}
-            disabled={loading || (required && !value.trim())}
-          >
-            {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-            {confirmLabel}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </Form.Item>
+      </Form>
+    </Modal>
   );
 }

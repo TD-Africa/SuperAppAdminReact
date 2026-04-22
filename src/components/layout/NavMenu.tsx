@@ -1,98 +1,120 @@
-import { NavLink } from "react-router-dom";
+import { useMemo } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { Menu } from "antd";
+import type { MenuProps } from "antd";
 import {
-  LayoutDashboard,
-  Package,
-  ShoppingCart,
-  Users,
-  FileText,
-  BadgeCheck,
-  Tag,
-  Layers,
-  Store,
-  Warehouse,
-  Ticket,
-  Star,
-  MailQuestion,
-  MessagesSquare,
-  UserCog,
-  ShieldCheck,
-  type LucideIcon,
-} from "lucide-react";
-import { cn } from "@/lib/utils";
+  DashboardOutlined,
+  AppstoreOutlined,
+  ShoppingCartOutlined,
+  TeamOutlined,
+  IdcardOutlined,
+  SafetyCertificateOutlined,
+  TagsOutlined,
+  GroupOutlined,
+  ShopOutlined,
+  ContainerOutlined,
+  CustomerServiceOutlined,
+  StarOutlined,
+  MailOutlined,
+  SolutionOutlined,
+  UserSwitchOutlined,
+  KeyOutlined,
+  PercentageOutlined,
+  HistoryOutlined,
+} from "@ant-design/icons";
 import { useAuthStore } from "@/stores/auth";
 import { Permission } from "@/lib/permissions";
 
 interface NavItem {
   to: string;
   label: string;
-  icon: LucideIcon;
+  icon: React.ReactNode;
   permission: Permission;
-  end?: boolean;
+  /** If true, only exact match on pathname counts as active (for the home route). */
+  exact?: boolean;
 }
 
-// Mirror of SuperAppAdminWeb/Layout/NavMenu.razor
 const NAV_ITEMS: NavItem[] = [
-  { to: "/", label: "Home", icon: LayoutDashboard, permission: Permission.CanViewDashboard, end: true },
-  { to: "/products", label: "Products", icon: Package, permission: Permission.CanViewProducts },
-  { to: "/orders", label: "Orders", icon: ShoppingCart, permission: Permission.CanViewOrders },
-  { to: "/customers", label: "Customers", icon: Users, permission: Permission.CanViewUser },
-  { to: "/cac-data", label: "CAC Data", icon: FileText, permission: Permission.CanViewUser },
-  { to: "/kyc", label: "KYC", icon: BadgeCheck, permission: Permission.CanEditUser },
-  { to: "/promos", label: "Promos", icon: Tag, permission: Permission.CanViewPromos },
-  { to: "/promos-audit-logs", label: "Promos Audit Logs", icon: FileText, permission: Permission.CanViewPromos },
-  { to: "/product-groups", label: "Product Groups", icon: Layers, permission: Permission.CanViewProductGroup },
-  { to: "/brands", label: "Brands", icon: Store, permission: Permission.CanViewBrands },
-  { to: "/deals", label: "Deals", icon: Tag, permission: Permission.CanViewBrands },
-  { to: "/deals-audit-logs", label: "Deals Audit Logs", icon: FileText, permission: Permission.CanViewBrands },
-  { to: "/warehouses", label: "Warehouses", icon: Warehouse, permission: Permission.CanViewWarehouses },
-  { to: "/tickets", label: "Tickets", icon: Ticket, permission: Permission.CanViewTicket },
-  { to: "/ratings", label: "Ratings", icon: Star, permission: Permission.CanViewRatings },
-  { to: "/email-requests", label: "Email Change Requests", icon: MailQuestion, permission: Permission.CanViewEmailChangeRequests },
-  { to: "/request-appeals", label: "Request Appeals", icon: MessagesSquare, permission: Permission.CanViewRequestAppeals },
-  { to: "/admin-users", label: "Admin Users", icon: UserCog, permission: Permission.CanViewSubUser },
-  { to: "/roles", label: "Roles", icon: ShieldCheck, permission: Permission.CanViewRoles },
+  { to: "/", label: "Home", icon: <DashboardOutlined />, permission: Permission.CanViewDashboard, exact: true },
+  { to: "/products", label: "Products", icon: <AppstoreOutlined />, permission: Permission.CanViewProducts },
+  { to: "/orders", label: "Orders", icon: <ShoppingCartOutlined />, permission: Permission.CanViewOrders },
+  { to: "/customers", label: "Customers", icon: <TeamOutlined />, permission: Permission.CanViewUser },
+  { to: "/cac-data", label: "CAC Data", icon: <IdcardOutlined />, permission: Permission.CanViewUser },
+  { to: "/kyc", label: "KYC", icon: <SafetyCertificateOutlined />, permission: Permission.CanEditUser },
+  { to: "/promos", label: "Promos", icon: <PercentageOutlined />, permission: Permission.CanViewPromos },
+  { to: "/promos-audit-logs", label: "Promos Audit Logs", icon: <HistoryOutlined />, permission: Permission.CanViewPromos },
+  { to: "/product-groups", label: "Product Groups", icon: <GroupOutlined />, permission: Permission.CanViewProductGroup },
+  { to: "/brands", label: "Brands", icon: <ShopOutlined />, permission: Permission.CanViewBrands },
+  { to: "/deals", label: "Deals", icon: <TagsOutlined />, permission: Permission.CanViewBrands },
+  { to: "/deals-audit-logs", label: "Deals Audit Logs", icon: <HistoryOutlined />, permission: Permission.CanViewBrands },
+  { to: "/warehouses", label: "Warehouses", icon: <ContainerOutlined />, permission: Permission.CanViewWarehouses },
+  { to: "/tickets", label: "Tickets", icon: <CustomerServiceOutlined />, permission: Permission.CanViewTicket },
+  { to: "/ratings", label: "Ratings", icon: <StarOutlined />, permission: Permission.CanViewRatings },
+  { to: "/email-requests", label: "Email Change Requests", icon: <MailOutlined />, permission: Permission.CanViewEmailChangeRequests },
+  { to: "/request-appeals", label: "Request Appeals", icon: <SolutionOutlined />, permission: Permission.CanViewRequestAppeals },
+  { to: "/admin-users", label: "Admin Users", icon: <UserSwitchOutlined />, permission: Permission.CanViewSubUser },
+  { to: "/roles", label: "Roles", icon: <KeyOutlined />, permission: Permission.CanViewRoles },
 ];
 
-export function NavMenu() {
+interface NavMenuProps {
+  collapsed: boolean;
+  onNavigate?: () => void;
+}
+
+export function NavMenu({ collapsed, onNavigate }: NavMenuProps) {
+  const navigate = useNavigate();
+  const location = useLocation();
   const hasPermission = useAuthStore((s) => s.hasPermission);
-  const items = NAV_ITEMS.filter((i) => hasPermission(i.permission));
+
+  const items: MenuProps["items"] = useMemo(
+    () =>
+      NAV_ITEMS.filter((i) => hasPermission(i.permission)).map((i) => ({
+        key: i.to,
+        icon: i.icon,
+        label: i.label,
+      })),
+    [hasPermission],
+  );
+
+  const activeKey = useMemo(() => {
+    const path = location.pathname;
+    if (path === "/") return "/";
+    // Pick the longest matching prefix among available nav items.
+    const matches = NAV_ITEMS.filter((i) => !i.exact && path.startsWith(i.to)).sort(
+      (a, b) => b.to.length - a.to.length,
+    );
+    return matches[0]?.to ?? "/";
+  }, [location.pathname]);
+
+  function onClick({ key }: { key: string }) {
+    navigate(key);
+    onNavigate?.();
+  }
 
   return (
-    <nav className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
-      <div className="flex h-16 items-center gap-2 border-b border-sidebar-border px-6">
-        <div className="grid h-8 w-8 place-items-center rounded-md bg-sidebar-accent text-sidebar-accent-foreground font-bold">
-          TD
-        </div>
-        <span className="text-base font-semibold tracking-tight">
-          SuperApp Admin
-        </span>
+    <>
+      <div
+        className={
+          collapsed
+            ? "flex h-16 items-center justify-center border-b border-sidebar-border"
+            : "flex h-16 items-center justify-center border-b border-sidebar-border px-3"
+        }
+      >
+        <img
+          src="/logo.png"
+          alt="TDAfrica SuperApp"
+          className={collapsed ? "h-10 w-10 object-contain" : "max-h-12 w-auto object-contain"}
+        />
       </div>
-      <div className="flex-1 overflow-y-auto py-4">
-        <ul className="space-y-0.5 px-3">
-          {items.map((item) => {
-            const Icon = item.icon;
-            return (
-              <li key={item.to}>
-                <NavLink
-                  to={item.to}
-                  end={item.end}
-                  className={({ isActive }) =>
-                    cn(
-                      "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                      "hover:bg-sidebar-accent/20 hover:text-sidebar-foreground",
-                      isActive &&
-                        "bg-sidebar-accent text-sidebar-accent-foreground shadow-sm",
-                    )
-                  }
-                >
-                  <Icon className="h-4 w-4 shrink-0" />
-                  <span className="truncate">{item.label}</span>
-                </NavLink>
-              </li>
-            );
-          })}
-        </ul>
-      </div>
-    </nav>
+      <Menu
+        theme="dark"
+        mode="inline"
+        selectedKeys={[activeKey]}
+        onClick={onClick}
+        items={items}
+        inlineCollapsed={collapsed}
+        className="border-0 bg-transparent py-3"
+      />
+    </>
   );
 }

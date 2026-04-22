@@ -1,7 +1,25 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
-import { Eye, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import {
+  Card,
+  Input,
+  Typography,
+  App as AntdApp,
+  Table,
+  Button,
+  Space,
+  Modal,
+  Form,
+  Skeleton,
+  Empty,
+} from "antd";
+import type { TableColumnsType } from "antd";
+import {
+  EyeOutlined,
+  EditOutlined,
+  PlusOutlined,
+  DeleteOutlined,
+} from "@ant-design/icons";
 import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api";
 import type {
   BaseProductReturnDto,
@@ -12,28 +30,6 @@ import type {
 import { Permission } from "@/lib/permissions";
 import { useAuthStore } from "@/stores/auth";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { DataTablePagination } from "@/components/DataTablePagination";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { ProductSearchMultiSelect } from "@/components/ProductSearchMultiSelect";
 import { ProductDetailModal } from "@/components/products/ProductDetailModal";
@@ -41,12 +37,8 @@ import { ProductDetailModal } from "@/components/products/ProductDetailModal";
 export default function ProductGroupsPage() {
   const queryClient = useQueryClient();
   const canEdit = useAuthStore((s) => s.hasPermission(Permission.CanEditProductGroup));
-  const canCreate = useAuthStore((s) =>
-    s.hasPermission(Permission.CanCreateProductGroup),
-  );
-  const canDelete = useAuthStore((s) =>
-    s.hasPermission(Permission.CanDeleteProductGroup),
-  );
+  const canCreate = useAuthStore((s) => s.hasPermission(Permission.CanCreateProductGroup));
+  const canDelete = useAuthStore((s) => s.hasPermission(Permission.CanDeleteProductGroup));
 
   const [keyword, setKeyword] = useState("");
   const debouncedKeyword = useDebouncedValue(keyword, 350);
@@ -83,6 +75,37 @@ export default function ProductGroupsPage() {
   const rows = data?.data ?? [];
   const totalItems = Number(data?.count ?? 0);
 
+  const columns: TableColumnsType<ProductGroupResponse> = [
+    { title: "Name", dataIndex: "name", render: (v) => <span className="font-medium">{v}</span> },
+    {
+      title: "ID",
+      dataIndex: "id",
+      render: (v) => <span className="font-mono text-xs text-muted-foreground">{v.slice(0, 8)}</span>,
+    },
+    {
+      title: "",
+      key: "actions",
+      width: 140,
+      align: "right",
+      render: (_, r) => (
+        <Space size={4}>
+          <Button size="small" icon={<EyeOutlined />} onClick={() => setDetailId(r.id)} />
+          {canEdit && (
+            <Button size="small" icon={<EditOutlined />} onClick={() => setEditId(r.id)} />
+          )}
+          {canDelete && (
+            <Button
+              size="small"
+              danger
+              icon={<DeleteOutlined />}
+              onClick={() => setDeleteTarget(r)}
+            />
+          )}
+        </Space>
+      ),
+    },
+  ];
+
   async function invalidateAll() {
     await queryClient.invalidateQueries({ queryKey: ["product-groups"] });
   }
@@ -91,121 +114,51 @@ export default function ProductGroupsPage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Product Groups</h1>
-          <p className="text-sm text-muted-foreground">
+          <Typography.Title level={3} className="!m-0">
+            Product Groups
+          </Typography.Title>
+          <Typography.Text type="secondary">
             Bundle products together for easier merchandising.
-          </p>
+          </Typography.Text>
         </div>
         {canCreate && (
-          <Button onClick={() => setCreateOpen(true)}>
-            <Plus className="h-4 w-4" /> New group
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>
+            New group
           </Button>
         )}
       </div>
 
-      <Card>
-        <CardContent className="p-4">
-          <Input
-            placeholder="Search by group name…"
-            value={keyword}
-            onChange={(e) => {
-              setPage(1);
-              setKeyword(e.target.value);
-            }}
-          />
-        </CardContent>
+      <Card styles={{ body: { padding: 16 } }}>
+        <Input
+          placeholder="Search by group name…"
+          value={keyword}
+          allowClear
+          onChange={(e) => {
+            setPage(1);
+            setKeyword(e.target.value);
+          }}
+        />
       </Card>
 
-      <div className="text-sm text-muted-foreground">
-        {isFetching && !isLoading ? "Refreshing…" : null}
-      </div>
-
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>ID</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                Array.from({ length: 6 }).map((_, i) => (
-                  <TableRow key={i}>
-                    <TableCell colSpan={3}>
-                      <Skeleton className="h-8 w-full" />
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : rows.length === 0 ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={3}
-                    className="py-10 text-center text-muted-foreground"
-                  >
-                    No product groups yet.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                rows.map((g) => (
-                  <TableRow key={g.id}>
-                    <TableCell className="font-medium">{g.name}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {g.id.slice(0, 8)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => setDetailId(g.id)}
-                          title="View"
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        {canEdit && (
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => setEditId(g.id)}
-                            title="Edit"
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                        )}
-                        {canDelete && (
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="h-8 w-8 text-destructive"
-                            onClick={() => setDeleteTarget(g)}
-                            title="Delete"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-          <DataTablePagination
-            page={page}
-            pageSize={pageSize}
-            totalItems={totalItems}
-            onPageChange={setPage}
-            onPageSizeChange={(s) => {
-              setPageSize(s);
-              setPage(1);
-            }}
-          />
-        </CardContent>
+      <Card styles={{ body: { padding: 0 } }}>
+        <Table<ProductGroupResponse>
+          rowKey="id"
+          dataSource={rows}
+          columns={columns}
+          loading={isLoading || isFetching}
+          pagination={{
+            current: page,
+            pageSize,
+            total: totalItems,
+            showSizeChanger: true,
+            pageSizeOptions: [10, 20, 50, 100],
+            onChange: (p, ps) => {
+              setPage(p);
+              setPageSize(ps);
+            },
+          }}
+          locale={{ emptyText: "No product groups yet." }}
+        />
       </Card>
 
       <CreateGroupModal
@@ -213,14 +166,12 @@ export default function ProductGroupsPage() {
         onOpenChange={setCreateOpen}
         onCreated={invalidateAll}
       />
-
       <EditGroupModal
         groupId={editId}
         open={!!editId}
         onOpenChange={(v) => !v && setEditId(null)}
         onUpdated={invalidateAll}
       />
-
       <DetailGroupModal
         groupId={detailId}
         open={!!detailId}
@@ -240,11 +191,7 @@ export default function ProductGroupsPage() {
           const res = await apiDelete<boolean>(
             `Product/DeleteProductGroup/${deleteTarget.id}`,
           );
-          if (!res.status) {
-            toast.error(res.message ?? "Delete failed");
-            throw new Error("delete-failed");
-          }
-          toast.success(res.message ?? "Group deleted");
+          if (!res.status) throw new Error("delete-failed");
           await invalidateAll();
         }}
       />
@@ -258,7 +205,7 @@ export default function ProductGroupsPage() {
   );
 }
 
-// --- Create modal ---
+// --- Create ---
 function CreateGroupModal({
   open,
   onOpenChange,
@@ -268,6 +215,7 @@ function CreateGroupModal({
   onOpenChange: (open: boolean) => void;
   onCreated: () => void;
 }) {
+  const { message } = AntdApp.useApp();
   const [name, setName] = useState("");
   const [productIds, setProductIds] = useState<string[]>([]);
 
@@ -280,60 +228,51 @@ function CreateGroupModal({
 
   const mutation = useMutation({
     mutationFn: async () => {
-      const trimmed = name.trim();
-      if (!trimmed) throw new Error("Name is required");
+      if (!name.trim()) throw new Error("Name is required");
       if (productIds.length === 0) throw new Error("Select at least one product");
       const res = await apiPost<boolean>("Product/CreateProductGroup", {
-        name: trimmed,
+        name: name.trim(),
         productIds,
       });
       if (!res.status) throw new Error(res.message ?? "Create failed");
       return res.message ?? "Group created";
     },
     onSuccess: (msg) => {
-      toast.success(msg);
+      message.success(msg);
       onCreated();
       onOpenChange(false);
     },
-    onError: (err: Error) => toast.error(err.message),
+    onError: (err: Error) => message.error(err.message),
   });
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>New product group</DialogTitle>
-          <DialogDescription>Give the group a title and pick its products.</DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4">
-          <div className="space-y-1.5">
-            <Label>Title</Label>
-            <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Summer essentials"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Products</Label>
-            <ProductSearchMultiSelect value={productIds} onChange={setProductIds} />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button onClick={() => mutation.mutate()} disabled={mutation.isPending}>
-            {mutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-            Create group
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <Modal
+      open={open}
+      onCancel={() => onOpenChange(false)}
+      title="New product group"
+      width={720}
+      confirmLoading={mutation.isPending}
+      okText="Create group"
+      onOk={() => mutation.mutate()}
+      destroyOnClose
+    >
+      <Form layout="vertical" requiredMark={false}>
+        <Form.Item label="Title" required>
+          <Input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. Summer essentials"
+          />
+        </Form.Item>
+        <Form.Item label="Products" required>
+          <ProductSearchMultiSelect value={productIds} onChange={setProductIds} />
+        </Form.Item>
+      </Form>
+    </Modal>
   );
 }
 
-// --- Edit modal ---
+// --- Edit ---
 function EditGroupModal({
   groupId,
   open,
@@ -345,6 +284,7 @@ function EditGroupModal({
   onOpenChange: (open: boolean) => void;
   onUpdated: () => void;
 }) {
+  const { message } = AntdApp.useApp();
   const [name, setName] = useState("");
   const [productIds, setProductIds] = useState<string[]>([]);
   const [initialSelection, setInitialSelection] = useState<MiniProductResponse[]>([]);
@@ -388,56 +328,45 @@ function EditGroupModal({
       return res.message ?? "Group updated";
     },
     onSuccess: (msg) => {
-      toast.success(msg);
+      message.success(msg);
       onUpdated();
       onOpenChange(false);
     },
-    onError: (err: Error) => toast.error(err.message),
+    onError: (err: Error) => message.error(err.message),
   });
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>{data?.name ?? "Edit group"}</DialogTitle>
-          <DialogDescription>Rename the group or swap its products.</DialogDescription>
-        </DialogHeader>
-        {isLoading || !data ? (
-          <div className="space-y-3">
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-40 w-full" />
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <div className="space-y-1.5">
-              <Label>Name</Label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Products</Label>
-              <ProductSearchMultiSelect
-                value={productIds}
-                onChange={setProductIds}
-                initialSelection={initialSelection}
-              />
-            </div>
-          </div>
-        )}
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button onClick={() => mutation.mutate()} disabled={mutation.isPending}>
-            {mutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-            Save changes
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <Modal
+      open={open}
+      onCancel={() => onOpenChange(false)}
+      title={data?.name ?? "Edit group"}
+      width={720}
+      confirmLoading={mutation.isPending}
+      okText="Save changes"
+      onOk={() => mutation.mutate()}
+      destroyOnClose
+    >
+      {isLoading || !data ? (
+        <Skeleton active paragraph={{ rows: 4 }} />
+      ) : (
+        <Form layout="vertical" requiredMark={false}>
+          <Form.Item label="Name" required>
+            <Input value={name} onChange={(e) => setName(e.target.value)} />
+          </Form.Item>
+          <Form.Item label="Products" required>
+            <ProductSearchMultiSelect
+              value={productIds}
+              onChange={setProductIds}
+              initialSelection={initialSelection}
+            />
+          </Form.Item>
+        </Form>
+      )}
+    </Modal>
   );
 }
 
-// --- Detail modal ---
+// --- Detail ---
 function DetailGroupModal({
   groupId,
   open,
@@ -462,57 +391,40 @@ function DetailGroupModal({
     enabled: !!groupId && open,
   });
 
+  const columns: TableColumnsType<BaseProductReturnDto> = [
+    { title: "Product", dataIndex: "productName", render: (v) => <span className="font-medium">{v}</span> },
+    {
+      title: "Dynamics ID",
+      dataIndex: "dynamicsId",
+      render: (v) => <span className="text-xs text-muted-foreground">{v ?? "—"}</span>,
+    },
+  ];
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>{data?.name ?? "Group"}</DialogTitle>
-          <DialogDescription>
-            {data ? `${data.products?.length ?? 0} products` : "Loading…"}
-          </DialogDescription>
-        </DialogHeader>
-        {isLoading || !data ? (
-          <Skeleton className="h-40 w-full" />
-        ) : (
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Product</TableHead>
-                  <TableHead>Dynamics ID</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data.products.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={2} className="py-6 text-center text-muted-foreground">
-                      Empty group.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  data.products.map((p: BaseProductReturnDto) => (
-                    <TableRow
-                      key={p.id}
-                      className="cursor-pointer"
-                      onClick={() => onOpenProduct(p.id)}
-                    >
-                      <TableCell className="font-medium">{p.productName}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        {p.dynamicsId ?? "—"}
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        )}
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Close
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <Modal
+      open={open}
+      onCancel={() => onOpenChange(false)}
+      title={data?.name ?? "Group"}
+      width={720}
+      footer={null}
+      destroyOnClose
+    >
+      {isLoading || !data ? (
+        <Skeleton active paragraph={{ rows: 4 }} />
+      ) : (
+        <Table<BaseProductReturnDto>
+          rowKey="id"
+          dataSource={data.products}
+          columns={columns}
+          pagination={false}
+          size="small"
+          locale={{ emptyText: <Empty description="Empty group." /> }}
+          onRow={(r) => ({
+            onClick: () => onOpenProduct(r.id),
+            style: { cursor: "pointer" },
+          })}
+        />
+      )}
+    </Modal>
   );
 }

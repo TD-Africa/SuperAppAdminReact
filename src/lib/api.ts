@@ -4,7 +4,11 @@ import type { ApiResult } from "./types";
 export const AUTH_STORAGE_KEY =
   import.meta.env.VITE_AUTH_STORAGE_KEY ?? "SuperAppAdminReact__Authentication";
 
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+// Normalize: always expose the base URL with a trailing slash so string
+// concatenation like `${API_BASE_URL}User/Download` works regardless of how
+// the env var is written.
+const RAW_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
+export const API_BASE_URL = RAW_BASE.endsWith("/") ? RAW_BASE : RAW_BASE + "/";
 
 interface StoredAuth {
   accessToken: string;

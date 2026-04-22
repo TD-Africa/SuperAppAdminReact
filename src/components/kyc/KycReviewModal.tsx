@@ -1,17 +1,21 @@
 import { useState } from "react";
-import { toast } from "sonner";
-import { Check, ExternalLink, ImageOff, X } from "lucide-react";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
+  Modal,
+  Button,
+  Descriptions,
+  Tag,
+  Divider,
+  Empty,
+  App as AntdApp,
+  Row,
+  Col,
+} from "antd";
+import {
+  CheckOutlined,
+  CloseOutlined,
+  ExportOutlined,
+  FileImageOutlined,
+} from "@ant-design/icons";
 import { PromptDialog } from "@/components/PromptDialog";
 import type { CustomerResponse } from "@/lib/types";
 import { useAuthStore } from "@/stores/auth";
@@ -42,6 +46,7 @@ export function KycReviewModal({
   onRejectCac,
   onRejectUtility,
 }: Props) {
+  const { message } = AntdApp.useApp();
   const canEdit = useAuthStore((s) => s.hasPermission(Permission.CanEditUser));
   const [rejectCacOpen, setRejectCacOpen] = useState(false);
   const [rejectUtilityOpen, setRejectUtilityOpen] = useState(false);
@@ -51,23 +56,44 @@ export function KycReviewModal({
 
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-h-[92vh] max-w-6xl overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>KYC documents</DialogTitle>
-            <DialogDescription>
-              {customer?.companyName ?? ""}
-              {customer && (
-                <Badge variant="outline" className="ml-2">
+      <Modal
+        open={open}
+        onCancel={() => onOpenChange(false)}
+        title={
+          <div>
+            <div>KYC documents</div>
+            {customer && (
+              <div className="mt-1 text-xs font-normal">
+                {customer.companyName}{" "}
+                <Tag className="ml-1" color="default">
                   {customer.userStatus}
-                </Badge>
-              )}
-            </DialogDescription>
-          </DialogHeader>
-
-          {customer && (
-            <div className="space-y-5">
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                </Tag>
+              </div>
+            )}
+          </div>
+        }
+        width={1200}
+        footer={[
+          <Button key="close" onClick={() => onOpenChange(false)}>
+            Close
+          </Button>,
+          customer?.userStatus === "Pending" && canEdit && (
+            <Button
+              key="approve"
+              type="primary"
+              icon={<CheckOutlined />}
+              onClick={() => onApprove(customer)}
+            >
+              Approve
+            </Button>
+          ),
+        ]}
+        destroyOnClose
+      >
+        {customer && (
+          <div className="space-y-5">
+            <Row gutter={16}>
+              <Col xs={24} lg={12}>
                 <DocumentPane
                   title="CAC file"
                   url={customer.cac_FileName}
@@ -75,6 +101,8 @@ export function KycReviewModal({
                   rejectLabel="Reject CAC file"
                   onReject={() => setRejectCacOpen(true)}
                 />
+              </Col>
+              <Col xs={24} lg={12}>
                 <DocumentPane
                   title="Utility bill"
                   url={customer.utility_FileName}
@@ -82,44 +110,36 @@ export function KycReviewModal({
                   rejectLabel="Reject utility bill"
                   onReject={() => setRejectUtilityOpen(true)}
                 />
-              </div>
+              </Col>
+            </Row>
 
-              <Separator />
+            <Divider className="!my-3" />
 
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <Field label="Company" value={customer.companyName ?? "—"} />
-                <Field label="Email" value={customer.email ?? "—"} />
-                <Field label="Phone" value={customer.phoneNumber ?? "—"} />
-                <Field
-                  label="Address"
-                  value={
-                    [
-                      customer.addressLine,
-                      customer.street,
-                      customer.city,
-                      customer.state,
-                      customer.country,
-                    ]
-                      .filter(Boolean)
-                      .join(", ") || "—"
-                  }
-                />
-              </div>
-            </div>
-          )}
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Close
-            </Button>
-            {customer?.userStatus === "Pending" && canEdit && (
-              <Button onClick={() => onApprove(customer)}>
-                <Check className="h-4 w-4" /> Approve
-              </Button>
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            <Descriptions column={{ xs: 1, sm: 2 }} size="small" colon={false}>
+              <Descriptions.Item label="Company">
+                {customer.companyName ?? "—"}
+              </Descriptions.Item>
+              <Descriptions.Item label="Email">
+                {customer.email ?? "—"}
+              </Descriptions.Item>
+              <Descriptions.Item label="Phone">
+                {customer.phoneNumber ?? "—"}
+              </Descriptions.Item>
+              <Descriptions.Item label="Address">
+                {[
+                  customer.addressLine,
+                  customer.street,
+                  customer.city,
+                  customer.state,
+                  customer.country,
+                ]
+                  .filter(Boolean)
+                  .join(", ") || "—"}
+              </Descriptions.Item>
+            </Descriptions>
+          </div>
+        )}
+      </Modal>
 
       <PromptDialog
         open={rejectCacOpen}
@@ -135,7 +155,7 @@ export function KycReviewModal({
           try {
             await onRejectCac(customer, reason);
           } catch (err) {
-            toast.error((err as Error).message);
+            message.error((err as Error).message);
           }
         }}
       />
@@ -154,7 +174,7 @@ export function KycReviewModal({
           try {
             await onRejectUtility(customer, reason);
           } catch (err) {
-            toast.error((err as Error).message);
+            message.error((err as Error).message);
           }
         }}
       />
@@ -181,29 +201,31 @@ function DocumentPane({
         <div className="font-medium">{title}</div>
         <div className="flex items-center gap-1">
           {url && (
-            <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
-              <a href={url} target="_blank" rel="noreferrer" title="Open in new tab">
-                <ExternalLink className="h-4 w-4" />
+            <Button size="small" icon={<ExportOutlined />}>
+              <a href={url} target="_blank" rel="noreferrer">
+                Open
               </a>
             </Button>
           )}
           {showReject && (
             <Button
-              variant="outline"
-              size="sm"
-              className="text-destructive"
+              size="small"
+              danger
+              icon={<CloseOutlined />}
               onClick={onReject}
             >
-              <X className="h-4 w-4" /> {rejectLabel}
+              {rejectLabel}
             </Button>
           )}
         </div>
       </div>
       <div className="min-h-[400px] bg-muted">
         {!url ? (
-          <div className="flex h-[500px] flex-col items-center justify-center gap-2 text-muted-foreground">
-            <ImageOff className="h-8 w-8" />
-            <span className="text-sm">No document on file</span>
+          <div className="flex h-[500px] items-center justify-center">
+            <Empty
+              image={<FileImageOutlined style={{ fontSize: 48 }} />}
+              description="No document on file"
+            />
           </div>
         ) : isImage(url) ? (
           <img
@@ -215,17 +237,6 @@ function DocumentPane({
           <iframe src={url} title={title} className="h-[500px] w-full border-0" />
         )}
       </div>
-    </div>
-  );
-}
-
-function Field({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <div className="text-xs uppercase tracking-wider text-muted-foreground">
-        {label}
-      </div>
-      <div className="mt-0.5 truncate text-sm font-medium">{value}</div>
     </div>
   );
 }

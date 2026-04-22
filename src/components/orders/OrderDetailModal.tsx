@@ -1,29 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
-import {
+  Modal,
+  Button,
+  Skeleton,
+  Tag,
+  Descriptions,
+  Divider,
+  Typography,
+  App as AntdApp,
+  Checkbox,
+  InputNumber,
   Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+} from "antd";
+import type { TableColumnsType } from "antd";
 import { apiGet, apiPatch } from "@/lib/api";
 import type { OrderProductReturnDto, OrderReturnDto } from "@/lib/types";
 import { PaymentMethodId } from "@/lib/paymentMethods";
@@ -50,6 +40,7 @@ interface InvoiceRow {
 }
 
 export function OrderDetailModal({ orderId, open, onOpenChange, onUpdated }: Props) {
+  const { message } = AntdApp.useApp();
   const canEdit = useAuthStore((s) => s.hasPermission(Permission.CanEditOrders));
   const [isPDCCollected, setIsPDCCollected] = useState(false);
   const [isFullyPaid, setIsFullyPaid] = useState(false);
@@ -82,7 +73,6 @@ export function OrderDetailModal({ orderId, open, onOpenChange, onUpdated }: Pro
 
   const invoiceRows = useMemo<InvoiceRow[]>(() => {
     if (!data?.orderedProducts) return [];
-    // One row per unique salesId (the Blazor version groups by SalesId).
     const seen = new Map<string, InvoiceRow>();
     for (const op of data.orderedProducts) {
       if (!op.salesId || seen.has(op.salesId)) continue;
@@ -134,11 +124,11 @@ export function OrderDetailModal({ orderId, open, onOpenChange, onUpdated }: Pro
     const res = await apiPatch<boolean>(`order/updateOrder/${data.id}`, payload);
     setSaving(false);
     if (res.status) {
-      toast.success(res.message ?? "Order updated");
+      message.success(res.message ?? "Order updated");
       onUpdated?.();
       refetch();
     } else {
-      toast.error(res.message ?? "Update failed");
+      message.error(res.message ?? "Update failed");
     }
   }
 
@@ -148,209 +138,192 @@ export function OrderDetailModal({ orderId, open, onOpenChange, onUpdated }: Pro
       isFullyPaid !== data.isFullyPaid ||
       Object.keys(invoiceEdits).length > 0);
 
+  const invoiceColumns: TableColumnsType<InvoiceRow> = [
+    { title: "Invoice ID", dataIndex: "invoiceId", render: (v) => <span className="font-medium">{v}</span> },
+    { title: "Created", dataIndex: "invoiceCreationDate", render: (v) => formatDate(v) },
+    {
+      title: "Due (NGN)",
+      dataIndex: "amountDueInNaira",
+      align: "right",
+      render: (v: number) => formatCurrency(v, "NGN"),
+    },
+    {
+      title: "Amount paid",
+      key: "amountPaid",
+      width: 220,
+      render: (_, row) => {
+        const locked = row.isFullyPosted && row.isFullySettled;
+        const current = invoiceEdits[row.salesId] ?? row.amountPaid;
+        return (
+          <InputNumber
+            disabled={!canEdit || locked}
+            value={current}
+            min={0}
+            step={1000}
+            onChange={(v) =>
+              setInvoiceEdits((prev) => ({ ...prev, [row.salesId]: Number(v) }))
+            }
+            style={{ width: "100%" }}
+          />
+        );
+      },
+    },
+  ];
+
+  const productColumns: TableColumnsType<OrderProductReturnDto> = [
+    {
+      title: "Product",
+      dataIndex: ["product", "productName"],
+      render: (v) => <span className="font-medium">{v}</span>,
+    },
+    {
+      title: "Dynamics ID",
+      dataIndex: ["product", "dynamicsId"],
+      render: (v) => <span className="text-xs text-muted-foreground">{v ?? "—"}</span>,
+    },
+    { title: "Warehouse", dataIndex: ["warehouse", "name"], render: (v) => v ?? "—" },
+    { title: "Qty", dataIndex: "quantity", align: "right", render: (v) => formatNumber(v) },
+    { title: "Sales ID", dataIndex: "salesId", render: (v) => <span className="text-xs">{v ?? "—"}</span> },
+    { title: "Voucher ID", dataIndex: "voucherId", render: (v) => <span className="text-xs">{v ?? "—"}</span> },
+    {
+      title: "USD",
+      dataIndex: "amountInDollar",
+      align: "right",
+      render: (v: number) => formatCurrency(v, "USD"),
+    },
+    {
+      title: "NGN",
+      dataIndex: "amountInNaira",
+      align: "right",
+      render: (v: number) => formatCurrency(v, "NGN"),
+    },
+    {
+      title: "Paid (NGN)",
+      dataIndex: "amountPaid",
+      align: "right",
+      render: (v: number) => formatCurrency(v, "NGN"),
+    },
+  ];
+
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Order details</DialogTitle>
-            <DialogDescription>
-              {data ? `#${data.id.slice(0, 8)}` : "Loading…"}
-            </DialogDescription>
-          </DialogHeader>
-
-          {isLoading || !data ? (
-            <div className="space-y-3">
-              <Skeleton className="h-6 w-1/3" />
-              <Skeleton className="h-20 w-full" />
-              <Skeleton className="h-40 w-full" />
-            </div>
-          ) : (
-            <div className="space-y-6">
-              <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-                <Field label="Company" value={data.companyName ?? "—"} />
-                <Field label="Recipient" value={data.name ?? "—"} />
-                <Field label="Phone" value={data.phoneNumber ?? "—"} />
-                <Field label="Warehouse" value={data.location?.name ?? "—"} />
-                <Field label="Total (NGN)" value={formatCurrency(totalNaira, "NGN")} />
-                <Field label="Total (USD)" value={formatCurrency(totalDollar, "USD")} />
-                <Field label="Payment" value={data.paymentMethod?.method ?? "—"} />
-                <Field label="Delivery" value={data.deliveryMethod?.method ?? "—"} />
-                <Field
-                  label="Date ordered"
-                  value={formatDate(data.dateCreated)}
-                />
-                <Field
-                  label="Due date"
-                  value={data.dueDate ? formatDate(data.dueDate) : "N/A"}
-                />
-                <Field
-                  label="Delivery address"
-                  value={data.deliveryAddress ?? data.location?.name ?? "—"}
-                />
-                <div>
-                  <div className="text-xs uppercase tracking-wider text-muted-foreground">
-                    Status
-                  </div>
-                  <Badge variant="outline" className="mt-1">
-                    {data.orderStatus?.status ?? "—"}
-                  </Badge>
-                </div>
-              </div>
-
-              <Separator />
-
-              <div className="flex flex-wrap gap-8">
-                <label className="flex items-center gap-2">
-                  <Checkbox
-                    checked={isPDCCollected}
-                    disabled={!canEdit}
-                    onCheckedChange={(v) => setIsPDCCollected(!!v)}
-                  />
-                  <span className="text-sm">Post-dated check collected</span>
-                </label>
-                <label className="flex items-center gap-2">
-                  <Checkbox
-                    checked={isFullyPaid}
-                    disabled={!canEdit}
-                    onCheckedChange={(v) => setIsFullyPaid(!!v)}
-                  />
-                  <span className="text-sm">Fully paid</span>
-                </label>
-                {data.isPoaTransaction && (
-                  <Badge variant="warning">POA transaction</Badge>
-                )}
-              </div>
-
-              {showInvoiceTable && (
-                <div>
-                  <h4 className="mb-2 text-sm font-medium">Credit invoices</h4>
-                  <div className="rounded-md border">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Invoice ID</TableHead>
-                          <TableHead>Created</TableHead>
-                          <TableHead className="text-right">Due (NGN)</TableHead>
-                          <TableHead className="text-right">Amount paid</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {invoiceRows.map((row) => {
-                          const locked = row.isFullyPosted && row.isFullySettled;
-                          const currentVal =
-                            invoiceEdits[row.salesId] ?? row.amountPaid;
-                          return (
-                            <TableRow key={row.salesId}>
-                              <TableCell className="font-medium">
-                                {row.invoiceId}
-                              </TableCell>
-                              <TableCell>
-                                {formatDate(row.invoiceCreationDate)}
-                              </TableCell>
-                              <TableCell className="text-right">
-                                {formatCurrency(row.amountDueInNaira, "NGN")}
-                              </TableCell>
-                              <TableCell className="w-48">
-                                <Input
-                                  type="number"
-                                  disabled={!canEdit || locked}
-                                  value={currentVal}
-                                  onChange={(e) =>
-                                    setInvoiceEdits((prev) => ({
-                                      ...prev,
-                                      [row.salesId]: Number(e.target.value),
-                                    }))
-                                  }
-                                />
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </div>
-              )}
-
-              <div>
-                <h4 className="mb-2 text-sm font-medium">
-                  Products ({data.orderedProducts?.length ?? 0})
-                </h4>
-                <div className="rounded-md border">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Product</TableHead>
-                        <TableHead>Dynamics ID</TableHead>
-                        <TableHead>Warehouse</TableHead>
-                        <TableHead className="text-right">Qty</TableHead>
-                        <TableHead>Sales ID</TableHead>
-                        <TableHead>Voucher ID</TableHead>
-                        <TableHead className="text-right">USD</TableHead>
-                        <TableHead className="text-right">NGN</TableHead>
-                        <TableHead className="text-right">Paid (NGN)</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {(data.orderedProducts ?? []).map(
-                        (op: OrderProductReturnDto, idx) => (
-                          <TableRow
-                            key={`${op.product.id}-${idx}`}
-                            className="cursor-pointer"
-                            onClick={() => openProduct(op.product.id)}
-                          >
-                            <TableCell className="font-medium">
-                              {op.product.productName}
-                            </TableCell>
-                            <TableCell className="text-xs text-muted-foreground">
-                              {op.product.dynamicsId ?? "—"}
-                            </TableCell>
-                            <TableCell>{op.warehouse?.name ?? "—"}</TableCell>
-                            <TableCell className="text-right">
-                              {formatNumber(op.quantity)}
-                            </TableCell>
-                            <TableCell className="text-xs">
-                              {op.salesId ?? "—"}
-                            </TableCell>
-                            <TableCell className="text-xs">
-                              {op.voucherId ?? "—"}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              {formatCurrency(op.amountInDollar, "USD")}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              {formatCurrency(op.amountInNaira, "NGN")}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              {formatCurrency(op.amountPaid, "NGN")}
-                            </TableCell>
-                          </TableRow>
-                        ),
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Close
+      <Modal
+        open={open}
+        onCancel={() => onOpenChange(false)}
+        title="Order details"
+        width={1100}
+        footer={[
+          <Button key="close" onClick={() => onOpenChange(false)}>
+            Close
+          </Button>,
+          canEdit && isCredit && (
+            <Button
+              key="save"
+              type="primary"
+              loading={saving}
+              disabled={!hasDirtyEdits}
+              onClick={handleSave}
+            >
+              Update order
             </Button>
-            {canEdit && isCredit && (
-              <Button
-                onClick={handleSave}
-                disabled={saving || !hasDirtyEdits}
+          ),
+        ]}
+        destroyOnClose
+      >
+        {isLoading || !data ? (
+          <Skeleton active paragraph={{ rows: 6 }} />
+        ) : (
+          <div className="space-y-5">
+            <Descriptions column={{ xs: 1, sm: 2, md: 4 }} size="small" colon={false}>
+              <Descriptions.Item label="Company">
+                {data.companyName ?? "—"}
+              </Descriptions.Item>
+              <Descriptions.Item label="Recipient">{data.name ?? "—"}</Descriptions.Item>
+              <Descriptions.Item label="Phone">{data.phoneNumber ?? "—"}</Descriptions.Item>
+              <Descriptions.Item label="Warehouse">
+                {data.location?.name ?? "—"}
+              </Descriptions.Item>
+              <Descriptions.Item label="Total (NGN)">
+                {formatCurrency(totalNaira, "NGN")}
+              </Descriptions.Item>
+              <Descriptions.Item label="Total (USD)">
+                {formatCurrency(totalDollar, "USD")}
+              </Descriptions.Item>
+              <Descriptions.Item label="Payment">
+                {data.paymentMethod?.method ?? "—"}
+              </Descriptions.Item>
+              <Descriptions.Item label="Delivery">
+                {data.deliveryMethod?.method ?? "—"}
+              </Descriptions.Item>
+              <Descriptions.Item label="Date ordered">
+                {formatDate(data.dateCreated)}
+              </Descriptions.Item>
+              <Descriptions.Item label="Due date">
+                {data.dueDate ? formatDate(data.dueDate) : "N/A"}
+              </Descriptions.Item>
+              <Descriptions.Item label="Delivery address" span={2}>
+                {data.deliveryAddress ?? data.location?.name ?? "—"}
+              </Descriptions.Item>
+              <Descriptions.Item label="Status">
+                <Tag>{data.orderStatus?.status ?? "—"}</Tag>
+              </Descriptions.Item>
+            </Descriptions>
+
+            <Divider className="!my-2" />
+
+            <div className="flex flex-wrap items-center gap-6">
+              <Checkbox
+                checked={isPDCCollected}
+                disabled={!canEdit}
+                onChange={(e) => setIsPDCCollected(e.target.checked)}
               >
-                {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-                Update order
-              </Button>
+                Post-dated check collected
+              </Checkbox>
+              <Checkbox
+                checked={isFullyPaid}
+                disabled={!canEdit}
+                onChange={(e) => setIsFullyPaid(e.target.checked)}
+              >
+                Fully paid
+              </Checkbox>
+              {data.isPoaTransaction && <Tag color="gold">POA transaction</Tag>}
+            </div>
+
+            {showInvoiceTable && (
+              <div>
+                <Typography.Text strong>Credit invoices</Typography.Text>
+                <Table<InvoiceRow>
+                  rowKey="salesId"
+                  dataSource={invoiceRows}
+                  columns={invoiceColumns}
+                  pagination={false}
+                  size="small"
+                  className="mt-2"
+                />
+              </div>
             )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+
+            <div>
+              <Typography.Text strong>
+                Products ({data.orderedProducts?.length ?? 0})
+              </Typography.Text>
+              <Table<OrderProductReturnDto>
+                rowKey={(r) => `${r.product.id}-${r.salesId ?? ""}`}
+                dataSource={data.orderedProducts ?? []}
+                columns={productColumns}
+                pagination={false}
+                size="small"
+                className="mt-2"
+                scroll={{ x: 1000 }}
+                onRow={(record) => ({
+                  onClick: () => openProduct(record.product.id),
+                  style: { cursor: "pointer" },
+                })}
+              />
+            </div>
+          </div>
+        )}
+      </Modal>
 
       <ProductDetailModal
         productId={selectedProductId}
@@ -361,16 +334,5 @@ export function OrderDetailModal({ orderId, open, onOpenChange, onUpdated }: Pro
         }}
       />
     </>
-  );
-}
-
-function Field({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <div className="text-xs uppercase tracking-wider text-muted-foreground">
-        {label}
-      </div>
-      <div className="mt-0.5 truncate text-sm font-medium">{value}</div>
-    </div>
   );
 }

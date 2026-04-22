@@ -1,18 +1,33 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { toast } from "sonner";
 import {
-  Banknote,
-  CreditCard,
-  FileCheck2,
-  Package,
-  ShoppingBag,
-  Ticket as TicketIcon,
-  TrendingUp,
-  Users,
-  Wallet,
-} from "lucide-react";
+  Card,
+  Col,
+  Row,
+  Statistic,
+  Button,
+  DatePicker,
+  Skeleton,
+  Tag,
+  Table,
+  Typography,
+  Space,
+  App as AntdApp,
+  theme,
+} from "antd";
+import type { TableColumnsType } from "antd";
+import type { Dayjs } from "dayjs";
+import {
+  TransactionOutlined,
+  DollarCircleOutlined,
+  CreditCardOutlined,
+  BankOutlined,
+  ShoppingCartOutlined,
+  TeamOutlined,
+  CustomerServiceOutlined,
+  AppstoreOutlined,
+} from "@ant-design/icons";
 import {
   PieChart,
   Pie,
@@ -22,24 +37,16 @@ import {
   Legend,
 } from "recharts";
 import { apiGet } from "@/lib/api";
-import type { AdminDashboardResponse } from "@/lib/types";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import type {
+  AdminDashboardResponse,
+  TopRankingOrderResponse,
+  TopRankingProductResponse,
+} from "@/lib/types";
 import { formatCurrency, formatDate, formatNumber } from "@/lib/utils";
 
-function buildUrl(startDate: string, endDate: string) {
+const { RangePicker } = DatePicker;
+
+function buildUrl(startDate: string | null, endDate: string | null) {
   const qs = new URLSearchParams();
   if (startDate) qs.set("startDate", new Date(startDate).toISOString());
   if (endDate) qs.set("endDate", new Date(endDate).toISOString());
@@ -47,58 +54,64 @@ function buildUrl(startDate: string, endDate: string) {
   return `Component/GetAdminDashboard${suffix}`;
 }
 
-function KpiCard({
-  title,
-  value,
-  icon: Icon,
-  accent = "text-primary",
-  onClick,
-}: {
+const TRANSACTION_COLORS = ["#800020", "#b94d67", "#d17b8d"];
+const STATUS_COLORS = [
+  "#800020",
+  "#b94d67",
+  "#16a34a",
+  "#d97706",
+  "#7c3aed",
+  "#64748b",
+];
+const TICKET_COLORS = ["#800020", "#d97706", "#16a34a"];
+
+interface KpiCardProps {
   title: string;
   value: string;
-  icon: React.ComponentType<{ className?: string }>;
-  accent?: string;
+  icon: React.ReactNode;
   onClick?: () => void;
-}) {
+  accentClass?: string;
+}
+
+function KpiCard({ title, value, icon, onClick, accentClass }: KpiCardProps) {
   return (
     <Card
+      hoverable={!!onClick}
       onClick={onClick}
-      className={onClick ? "cursor-pointer transition-shadow hover:shadow-md" : ""}
+      className={onClick ? "cursor-pointer" : undefined}
+      styles={{ body: { padding: 20 } }}
     >
-      <CardContent className="flex items-center justify-between p-6">
-        <div>
-          <div className="text-sm font-medium text-muted-foreground">{title}</div>
-          <div className="mt-2 text-2xl font-semibold tracking-tight">{value}</div>
+      <div className="flex items-center justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm text-muted-foreground">{title}</div>
+          <div className="mt-2 truncate text-2xl font-semibold tracking-tight">
+            {value}
+          </div>
         </div>
-        <div className={`grid h-10 w-10 place-items-center rounded-full bg-muted ${accent}`}>
-          <Icon className="h-5 w-5" />
+        <div
+          className={
+            "grid h-11 w-11 shrink-0 place-items-center rounded-full bg-secondary text-lg " +
+            (accentClass ?? "text-primary")
+          }
+        >
+          {icon}
         </div>
-      </CardContent>
+      </div>
     </Card>
   );
 }
 
-const TRANSACTION_COLORS = ["#f43f5e", "#3b82f6", "#f59e0b"];
-const STATUS_COLORS = [
-  "#f43f5e",
-  "#3b82f6",
-  "#10b981",
-  "#f59e0b",
-  "#a855f7",
-  "#fb7185",
-];
-const TICKET_COLORS = ["#3b82f6", "#f59e0b", "#10b981"];
-
 export default function DashboardPage() {
   const navigate = useNavigate();
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [appliedRange, setAppliedRange] = useState<{ s: string; e: string }>({
-    s: "",
-    e: "",
-  });
+  const { message } = AntdApp.useApp();
+  const { token } = theme.useToken();
+  const [range, setRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
+  const [appliedRange, setAppliedRange] = useState<{
+    s: string | null;
+    e: string | null;
+  }>({ s: null, e: null });
 
-  const { data, isLoading, isError, error } = useQuery({
+  const { data, isLoading } = useQuery({
     queryKey: ["admin-dashboard", appliedRange.s, appliedRange.e],
     queryFn: async () => {
       const res = await apiGet<AdminDashboardResponse>(
@@ -110,8 +123,6 @@ export default function DashboardPage() {
       return res.data;
     },
   });
-
-  if (isError) toast.error((error as Error).message);
 
   const transactionData = useMemo(
     () =>
@@ -153,313 +164,302 @@ export default function DashboardPage() {
   );
 
   function applyFilter() {
-    if (startDate && new Date(startDate) > new Date()) {
-      toast.error("Start date cannot be in the future");
+    const [start, end] = range ?? [null, null];
+    if (start && start.isAfter(new Date())) {
+      message.error("Start date cannot be in the future");
       return;
     }
-    if (startDate && endDate && new Date(startDate) > new Date(endDate)) {
-      toast.error("Start date cannot be after end date");
+    if (start && end && start.isAfter(end)) {
+      message.error("Start date cannot be after end date");
       return;
     }
-    setAppliedRange({ s: startDate, e: endDate });
+    setAppliedRange({
+      s: start ? start.toISOString() : null,
+      e: end ? end.toISOString() : null,
+    });
   }
+
+  function resetFilter() {
+    setRange(null);
+    setAppliedRange({ s: null, e: null });
+  }
+
+  const productColumns: TableColumnsType<TopRankingProductResponse> = [
+    { title: "Product", dataIndex: "productName", render: (v) => v ?? "—" },
+    {
+      title: "Units sold",
+      dataIndex: "unitSold",
+      align: "right",
+      render: (v: number) => formatNumber(v),
+    },
+    {
+      title: "Revenue",
+      dataIndex: "totalRevenue",
+      align: "right",
+      render: (v: number) => formatCurrency(v, "NGN"),
+    },
+  ];
+
+  const orderColumns: TableColumnsType<TopRankingOrderResponse> = [
+    {
+      title: "Company",
+      dataIndex: "companyName",
+      render: (v) => v ?? "—",
+    },
+    {
+      title: "Date",
+      dataIndex: "orderDate",
+      render: (v) => formatDate(v),
+    },
+    {
+      title: "USD",
+      dataIndex: "totalAmountInDollars",
+      align: "right",
+      render: (v: number) => formatCurrency(v, "USD"),
+    },
+    {
+      title: "NGN",
+      dataIndex: "totalAmountInNaira",
+      align: "right",
+      render: (v: number) => formatCurrency(v, "NGN"),
+    },
+    { title: "Payment", dataIndex: "paymentMethod" },
+    {
+      title: "POA",
+      dataIndex: "isPoaTransaction",
+      render: (v: boolean) =>
+        v ? <Tag color="success">Yes</Tag> : <Tag>No</Tag>,
+    },
+    {
+      title: "Status",
+      dataIndex: "status",
+      render: (v: string) => <Tag color="default">{v}</Tag>,
+    },
+  ];
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-        <p className="text-sm text-muted-foreground">
+      <div>
+        <Typography.Title level={3} className="!m-0">
+          Dashboard
+        </Typography.Title>
+        <Typography.Text type="secondary">
           Overview of transactions, orders, customers, and support tickets.
-        </p>
+        </Typography.Text>
       </div>
 
-      <Card>
-        <CardContent className="flex flex-col gap-4 p-4 md:flex-row md:items-end">
-          <div className="flex-1 space-y-2">
-            <Label htmlFor="startDate">Start date</Label>
-            <Input
-              id="startDate"
-              type="datetime-local"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-            />
-          </div>
-          <div className="flex-1 space-y-2">
-            <Label htmlFor="endDate">End date</Label>
-            <Input
-              id="endDate"
-              type="datetime-local"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-            />
-          </div>
-          <div className="flex gap-2">
-            <Button onClick={applyFilter}>Apply</Button>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setStartDate("");
-                setEndDate("");
-                setAppliedRange({ s: "", e: "" });
-              }}
-            >
-              Reset
-            </Button>
-          </div>
-        </CardContent>
+      <Card styles={{ body: { padding: 16 } }}>
+        <Space wrap className="w-full" size={12}>
+          <RangePicker
+            showTime
+            value={range}
+            onChange={(v) =>
+              setRange(v ? [v[0] ?? null, v[1] ?? null] : null)
+            }
+          />
+          <Button type="primary" onClick={applyFilter}>
+            Apply
+          </Button>
+          <Button onClick={resetFilter}>Reset</Button>
+        </Space>
       </Card>
 
       {isLoading ? (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <Row gutter={[16, 16]}>
           {Array.from({ length: 8 }).map((_, i) => (
-            <Skeleton key={i} className="h-28 w-full" />
+            <Col key={i} xs={24} sm={12} xl={6}>
+              <Card>
+                <Skeleton active paragraph={{ rows: 1 }} />
+              </Card>
+            </Col>
           ))}
-        </div>
+        </Row>
       ) : data ? (
         <>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <KpiCard
-              title="Total transactions"
-              value={formatCurrency(data.totalAmountForAllTransactions, "NGN")}
-              icon={TrendingUp}
-              accent="text-primary"
-            />
-            <KpiCard
-              title="Cash transactions"
-              value={formatCurrency(data.totalAmountForCashTransactions, "NGN")}
-              icon={Banknote}
-              accent="text-emerald-600"
-            />
-            <KpiCard
-              title="Credit transactions"
-              value={formatCurrency(data.totalAmountForCreditTransactions, "NGN")}
-              icon={CreditCard}
-              accent="text-sky-600"
-            />
-            <KpiCard
-              title="POA transactions"
-              value={formatCurrency(data.totalAmountForPoaTransactions, "NGN")}
-              icon={Wallet}
-              accent="text-amber-600"
-            />
+          <Row gutter={[16, 16]}>
+            <Col xs={24} sm={12} xl={6}>
+              <KpiCard
+                title="Total transactions"
+                value={formatCurrency(data.totalAmountForAllTransactions, "NGN")}
+                icon={<TransactionOutlined />}
+              />
+            </Col>
+            <Col xs={24} sm={12} xl={6}>
+              <KpiCard
+                title="Cash transactions"
+                value={formatCurrency(data.totalAmountForCashTransactions, "NGN")}
+                icon={<DollarCircleOutlined />}
+                accentClass="text-emerald-600"
+              />
+            </Col>
+            <Col xs={24} sm={12} xl={6}>
+              <KpiCard
+                title="Credit transactions"
+                value={formatCurrency(
+                  data.totalAmountForCreditTransactions,
+                  "NGN",
+                )}
+                icon={<CreditCardOutlined />}
+                accentClass="text-sky-600"
+              />
+            </Col>
+            <Col xs={24} sm={12} xl={6}>
+              <KpiCard
+                title="POA transactions"
+                value={formatCurrency(data.totalAmountForPoaTransactions, "NGN")}
+                icon={<BankOutlined />}
+                accentClass="text-amber-600"
+              />
+            </Col>
 
-            <KpiCard
-              title="Total orders"
-              value={formatNumber(data.totalNumberOfOrders)}
-              icon={ShoppingBag}
-              onClick={() => navigate("/orders")}
-            />
-            <KpiCard
-              title="Total customers"
-              value={formatNumber(data.totalNumberOfCustomers)}
-              icon={Users}
-              onClick={() => navigate("/customers")}
-            />
-            <KpiCard
-              title="Total tickets"
-              value={formatNumber(data.totalNumberOfTickets)}
-              icon={TicketIcon}
-              onClick={() => navigate("/tickets")}
-            />
-            <KpiCard
-              title="Available products"
-              value={formatNumber(data.totalNumberOfAvailableProducts)}
-              icon={Package}
-              onClick={() => navigate("/products")}
-            />
-          </div>
+            <Col xs={24} sm={12} xl={6}>
+              <Card hoverable onClick={() => navigate("/orders")}>
+                <Statistic
+                  title="Total orders"
+                  value={data.totalNumberOfOrders}
+                  prefix={<ShoppingCartOutlined />}
+                  valueStyle={{ color: token.colorPrimary }}
+                />
+              </Card>
+            </Col>
+            <Col xs={24} sm={12} xl={6}>
+              <Card hoverable onClick={() => navigate("/customers")}>
+                <Statistic
+                  title="Total customers"
+                  value={data.totalNumberOfCustomers}
+                  prefix={<TeamOutlined />}
+                  valueStyle={{ color: token.colorPrimary }}
+                />
+              </Card>
+            </Col>
+            <Col xs={24} sm={12} xl={6}>
+              <Card hoverable onClick={() => navigate("/tickets")}>
+                <Statistic
+                  title="Total tickets"
+                  value={data.totalNumberOfTickets}
+                  prefix={<CustomerServiceOutlined />}
+                  valueStyle={{ color: token.colorPrimary }}
+                />
+              </Card>
+            </Col>
+            <Col xs={24} sm={12} xl={6}>
+              <Card hoverable onClick={() => navigate("/products")}>
+                <Statistic
+                  title="Available products"
+                  value={data.totalNumberOfAvailableProducts}
+                  prefix={<AppstoreOutlined />}
+                  valueStyle={{ color: token.colorPrimary }}
+                />
+              </Card>
+            </Col>
+          </Row>
 
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>Transaction mix</CardTitle>
-              </CardHeader>
-              <CardContent className="h-72">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={transactionData}
-                      dataKey="value"
-                      nameKey="name"
-                      innerRadius={50}
-                      outerRadius={90}
-                      paddingAngle={2}
-                    >
-                      {transactionData.map((_, i) => (
-                        <Cell
-                          key={i}
-                          fill={TRANSACTION_COLORS[i % TRANSACTION_COLORS.length]}
-                        />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Order status</CardTitle>
-              </CardHeader>
-              <CardContent className="h-72">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={statusData}
-                      dataKey="value"
-                      nameKey="name"
-                      outerRadius={100}
-                    >
-                      {statusData.map((_, i) => (
-                        <Cell
-                          key={i}
-                          fill={STATUS_COLORS[i % STATUS_COLORS.length]}
-                        />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle>Top 5 selling products</CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Product</TableHead>
-                      <TableHead className="text-right">Units sold</TableHead>
-                      <TableHead className="text-right">Revenue</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {data.topFiveSellingProducts.length === 0 ? (
-                      <TableRow>
-                        <TableCell
-                          colSpan={3}
-                          className="py-8 text-center text-muted-foreground"
-                        >
-                          No sales in this range
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      data.topFiveSellingProducts.map((p) => (
-                        <TableRow key={p.id}>
-                          <TableCell className="font-medium">
-                            {p.productName ?? "-"}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {formatNumber(p.unitSold)}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {formatCurrency(p.totalRevenue, "NGN")}
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Ticket status</CardTitle>
-              </CardHeader>
-              <CardContent className="h-72">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={ticketData}
-                      dataKey="value"
-                      nameKey="name"
-                      innerRadius={60}
-                      outerRadius={100}
-                    >
-                      {ticketData.map((_, i) => (
-                        <Cell
-                          key={i}
-                          fill={TICKET_COLORS[i % TICKET_COLORS.length]}
-                        />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-          </div>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Last 5 orders</CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Company</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead className="text-right">USD</TableHead>
-                    <TableHead className="text-right">NGN</TableHead>
-                    <TableHead>Payment</TableHead>
-                    <TableHead>POA</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {data.lastFiveOrders.length === 0 ? (
-                    <TableRow>
-                      <TableCell
-                        colSpan={7}
-                        className="py-8 text-center text-muted-foreground"
+          <Row gutter={[16, 16]}>
+            <Col xs={24} lg={12}>
+              <Card title="Transaction mix">
+                <div className="h-72">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={transactionData}
+                        dataKey="value"
+                        nameKey="name"
+                        innerRadius={50}
+                        outerRadius={90}
+                        paddingAngle={2}
                       >
-                        No recent orders
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    data.lastFiveOrders.map((o) => (
-                      <TableRow key={o.id}>
-                        <TableCell className="font-medium">
-                          {o.companyName ?? "-"}
-                        </TableCell>
-                        <TableCell>{formatDate(o.orderDate)}</TableCell>
-                        <TableCell className="text-right">
-                          {formatCurrency(o.totalAmountInDollars, "USD")}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {formatCurrency(o.totalAmountInNaira, "NGN")}
-                        </TableCell>
-                        <TableCell>{o.paymentMethod}</TableCell>
-                        <TableCell>
-                          {o.isPoaTransaction ? (
-                            <Badge variant="success">
-                              <FileCheck2 className="mr-1 h-3 w-3" />
-                              Yes
-                            </Badge>
-                          ) : (
-                            <Badge variant="secondary">No</Badge>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline">{o.status}</Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
+                        {transactionData.map((_, i) => (
+                          <Cell
+                            key={i}
+                            fill={TRANSACTION_COLORS[i % TRANSACTION_COLORS.length]}
+                          />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </Card>
+            </Col>
+            <Col xs={24} lg={12}>
+              <Card title="Order status">
+                <div className="h-72">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={statusData}
+                        dataKey="value"
+                        nameKey="name"
+                        outerRadius={100}
+                      >
+                        {statusData.map((_, i) => (
+                          <Cell
+                            key={i}
+                            fill={STATUS_COLORS[i % STATUS_COLORS.length]}
+                          />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </Card>
+            </Col>
+          </Row>
+
+          <Row gutter={[16, 16]}>
+            <Col xs={24} lg={12}>
+              <Card title="Top 5 selling products" styles={{ body: { padding: 0 } }}>
+                <Table<TopRankingProductResponse>
+                  rowKey="id"
+                  dataSource={data.topFiveSellingProducts ?? []}
+                  columns={productColumns}
+                  pagination={false}
+                  size="middle"
+                  locale={{ emptyText: "No sales in this range" }}
+                />
+              </Card>
+            </Col>
+            <Col xs={24} lg={12}>
+              <Card title="Ticket status">
+                <div className="h-72">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={ticketData}
+                        dataKey="value"
+                        nameKey="name"
+                        innerRadius={60}
+                        outerRadius={100}
+                      >
+                        {ticketData.map((_, i) => (
+                          <Cell
+                            key={i}
+                            fill={TICKET_COLORS[i % TICKET_COLORS.length]}
+                          />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </Card>
+            </Col>
+          </Row>
+
+          <Card title="Last 5 orders" styles={{ body: { padding: 0 } }}>
+            <Table<TopRankingOrderResponse>
+              rowKey="id"
+              dataSource={data.lastFiveOrders ?? []}
+              columns={orderColumns}
+              pagination={false}
+              size="middle"
+              scroll={{ x: 720 }}
+              locale={{ emptyText: "No recent orders" }}
+            />
           </Card>
         </>
       ) : null}

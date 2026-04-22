@@ -1,23 +1,12 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Eye } from "lucide-react";
+import { Card, Input, Typography, Table, Button } from "antd";
+import type { TableColumnsType } from "antd";
+import { EyeOutlined } from "@ant-design/icons";
 import { apiGet } from "@/lib/api";
 import type { CacRegistrationResponse } from "@/lib/types";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { formatDate } from "@/lib/utils";
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { DataTablePagination } from "@/components/DataTablePagination";
 import { CacDataDetailModal } from "@/components/cac/CacDataDetailModal";
 
 export default function CacDataPage() {
@@ -25,12 +14,9 @@ export default function CacDataPage() {
   const debouncedKeyword = useDebouncedValue(keyword, 250);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
-
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
 
-  // Endpoint returns the full list — filter and paginate client-side
-  // (mirrors the Blazor CacData.razor which does the same).
   const { data, isLoading, isFetching } = useQuery({
     queryKey: ["cac-registrations"],
     queryFn: async () => {
@@ -48,11 +34,7 @@ export default function CacDataPage() {
     const q = debouncedKeyword.trim().toLowerCase();
     if (!q) return list;
     return list.filter((r) =>
-      [
-        r.firstPreferredBusinessName,
-        r.secondPreferredBusinessName,
-        r.businessDescription,
-      ]
+      [r.firstPreferredBusinessName, r.secondPreferredBusinessName, r.businessDescription]
         .filter(Boolean)
         .some((v) => v!.toLowerCase().includes(q)),
     );
@@ -64,114 +46,97 @@ export default function CacDataPage() {
     [filtered, page, pageSize],
   );
 
-  function openDetail(id: string) {
-    setSelectedId(id);
-    setDetailOpen(true);
-  }
+  const columns: TableColumnsType<CacRegistrationResponse> = [
+    {
+      title: "First preferred business name",
+      dataIndex: "firstPreferredBusinessName",
+      render: (v) => <span className="font-medium">{v ?? "—"}</span>,
+    },
+    { title: "Second preferred", dataIndex: "secondPreferredBusinessName", render: (v) => v ?? "—" },
+    {
+      title: "Business description",
+      dataIndex: "businessDescription",
+      render: (v) => (
+        <span className="block max-w-[320px] truncate text-muted-foreground">{v ?? "—"}</span>
+      ),
+    },
+    {
+      title: "Submitted",
+      dataIndex: "dateCreated",
+      render: (v) => <span className="text-xs text-muted-foreground">{formatDate(v)}</span>,
+    },
+    {
+      title: "Directors",
+      dataIndex: "directors",
+      align: "right",
+      render: (v: unknown[]) => v?.length ?? 0,
+    },
+    {
+      title: "Secretaries",
+      dataIndex: "secretaries",
+      align: "right",
+      render: (v: unknown[]) => v?.length ?? 0,
+    },
+    {
+      title: "",
+      key: "actions",
+      width: 60,
+      align: "right",
+      render: (_, r) => (
+        <Button
+          size="small"
+          icon={<EyeOutlined />}
+          onClick={() => {
+            setSelectedId(r.id);
+            setDetailOpen(true);
+          }}
+        />
+      ),
+    },
+  ];
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">CAC Data</h1>
-        <p className="text-sm text-muted-foreground">
+        <Typography.Title level={3} className="!m-0">
+          CAC Data
+        </Typography.Title>
+        <Typography.Text type="secondary">
           Corporate Affairs Commission registrations submitted during onboarding.
-        </p>
+        </Typography.Text>
       </div>
 
-      <Card>
-        <CardContent className="p-4">
-          <Input
-            placeholder="Search by business name or description…"
-            value={keyword}
-            onChange={(e) => {
-              setPage(1);
-              setKeyword(e.target.value);
-            }}
-          />
-        </CardContent>
+      <Card styles={{ body: { padding: 16 } }}>
+        <Input
+          placeholder="Search by business name or description…"
+          value={keyword}
+          allowClear
+          onChange={(e) => {
+            setPage(1);
+            setKeyword(e.target.value);
+          }}
+        />
       </Card>
 
-      <div className="text-sm text-muted-foreground">
-        {isFetching && !isLoading ? "Refreshing…" : null}
-      </div>
-
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>First preferred business name</TableHead>
-                <TableHead>Second preferred</TableHead>
-                <TableHead>Business description</TableHead>
-                <TableHead>Submitted</TableHead>
-                <TableHead className="text-right">Directors</TableHead>
-                <TableHead className="text-right">Secretaries</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                Array.from({ length: 6 }).map((_, i) => (
-                  <TableRow key={i}>
-                    <TableCell colSpan={7}>
-                      <Skeleton className="h-8 w-full" />
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : paginated.length === 0 ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={7}
-                    className="py-10 text-center text-muted-foreground"
-                  >
-                    No CAC records match the current filters.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                paginated.map((r) => (
-                  <TableRow key={r.id}>
-                    <TableCell className="font-medium">
-                      {r.firstPreferredBusinessName ?? "—"}
-                    </TableCell>
-                    <TableCell>{r.secondPreferredBusinessName ?? "—"}</TableCell>
-                    <TableCell className="max-w-[320px] truncate text-muted-foreground">
-                      {r.businessDescription ?? "—"}
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {formatDate(r.dateCreated)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {r.directors?.length ?? 0}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {r.secretaries?.length ?? 0}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => openDetail(r.id)}
-                      >
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-          <DataTablePagination
-            page={page}
-            pageSize={pageSize}
-            totalItems={totalItems}
-            onPageChange={setPage}
-            onPageSizeChange={(s) => {
-              setPageSize(s);
-              setPage(1);
-            }}
-          />
-        </CardContent>
+      <Card styles={{ body: { padding: 0 } }}>
+        <Table<CacRegistrationResponse>
+          rowKey="id"
+          dataSource={paginated}
+          columns={columns}
+          loading={isLoading || isFetching}
+          pagination={{
+            current: page,
+            pageSize,
+            total: totalItems,
+            showSizeChanger: true,
+            pageSizeOptions: [10, 20, 50, 100],
+            onChange: (p, ps) => {
+              setPage(p);
+              setPageSize(ps);
+            },
+          }}
+          locale={{ emptyText: "No CAC records match the current filters." }}
+        />
       </Card>
 
       <CacDataDetailModal

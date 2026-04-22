@@ -1,37 +1,28 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
-import { ImageOff } from "lucide-react";
+import {
+  Card,
+  Input,
+  Select,
+  Switch,
+  Typography,
+  Avatar,
+  App as AntdApp,
+  Table,
+} from "antd";
+import type { TableColumnsType } from "antd";
+import { ShopOutlined } from "@ant-design/icons";
 import { apiGet, apiPatch } from "@/lib/api";
 import type { BrandReturnDTO, PaginationResponse } from "@/lib/types";
 import { Permission } from "@/lib/permissions";
 import { useAuthStore } from "@/stores/auth";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { DataTablePagination } from "@/components/DataTablePagination";
 
 const ALL = "__all__";
 
 export default function BrandsPage() {
   const queryClient = useQueryClient();
+  const { message } = AntdApp.useApp();
   const canEdit = useAuthStore((s) => s.hasPermission(Permission.CanEditBrands));
 
   const [keyword, setKeyword] = useState("");
@@ -63,7 +54,6 @@ export default function BrandsPage() {
   });
 
   async function toggleActive(id: string, value: boolean) {
-    // The brand API expects { IsApproved: value }.
     const prev =
       queryClient.getQueryData<PaginationResponse<BrandReturnDTO>>(queryKey);
     if (prev?.data) {
@@ -76,131 +66,98 @@ export default function BrandsPage() {
       IsApproved: value,
     });
     if (!res.status) {
-      toast.error(res.message ?? "Update failed");
+      message.error(res.message ?? "Update failed");
       queryClient.setQueryData(queryKey, prev);
     } else {
-      toast.success(res.message ?? "Brand updated");
+      message.success(res.message ?? "Brand updated");
     }
   }
 
   const rows = data?.data ?? [];
   const totalItems = Number(data?.count ?? 0);
 
+  const columns: TableColumnsType<BrandReturnDTO> = [
+    {
+      title: "",
+      dataIndex: "brandImageUrl",
+      width: 64,
+      render: (v: string | null) => (
+        <Avatar src={v ?? undefined} icon={!v ? <ShopOutlined /> : undefined} shape="square" />
+      ),
+    },
+    { title: "Brand", dataIndex: "name", render: (v) => <span className="font-medium">{v}</span> },
+    {
+      title: "Dynamics ID",
+      dataIndex: "dynamicsId",
+      render: (v) => <span className="text-xs text-muted-foreground">{v ?? "—"}</span>,
+    },
+    {
+      title: "Active",
+      dataIndex: "isActive",
+      width: 100,
+      render: (v: boolean, r) => (
+        <Switch checked={v} disabled={!canEdit} onChange={(val) => toggleActive(r.id, val)} />
+      ),
+    },
+  ];
+
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Brands</h1>
-        <p className="text-sm text-muted-foreground">
+        <Typography.Title level={3} className="!m-0">
+          Brands
+        </Typography.Title>
+        <Typography.Text type="secondary">
           Manage brand catalog and approval state.
-        </p>
+        </Typography.Text>
       </div>
 
-      <Card>
-        <CardContent className="grid gap-3 p-4 md:grid-cols-12">
+      <Card styles={{ body: { padding: 16 } }}>
+        <div className="grid gap-3 md:grid-cols-12">
           <Input
             className="md:col-span-9"
             placeholder="Search brands by name or Dynamics ID…"
             value={keyword}
+            allowClear
             onChange={(e) => {
               setPage(1);
               setKeyword(e.target.value);
             }}
           />
           <Select
+            className="md:col-span-3"
             value={isActive}
-            onValueChange={(v) => {
+            onChange={(v) => {
               setPage(1);
               setIsActive(v);
             }}
-          >
-            <SelectTrigger className="md:col-span-3">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>All statuses</SelectItem>
-              <SelectItem value="true">Active</SelectItem>
-              <SelectItem value="false">Inactive</SelectItem>
-            </SelectContent>
-          </Select>
-        </CardContent>
+            options={[
+              { value: ALL, label: "All statuses" },
+              { value: "true", label: "Active" },
+              { value: "false", label: "Inactive" },
+            ]}
+          />
+        </div>
       </Card>
 
-      <div className="text-sm text-muted-foreground">
-        {isFetching && !isLoading ? "Refreshing…" : null}
-      </div>
-
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-14"></TableHead>
-                <TableHead>Brand</TableHead>
-                <TableHead>Dynamics ID</TableHead>
-                <TableHead>Active</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                Array.from({ length: 6 }).map((_, i) => (
-                  <TableRow key={i}>
-                    <TableCell colSpan={4}>
-                      <Skeleton className="h-8 w-full" />
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : rows.length === 0 ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={4}
-                    className="py-10 text-center text-muted-foreground"
-                  >
-                    No brands match the current filters.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                rows.map((b) => (
-                  <TableRow key={b.id}>
-                    <TableCell>
-                      <div className="grid h-10 w-10 place-items-center overflow-hidden rounded-md border bg-muted">
-                        {b.brandImageUrl ? (
-                          <img
-                            src={b.brandImageUrl}
-                            alt={b.name}
-                            className="h-full w-full object-contain"
-                          />
-                        ) : (
-                          <ImageOff className="h-4 w-4 text-muted-foreground" />
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell className="font-medium">{b.name}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {b.dynamicsId ?? "—"}
-                    </TableCell>
-                    <TableCell>
-                      <Switch
-                        checked={b.isActive}
-                        disabled={!canEdit}
-                        onCheckedChange={(v) => toggleActive(b.id, v)}
-                      />
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-          <DataTablePagination
-            page={page}
-            pageSize={pageSize}
-            totalItems={totalItems}
-            onPageChange={setPage}
-            onPageSizeChange={(s) => {
-              setPageSize(s);
-              setPage(1);
-            }}
-          />
-        </CardContent>
+      <Card styles={{ body: { padding: 0 } }}>
+        <Table<BrandReturnDTO>
+          rowKey="id"
+          dataSource={rows}
+          columns={columns}
+          loading={isLoading || isFetching}
+          pagination={{
+            current: page,
+            pageSize,
+            total: totalItems,
+            showSizeChanger: true,
+            pageSizeOptions: [10, 20, 50, 100],
+            onChange: (p, ps) => {
+              setPage(p);
+              setPageSize(ps);
+            },
+          }}
+        />
       </Card>
     </div>
   );

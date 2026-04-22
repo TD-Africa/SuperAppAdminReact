@@ -1,6 +1,17 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Download, Eye } from "lucide-react";
+import {
+  Card,
+  Input,
+  Select,
+  Typography,
+  Table,
+  Button,
+  Space,
+  Tag,
+} from "antd";
+import type { TableColumnsType } from "antd";
+import { DownloadOutlined, EyeOutlined } from "@ant-design/icons";
 import { apiGet, API_BASE_URL } from "@/lib/api";
 import type {
   OrderReturnDto,
@@ -10,27 +21,6 @@ import type {
 import { PaymentMethodId } from "@/lib/paymentMethods";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { formatCurrency, formatDate, formatNumber } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { DataTablePagination } from "@/components/DataTablePagination";
 import { OrderDetailModal } from "@/components/orders/OrderDetailModal";
 
 const ALL = "__all__";
@@ -94,11 +84,10 @@ export default function OrdersPage() {
   }
 
   function downloadFiltered() {
-    const url = `${API_BASE_URL}Order/DownloadOrders?${queryParams.toString()}`;
-    window.open(url, "_blank");
+    window.open(`${API_BASE_URL}Order/DownloadOrders?${queryParams}`, "_blank");
   }
 
-  function totalForOrder(order: OrderReturnDto, currency: "NGN" | "USD") {
+  function totalFor(order: OrderReturnDto, currency: "NGN" | "USD") {
     const picker =
       currency === "NGN"
         ? (op: OrderReturnDto["orderedProducts"][number]) => op.amountInNaira
@@ -109,205 +98,174 @@ export default function OrdersPage() {
     );
   }
 
+  const columns: TableColumnsType<OrderReturnDto> = [
+    { title: "Company", dataIndex: "companyName", render: (v) => <span className="font-medium">{v ?? "—"}</span> },
+    { title: "Phone", dataIndex: "phoneNumber", render: (v) => <span className="text-xs">{v ?? "—"}</span> },
+    {
+      title: "NGN",
+      key: "ngn",
+      align: "right",
+      render: (_, r) => formatCurrency(totalFor(r, "NGN"), "NGN"),
+    },
+    {
+      title: "USD",
+      key: "usd",
+      align: "right",
+      render: (_, r) => formatCurrency(totalFor(r, "USD"), "USD"),
+    },
+    {
+      title: "Location",
+      key: "location",
+      render: (_, r) => (
+        <span className="block max-w-[220px] truncate">
+          {r.deliveryAddress ?? r.location?.name ?? "—"}
+        </span>
+      ),
+    },
+    {
+      title: "Date",
+      dataIndex: "dateCreated",
+      render: (v) => <span className="text-xs text-muted-foreground">{formatDate(v)}</span>,
+    },
+    { title: "Payment", dataIndex: ["paymentMethod", "method"], render: (v) => v ?? "—" },
+    {
+      title: "POA",
+      dataIndex: "isPoaTransaction",
+      render: (v: boolean) => (v ? <Tag color="gold">POA</Tag> : <Tag>—</Tag>),
+    },
+    {
+      title: "Status",
+      dataIndex: ["orderStatus", "status"],
+      render: (v: string) => <Tag>{v ?? "—"}</Tag>,
+    },
+    {
+      title: "Qty",
+      key: "qty",
+      align: "right",
+      render: (_, r) => formatNumber(r.orderedProducts?.length ?? 0),
+    },
+    {
+      title: "",
+      key: "actions",
+      width: 60,
+      align: "right",
+      render: (_, r) => (
+        <Button size="small" icon={<EyeOutlined />} onClick={() => openDetail(r.id)} />
+      ),
+    },
+  ];
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Orders</h1>
-        <p className="text-sm text-muted-foreground">
+      <div>
+        <Typography.Title level={3} className="!m-0">
+          Orders
+        </Typography.Title>
+        <Typography.Text type="secondary">
           Search, filter, and inspect customer orders.
-        </p>
+        </Typography.Text>
       </div>
 
-      <Card>
-        <CardContent className="grid gap-3 p-4 md:grid-cols-12">
+      <Card styles={{ body: { padding: 16 } }}>
+        <div className="grid gap-3 md:grid-cols-12">
           <Input
             className="md:col-span-12"
             placeholder="Search by company, phone, Dynamics ID…"
             value={keyword}
+            allowClear
             onChange={(e) => {
               setPage(1);
               setKeyword(e.target.value);
             }}
           />
           <Select
+            className="md:col-span-3"
             value={orderStatusId}
-            onValueChange={(v) => {
+            onChange={(v) => {
               setPage(1);
               setOrderStatusId(v);
             }}
-          >
-            <SelectTrigger className="md:col-span-3">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>All statuses</SelectItem>
-              {(statuses ?? []).map((s) => (
-                <SelectItem key={s.id} value={s.id}>
-                  {s.status}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            options={[
+              { value: ALL, label: "All statuses" },
+              ...(statuses ?? []).map((s) => ({ value: s.id, label: s.status })),
+            ]}
+          />
           <Select
+            className="md:col-span-3"
             value={isPaid}
-            onValueChange={(v) => {
+            onChange={(v) => {
               setPage(1);
               setIsPaid(v);
             }}
-          >
-            <SelectTrigger className="md:col-span-3">
-              <SelectValue placeholder="Payment status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>All payment statuses</SelectItem>
-              <SelectItem value="true">Paid</SelectItem>
-              <SelectItem value="false">Unpaid</SelectItem>
-            </SelectContent>
-          </Select>
+            options={[
+              { value: ALL, label: "All payment statuses" },
+              { value: "true", label: "Paid" },
+              { value: "false", label: "Unpaid" },
+            ]}
+          />
           <Select
+            className="md:col-span-3"
             value={paymentMethodId}
-            onValueChange={(v) => {
+            onChange={(v) => {
               setPage(1);
               setPaymentMethodId(v);
             }}
-          >
-            <SelectTrigger className="md:col-span-3">
-              <SelectValue placeholder="Payment method" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>All methods</SelectItem>
-              <SelectItem value={PaymentMethodId.Credit}>Credit</SelectItem>
-              <SelectItem value={PaymentMethodId.CashOrCard}>Cash/Card</SelectItem>
-            </SelectContent>
-          </Select>
+            options={[
+              { value: ALL, label: "All methods" },
+              { value: PaymentMethodId.Credit, label: "Credit" },
+              { value: PaymentMethodId.CashOrCard, label: "Cash/Card" },
+            ]}
+          />
           <Select
+            className="md:col-span-3"
             value={isPoa}
-            onValueChange={(v) => {
+            onChange={(v) => {
               setPage(1);
               setIsPoa(v);
             }}
-          >
-            <SelectTrigger className="md:col-span-3">
-              <SelectValue placeholder="POA transactions" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>All transactions</SelectItem>
-              <SelectItem value="true">POA only</SelectItem>
-              <SelectItem value="false">Non-POA</SelectItem>
-            </SelectContent>
-          </Select>
-        </CardContent>
+            options={[
+              { value: ALL, label: "All transactions" },
+              { value: "true", label: "POA only" },
+              { value: "false", label: "Non-POA" },
+            ]}
+          />
+        </div>
       </Card>
 
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="text-sm text-muted-foreground">
+        <span className="text-sm text-muted-foreground">
           {isFetching && !isLoading ? "Refreshing…" : null}
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={downloadFiltered}>
-            <Download className="h-4 w-4" /> Download (filtered)
+        </span>
+        <Space>
+          <Button icon={<DownloadOutlined />} onClick={downloadFiltered}>
+            Download (filtered)
           </Button>
-          <Button variant="outline" onClick={downloadAll}>
-            <Download className="h-4 w-4" /> Download all
+          <Button icon={<DownloadOutlined />} onClick={downloadAll}>
+            Download all
           </Button>
-        </div>
+        </Space>
       </div>
 
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Company</TableHead>
-                <TableHead>Phone</TableHead>
-                <TableHead className="text-right">NGN</TableHead>
-                <TableHead className="text-right">USD</TableHead>
-                <TableHead>Location</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead>Payment</TableHead>
-                <TableHead>POA</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-right">Qty</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                Array.from({ length: 6 }).map((_, i) => (
-                  <TableRow key={i}>
-                    <TableCell colSpan={11}>
-                      <Skeleton className="h-8 w-full" />
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : rows.length === 0 ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={11}
-                    className="py-10 text-center text-muted-foreground"
-                  >
-                    No orders match the current filters.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                rows.map((o) => (
-                  <TableRow key={o.id}>
-                    <TableCell className="font-medium">
-                      {o.companyName ?? "—"}
-                    </TableCell>
-                    <TableCell className="text-xs">{o.phoneNumber ?? "—"}</TableCell>
-                    <TableCell className="text-right">
-                      {formatCurrency(totalForOrder(o, "NGN"), "NGN")}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {formatCurrency(totalForOrder(o, "USD"), "USD")}
-                    </TableCell>
-                    <TableCell className="max-w-[180px] truncate">
-                      {o.deliveryAddress ?? o.location?.name ?? "—"}
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {formatDate(o.dateCreated)}
-                    </TableCell>
-                    <TableCell>{o.paymentMethod?.method ?? "—"}</TableCell>
-                    <TableCell>
-                      {o.isPoaTransaction ? (
-                        <Badge variant="warning">POA</Badge>
-                      ) : (
-                        <Badge variant="secondary">—</Badge>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{o.orderStatus?.status ?? "—"}</Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {formatNumber(o.orderedProducts?.length ?? 0)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => openDetail(o.id)}
-                      >
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-          <DataTablePagination
-            page={page}
-            pageSize={pageSize}
-            totalItems={totalItems}
-            onPageChange={setPage}
-            onPageSizeChange={(s) => {
-              setPageSize(s);
-              setPage(1);
-            }}
-          />
-        </CardContent>
+      <Card styles={{ body: { padding: 0 } }}>
+        <Table<OrderReturnDto>
+          rowKey="id"
+          dataSource={rows}
+          columns={columns}
+          loading={isLoading || isFetching}
+          pagination={{
+            current: page,
+            pageSize,
+            total: totalItems,
+            showSizeChanger: true,
+            pageSizeOptions: [10, 20, 50, 100],
+            onChange: (p, ps) => {
+              setPage(p);
+              setPageSize(ps);
+            },
+          }}
+          scroll={{ x: 1200 }}
+          locale={{ emptyText: "No orders match the current filters." }}
+        />
       </Card>
 
       <OrderDetailModal

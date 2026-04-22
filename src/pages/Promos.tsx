@@ -1,15 +1,36 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
 import {
-  Eye,
-  ImageOff,
-  Loader2,
-  Pencil,
-  Plus,
-  Trash2,
+  Card,
+  Input,
+  Select,
+  Typography,
+  App as AntdApp,
+  Table,
+  Button,
+  Space,
+  Tag,
+  Switch,
+  Modal,
+  Form,
+  InputNumber,
+  DatePicker,
   Upload,
-} from "lucide-react";
+  Skeleton,
+  Descriptions,
+  Empty,
+} from "antd";
+import type { TableColumnsType, UploadFile } from "antd";
+import type { Dayjs } from "dayjs";
+import dayjs from "dayjs";
+import {
+  DeleteOutlined,
+  EditOutlined,
+  EyeOutlined,
+  PlusOutlined,
+  UploadOutlined,
+  PictureOutlined,
+} from "@ant-design/icons";
 import {
   apiDelete,
   apiGet,
@@ -27,60 +48,16 @@ import type {
 import { Permission } from "@/lib/permissions";
 import { useAuthStore } from "@/stores/auth";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { DataTablePagination } from "@/components/DataTablePagination";
+import { formatDate } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { ProductSearchMultiSelect } from "@/components/ProductSearchMultiSelect";
 import { ProductDetailModal } from "@/components/products/ProductDetailModal";
-import { formatDate } from "@/lib/utils";
 
 const ALL = "__all__";
 
-function toLocalDatetimeInput(iso: string | null | undefined) {
-  if (!iso) return "";
-  const d = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
-function fromLocalDatetimeInput(v: string): string | null {
-  if (!v) return null;
-  const d = new Date(v);
-  if (Number.isNaN(d.getTime())) return null;
-  return d.toISOString();
-}
-
 export default function PromosPage() {
   const queryClient = useQueryClient();
+  const { message } = AntdApp.useApp();
   const canEdit = useAuthStore((s) => s.hasPermission(Permission.CanEditPromos));
   const canCreate = useAuthStore((s) => s.hasPermission(Permission.CanCreatePromos));
   const canDelete = useAuthStore((s) => s.hasPermission(Permission.CanDeletePromos));
@@ -135,9 +112,9 @@ export default function PromosPage() {
     const fd = toFormData({ isActive: value });
     const res = await apiPatch<boolean>(`Promo/EditPromo/${promo.id}`, fd);
     if (!res.status) {
-      toast.error(res.message ?? "Update failed");
+      message.error(res.message ?? "Update failed");
     } else {
-      toast.success(res.message ?? "Promo updated");
+      message.success(res.message ?? "Promo updated");
       queryClient.invalidateQueries({ queryKey: ["promos"] });
     }
   }
@@ -150,206 +127,158 @@ export default function PromosPage() {
     return new Date(p.validUntil).getTime() <= Date.now();
   }
 
+  const columns: TableColumnsType<PromoResponse> = [
+    {
+      title: "Title",
+      dataIndex: "name",
+      render: (v, r) => (
+        <div className="flex items-center gap-2">
+          <span className="truncate font-medium">{v}</span>
+          {isExpired(r) && <Tag>Expired</Tag>}
+        </div>
+      ),
+    },
+    {
+      title: "Starts",
+      dataIndex: "startDate",
+      render: (v) => <span className="text-xs text-muted-foreground">{formatDate(v)}</span>,
+    },
+    {
+      title: "Ends",
+      dataIndex: "validUntil",
+      render: (v) => <span className="text-xs text-muted-foreground">{v ? formatDate(v) : "—"}</span>,
+    },
+    { title: "%", dataIndex: "percentOff", align: "right", render: (v: number) => `${v}%` },
+    { title: "Warehouse", dataIndex: ["location", "name"], render: (v) => v ?? "—" },
+    {
+      title: "Active",
+      dataIndex: "isActive",
+      render: (v: boolean, r) => (
+        <Switch
+          checked={v && !isExpired(r)}
+          disabled={!canEdit || isExpired(r)}
+          onChange={(val) => toggleActive(r, val)}
+        />
+      ),
+    },
+    {
+      title: "",
+      key: "actions",
+      width: 140,
+      align: "right",
+      render: (_, r) => (
+        <Space size={4}>
+          <Button size="small" icon={<EyeOutlined />} onClick={() => setDetailId(r.id)} />
+          {canEdit && (
+            <Button size="small" icon={<EditOutlined />} onClick={() => setEditId(r.id)} />
+          )}
+          {canDelete && (
+            <Button
+              size="small"
+              danger
+              icon={<DeleteOutlined />}
+              onClick={() => setDeleteTarget(r)}
+            />
+          )}
+        </Space>
+      ),
+    },
+  ];
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Promos</h1>
-          <p className="text-sm text-muted-foreground">
+          <Typography.Title level={3} className="!m-0">
+            Promos
+          </Typography.Title>
+          <Typography.Text type="secondary">
             Promotional campaigns with percentage discounts on bundles of products.
-          </p>
+          </Typography.Text>
         </div>
         {canCreate && (
-          <Button onClick={() => setCreateOpen(true)}>
-            <Plus className="h-4 w-4" /> New promo
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>
+            New promo
           </Button>
         )}
       </div>
 
-      <Card>
-        <CardContent className="grid gap-3 p-4 md:grid-cols-12">
+      <Card styles={{ body: { padding: 16 } }}>
+        <div className="grid gap-3 md:grid-cols-12">
           <Input
             className="md:col-span-6"
             placeholder="Search by title…"
             value={keyword}
+            allowClear
             onChange={(e) => {
               setPage(1);
               setKeyword(e.target.value);
             }}
           />
           <Select
+            className="md:col-span-3"
             value={isActive}
-            onValueChange={(v) => {
+            onChange={(v) => {
               setPage(1);
               setIsActive(v);
             }}
-          >
-            <SelectTrigger className="md:col-span-3">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>All statuses</SelectItem>
-              <SelectItem value="true">Active</SelectItem>
-              <SelectItem value="false">Inactive</SelectItem>
-            </SelectContent>
-          </Select>
+            options={[
+              { value: ALL, label: "All statuses" },
+              { value: "true", label: "Active" },
+              { value: "false", label: "Inactive" },
+            ]}
+          />
           <Select
+            className="md:col-span-3"
             value={locationId}
-            onValueChange={(v) => {
+            onChange={(v) => {
               setPage(1);
               setLocationId(v);
             }}
-          >
-            <SelectTrigger className="md:col-span-3">
-              <SelectValue placeholder="Warehouse" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>All warehouses</SelectItem>
-              {(warehouses ?? []).map((w) => (
-                <SelectItem key={w.id} value={w.id}>
-                  {w.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </CardContent>
-      </Card>
-
-      <div className="text-sm text-muted-foreground">
-        {isFetching && !isLoading ? "Refreshing…" : null}
-      </div>
-
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Title</TableHead>
-                <TableHead>Starts</TableHead>
-                <TableHead>Ends</TableHead>
-                <TableHead className="text-right">%</TableHead>
-                <TableHead>Warehouse</TableHead>
-                <TableHead>Active</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                Array.from({ length: 6 }).map((_, i) => (
-                  <TableRow key={i}>
-                    <TableCell colSpan={7}>
-                      <Skeleton className="h-8 w-full" />
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : rows.length === 0 ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={7}
-                    className="py-10 text-center text-muted-foreground"
-                  >
-                    No promos match the current filters.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                rows.map((p) => {
-                  const expired = isExpired(p);
-                  return (
-                    <TableRow key={p.id}>
-                      <TableCell className="font-medium">
-                        <div className="flex items-center gap-2">
-                          <span className="truncate">{p.name}</span>
-                          {expired && <Badge variant="secondary">Expired</Badge>}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        {formatDate(p.startDate)}
-                      </TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        {p.validUntil ? formatDate(p.validUntil) : "—"}
-                      </TableCell>
-                      <TableCell className="text-right">{p.percentOff}%</TableCell>
-                      <TableCell>{p.location?.name ?? "—"}</TableCell>
-                      <TableCell>
-                        <Switch
-                          checked={p.isActive && !expired}
-                          disabled={!canEdit || expired}
-                          onCheckedChange={(v) => toggleActive(p, v)}
-                        />
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-1">
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => setDetailId(p.id)}
-                            title="View"
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          {canEdit && (
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              className="h-8 w-8"
-                              onClick={() => setEditId(p.id)}
-                              title="Edit"
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                          )}
-                          {canDelete && (
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              className="h-8 w-8 text-destructive"
-                              onClick={() => setDeleteTarget(p)}
-                              title="Delete"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
-              )}
-            </TableBody>
-          </Table>
-          <DataTablePagination
-            page={page}
-            pageSize={pageSize}
-            totalItems={totalItems}
-            onPageChange={setPage}
-            onPageSizeChange={(s) => {
-              setPageSize(s);
-              setPage(1);
-            }}
+            options={[
+              { value: ALL, label: "All warehouses" },
+              ...(warehouses ?? []).map((w) => ({ value: w.id, label: w.name })),
+            ]}
           />
-        </CardContent>
+        </div>
       </Card>
 
-      <CreatePromoModal
+      <Card styles={{ body: { padding: 0 } }}>
+        <Table<PromoResponse>
+          rowKey="id"
+          dataSource={rows}
+          columns={columns}
+          loading={isLoading || isFetching}
+          pagination={{
+            current: page,
+            pageSize,
+            total: totalItems,
+            showSizeChanger: true,
+            pageSizeOptions: [10, 20, 50, 100],
+            onChange: (p, ps) => {
+              setPage(p);
+              setPageSize(ps);
+            },
+          }}
+          locale={{ emptyText: "No promos match the current filters." }}
+        />
+      </Card>
+
+      <PromoFormModal
+        mode="create"
         open={createOpen}
         onOpenChange={setCreateOpen}
         warehouses={warehouses ?? []}
-        onCreated={() =>
-          queryClient.invalidateQueries({ queryKey: ["promos"] })
-        }
+        onDone={() => queryClient.invalidateQueries({ queryKey: ["promos"] })}
       />
-
-      <EditPromoModal
-        promoId={editId}
+      <PromoFormModal
+        mode="edit"
+        promoId={editId ?? undefined}
         open={!!editId}
         onOpenChange={(v) => !v && setEditId(null)}
         warehouses={warehouses ?? []}
-        onUpdated={() =>
-          queryClient.invalidateQueries({ queryKey: ["promos"] })
-        }
+        onDone={() => queryClient.invalidateQueries({ queryKey: ["promos"] })}
       />
-
       <DetailPromoModal
         promoId={detailId}
         open={!!detailId}
@@ -366,14 +295,8 @@ export default function PromosPage() {
         destructive
         onConfirm={async () => {
           if (!deleteTarget) return;
-          const res = await apiDelete<boolean>(
-            `Promo/DeletePromo/${deleteTarget.id}`,
-          );
-          if (!res.status) {
-            toast.error(res.message ?? "Delete failed");
-            throw new Error("delete-failed");
-          }
-          toast.success(res.message ?? "Promo deleted");
+          const res = await apiDelete<boolean>(`Promo/DeletePromo/${deleteTarget.id}`);
+          if (!res.status) throw new Error("delete-failed");
           queryClient.invalidateQueries({ queryKey: ["promos"] });
         }}
       />
@@ -387,134 +310,47 @@ export default function PromosPage() {
   );
 }
 
-// --- Create modal ---
-function CreatePromoModal({
-  open,
-  onOpenChange,
-  warehouses,
-  onCreated,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  warehouses: LocationReturnDTO[];
-  onCreated: () => void;
-}) {
-  const [name, setName] = useState("");
-  const [percentOff, setPercentOff] = useState("");
-  const [warehouseId, setWarehouseId] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [file, setFile] = useState<File | null>(null);
-  const [productIds, setProductIds] = useState<string[]>([]);
-
-  useEffect(() => {
-    if (open) {
-      setName("");
-      setPercentOff("");
-      setWarehouseId("");
-      const now = new Date();
-      const weekLater = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-      setStartDate(toLocalDatetimeInput(now.toISOString()));
-      setEndDate(toLocalDatetimeInput(weekLater.toISOString()));
-      setFile(null);
-      setProductIds([]);
-    }
-  }, [open]);
-
-  const mutation = useMutation({
-    mutationFn: async () => {
-      if (!name.trim()) throw new Error("Title is required");
-      const pct = Number(percentOff);
-      if (!Number.isFinite(pct) || pct <= 0) throw new Error("Percent off must be > 0");
-      if (!warehouseId) throw new Error("Warehouse is required");
-      if (!startDate || !endDate) throw new Error("Start and end dates are required");
-      if (productIds.length === 0) throw new Error("Select at least one product");
-
-      const fd = toFormData(
-        {
-          name: name.trim(),
-          percentOff: pct,
-          startDate: fromLocalDatetimeInput(startDate),
-          endDate: fromLocalDatetimeInput(endDate),
-          locationId: warehouseId,
-          productIds,
-        },
-        file ?? undefined,
-      );
-      const res = await apiPost<boolean>("Promo/CreatePromo", fd);
-      if (!res.status) throw new Error(res.message ?? "Create failed");
-      return res.message ?? "Promo created";
-    },
-    onSuccess: (msg) => {
-      toast.success(msg);
-      onCreated();
-      onOpenChange(false);
-    },
-    onError: (err: Error) => toast.error(err.message),
-  });
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>New promo</DialogTitle>
-          <DialogDescription>Configure a promotional campaign.</DialogDescription>
-        </DialogHeader>
-        <PromoFormFields
-          name={name}
-          setName={setName}
-          percentOff={percentOff}
-          setPercentOff={setPercentOff}
-          warehouseId={warehouseId}
-          setWarehouseId={setWarehouseId}
-          startDate={startDate}
-          setStartDate={setStartDate}
-          endDate={endDate}
-          setEndDate={setEndDate}
-          file={file}
-          setFile={setFile}
-          productIds={productIds}
-          setProductIds={setProductIds}
-          warehouses={warehouses}
-        />
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button onClick={() => mutation.mutate()} disabled={mutation.isPending}>
-            {mutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-            Create promo
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
+// --- Create/Edit modal (shared) ---
+interface PromoFormState {
+  name: string;
+  percentOff: number | null;
+  warehouseId: string;
+  range: [Dayjs | null, Dayjs | null] | null;
+  productIds: string[];
+  file: File | null;
 }
 
-// --- Edit modal ---
-function EditPromoModal({
+function emptyState(): PromoFormState {
+  return {
+    name: "",
+    percentOff: null,
+    warehouseId: "",
+    range: [dayjs(), dayjs().add(7, "day")],
+    productIds: [],
+    file: null,
+  };
+}
+
+function PromoFormModal({
+  mode,
   promoId,
   open,
   onOpenChange,
   warehouses,
-  onUpdated,
+  onDone,
 }: {
-  promoId: string | null;
+  mode: "create" | "edit";
+  promoId?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   warehouses: LocationReturnDTO[];
-  onUpdated: () => void;
+  onDone: () => void;
 }) {
-  const [name, setName] = useState("");
-  const [percentOff, setPercentOff] = useState("");
-  const [warehouseId, setWarehouseId] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [file, setFile] = useState<File | null>(null);
-  const [productIds, setProductIds] = useState<string[]>([]);
+  const { message } = AntdApp.useApp();
+  const [state, setState] = useState<PromoFormState>(emptyState);
   const [initialSelection, setInitialSelection] = useState<MiniProductResponse[]>([]);
 
-  const { data, isLoading } = useQuery({
+  const { data: existing, isLoading } = useQuery({
     queryKey: ["promo", promoId],
     queryFn: async () => {
       if (!promoId) return null;
@@ -522,99 +358,174 @@ function EditPromoModal({
       if (!res.status) throw new Error(res.message ?? "Failed to load promo");
       return res.data;
     },
-    enabled: !!promoId && open,
+    enabled: mode === "edit" && !!promoId && open,
   });
 
   useEffect(() => {
-    if (data) {
-      setName(data.name);
-      setPercentOff(String(data.percentOff));
-      setWarehouseId(data.location?.id ?? "");
-      setStartDate(toLocalDatetimeInput(data.startDate));
-      setEndDate(toLocalDatetimeInput(data.validUntil));
-      setFile(null);
-      setProductIds(data.products.map((p) => p.id));
+    if (!open) return;
+    if (mode === "create") {
+      setState(emptyState());
+      setInitialSelection([]);
+    } else if (existing) {
+      setState({
+        name: existing.name,
+        percentOff: existing.percentOff,
+        warehouseId: existing.location?.id ?? "",
+        range: [
+          existing.startDate ? dayjs(existing.startDate) : null,
+          existing.validUntil ? dayjs(existing.validUntil) : null,
+        ],
+        productIds: existing.products.map((p) => p.id),
+        file: null,
+      });
       setInitialSelection(
-        data.products.map((p) => ({
+        existing.products.map((p) => ({
           id: p.id,
           productName: p.productName,
           dynamicsId: p.dynamicsId ?? undefined,
         })),
       );
     }
-  }, [data]);
+  }, [open, mode, existing]);
 
   const mutation = useMutation({
     mutationFn: async () => {
-      if (!promoId) throw new Error("No promo");
-      const pct = Number(percentOff);
-      if (!Number.isFinite(pct)) throw new Error("Percent off must be a number");
-      if (productIds.length === 0) throw new Error("Select at least one product");
+      if (!state.name.trim()) throw new Error("Title is required");
+      if (!state.percentOff || state.percentOff <= 0)
+        throw new Error("Percent off must be > 0");
+      if (!state.warehouseId) throw new Error("Warehouse is required");
+      const [start, end] = state.range ?? [null, null];
+      if (!start || !end) throw new Error("Start and end dates are required");
+      if (state.productIds.length === 0)
+        throw new Error("Select at least one product");
 
       const fd = toFormData(
         {
-          name: name.trim(),
-          percentOff: pct,
-          startDate: fromLocalDatetimeInput(startDate),
-          endDate: fromLocalDatetimeInput(endDate),
-          locationId: warehouseId,
-          productIds,
+          name: state.name.trim(),
+          percentOff: state.percentOff,
+          startDate: start.toDate().toISOString(),
+          endDate: end.toDate().toISOString(),
+          locationId: state.warehouseId,
+          productIds: state.productIds,
         },
-        file ?? undefined,
+        state.file ?? undefined,
       );
-      const res = await apiPatch<boolean>(`Promo/EditPromo/${promoId}`, fd);
-      if (!res.status) throw new Error(res.message ?? "Update failed");
-      return res.message ?? "Promo updated";
+
+      const res =
+        mode === "create"
+          ? await apiPost<boolean>("Promo/CreatePromo", fd)
+          : await apiPatch<boolean>(`Promo/EditPromo/${promoId}`, fd);
+      if (!res.status) throw new Error(res.message ?? "Save failed");
+      return res.message ?? "Promo saved";
     },
     onSuccess: (msg) => {
-      toast.success(msg);
-      onUpdated();
+      message.success(msg);
+      onDone();
       onOpenChange(false);
     },
-    onError: (err: Error) => toast.error(err.message),
+    onError: (err: Error) => message.error(err.message),
   });
 
+  const warehouseOptions = warehouses.map((w) => ({ value: w.id, label: w.name }));
+  const uploadFileList: UploadFile[] = state.file
+    ? [{ uid: "-1", name: state.file.name, status: "done" as const }]
+    : [];
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Edit promo</DialogTitle>
-          <DialogDescription>{data?.name ?? "Loading…"}</DialogDescription>
-        </DialogHeader>
-        {isLoading || !data ? (
-          <Skeleton className="h-60 w-full" />
-        ) : (
-          <PromoFormFields
-            name={name}
-            setName={setName}
-            percentOff={percentOff}
-            setPercentOff={setPercentOff}
-            warehouseId={warehouseId}
-            setWarehouseId={setWarehouseId}
-            startDate={startDate}
-            setStartDate={setStartDate}
-            endDate={endDate}
-            setEndDate={setEndDate}
-            file={file}
-            setFile={setFile}
-            productIds={productIds}
-            setProductIds={setProductIds}
-            initialSelection={initialSelection}
-            currentImageUrl={data.imageUrl}
-            warehouses={warehouses}
-          />
-        )}
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button onClick={() => mutation.mutate()} disabled={mutation.isPending}>
-            {mutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
-            Save changes
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <Modal
+      open={open}
+      onCancel={() => onOpenChange(false)}
+      title={mode === "create" ? "New promo" : "Edit promo"}
+      width={820}
+      confirmLoading={mutation.isPending}
+      okText={mode === "create" ? "Create promo" : "Save changes"}
+      onOk={() => mutation.mutate()}
+      destroyOnClose
+    >
+      {mode === "edit" && isLoading ? (
+        <Skeleton active paragraph={{ rows: 6 }} />
+      ) : (
+        <Form layout="vertical" requiredMark={false}>
+          <Form.Item label="Title" required>
+            <Input
+              value={state.name}
+              onChange={(e) => setState((p) => ({ ...p, name: e.target.value }))}
+              placeholder="Summer sale"
+            />
+          </Form.Item>
+          <Form.Item label="Percentage off" required>
+            <InputNumber
+              min={0}
+              max={100}
+              value={state.percentOff}
+              onChange={(v) => setState((p) => ({ ...p, percentOff: v ?? null }))}
+              style={{ width: "100%" }}
+              placeholder="25"
+            />
+          </Form.Item>
+          <Form.Item label="Warehouse" required>
+            <Select
+              value={state.warehouseId || undefined}
+              onChange={(v) => setState((p) => ({ ...p, warehouseId: v }))}
+              options={warehouseOptions}
+              placeholder="Select warehouse"
+            />
+          </Form.Item>
+          <Form.Item label="Date range" required>
+            <DatePicker.RangePicker
+              showTime
+              className="w-full"
+              value={state.range}
+              onChange={(v) =>
+                setState((p) => ({ ...p, range: v ? [v[0], v[1]] : null }))
+              }
+            />
+          </Form.Item>
+          <Form.Item label="Image">
+            {existing?.imageUrl && !state.file && (
+              <div className="mb-2 overflow-hidden rounded-md border bg-muted">
+                <img
+                  src={existing.imageUrl}
+                  alt="Current"
+                  className="mx-auto max-h-40 w-auto object-contain"
+                />
+                <div className="border-t px-3 py-1 text-center text-xs text-muted-foreground">
+                  Current image — choose a new file to replace
+                </div>
+              </div>
+            )}
+            <Upload
+              fileList={uploadFileList}
+              beforeUpload={(file) => {
+                setState((p) => ({ ...p, file }));
+                return false;
+              }}
+              onRemove={() => {
+                setState((p) => ({ ...p, file: null }));
+                return true;
+              }}
+              accept="image/*"
+              maxCount={1}
+            >
+              <Button icon={<UploadOutlined />}>
+                {state.file ? "Replace image" : "Choose an image"}
+              </Button>
+            </Upload>
+          </Form.Item>
+          <Form.Item label="Products" required>
+            <ProductSearchMultiSelect
+              value={state.productIds}
+              onChange={(v) => setState((p) => ({ ...p, productIds: v }))}
+              initialSelection={initialSelection}
+              extraParams={{
+                hasPromo: "false",
+                locationId: state.warehouseId || undefined,
+              }}
+            />
+          </Form.Item>
+        </Form>
+      )}
+    </Modal>
   );
 }
 
@@ -641,207 +552,64 @@ function DetailPromoModal({
     enabled: !!promoId && open,
   });
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{data?.name ?? "Promo"}</DialogTitle>
-          <DialogDescription>
-            {data ? `${data.percentOff}% off${data.location?.name ? " · " + data.location.name : ""}` : "Loading…"}
-          </DialogDescription>
-        </DialogHeader>
-        {isLoading || !data ? (
-          <Skeleton className="h-40 w-full" />
-        ) : (
-          <div className="space-y-4">
-            {data.imageUrl ? (
-              <div className="overflow-hidden rounded-md border bg-muted">
-                <img
-                  src={data.imageUrl}
-                  alt={data.name}
-                  className="mx-auto max-h-64 w-auto object-contain"
-                />
-              </div>
-            ) : (
-              <div className="flex h-32 items-center justify-center gap-2 rounded-md border bg-muted text-muted-foreground">
-                <ImageOff className="h-5 w-5" />
-                No image
-              </div>
-            )}
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div>
-                <div className="text-xs uppercase text-muted-foreground">Starts</div>
-                <div>{formatDate(data.startDate)}</div>
-              </div>
-              <div>
-                <div className="text-xs uppercase text-muted-foreground">Ends</div>
-                <div>{data.validUntil ? formatDate(data.validUntil) : "—"}</div>
-              </div>
-            </div>
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Product</TableHead>
-                    <TableHead>Dynamics ID</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {(data.products ?? []).map((p: BaseProductReturnDto) => (
-                    <TableRow
-                      key={p.id}
-                      className="cursor-pointer"
-                      onClick={() => onOpenProduct(p.id)}
-                    >
-                      <TableCell className="font-medium">{p.productName}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">
-                        {p.dynamicsId ?? "—"}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </div>
-        )}
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Close
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
+  const columns: TableColumnsType<BaseProductReturnDto> = [
+    { title: "Product", dataIndex: "productName", render: (v) => <span className="font-medium">{v}</span> },
+    {
+      title: "Dynamics ID",
+      dataIndex: "dynamicsId",
+      render: (v) => <span className="text-xs text-muted-foreground">{v ?? "—"}</span>,
+    },
+  ];
 
-// --- Shared form fields ---
-interface PromoFormFieldsProps {
-  name: string;
-  setName: (v: string) => void;
-  percentOff: string;
-  setPercentOff: (v: string) => void;
-  warehouseId: string;
-  setWarehouseId: (v: string) => void;
-  startDate: string;
-  setStartDate: (v: string) => void;
-  endDate: string;
-  setEndDate: (v: string) => void;
-  file: File | null;
-  setFile: (v: File | null) => void;
-  productIds: string[];
-  setProductIds: (v: string[]) => void;
-  initialSelection?: MiniProductResponse[];
-  currentImageUrl?: string | null;
-  warehouses: LocationReturnDTO[];
-}
-
-function PromoFormFields({
-  name,
-  setName,
-  percentOff,
-  setPercentOff,
-  warehouseId,
-  setWarehouseId,
-  startDate,
-  setStartDate,
-  endDate,
-  setEndDate,
-  file,
-  setFile,
-  productIds,
-  setProductIds,
-  initialSelection,
-  currentImageUrl,
-  warehouses,
-}: PromoFormFieldsProps) {
   return (
-    <div className="space-y-4">
-      <div className="space-y-1.5">
-        <Label>Title</Label>
-        <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Summer sale" />
-      </div>
-      <div className="space-y-1.5">
-        <Label>Percentage off</Label>
-        <Input
-          type="number"
-          min={0}
-          max={100}
-          value={percentOff}
-          onChange={(e) => setPercentOff(e.target.value)}
-          placeholder="25"
-        />
-      </div>
-      <div className="space-y-1.5">
-        <Label>Warehouse</Label>
-        <Select value={warehouseId || ALL} onValueChange={(v) => setWarehouseId(v === ALL ? "" : v)}>
-          <SelectTrigger>
-            <SelectValue placeholder="Select warehouse" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL}>Select warehouse</SelectItem>
-            {warehouses.map((w) => (
-              <SelectItem key={w.id} value={w.id}>
-                {w.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-        <div className="space-y-1.5">
-          <Label>Start date</Label>
-          <Input
-            type="datetime-local"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
+    <Modal
+      open={open}
+      onCancel={() => onOpenChange(false)}
+      title={data?.name ?? "Promo"}
+      width={820}
+      footer={null}
+      destroyOnClose
+    >
+      {isLoading || !data ? (
+        <Skeleton active paragraph={{ rows: 6 }} />
+      ) : (
+        <div className="space-y-4">
+          {data.imageUrl ? (
+            <div className="overflow-hidden rounded-md border bg-muted">
+              <img
+                src={data.imageUrl}
+                alt={data.name}
+                className="mx-auto max-h-64 w-auto object-contain"
+              />
+            </div>
+          ) : (
+            <div className="flex h-32 items-center justify-center rounded-md border bg-muted">
+              <Empty image={<PictureOutlined style={{ fontSize: 32 }} />} description="No image" />
+            </div>
+          )}
+          <Descriptions column={2} size="small" colon={false}>
+            <Descriptions.Item label="Discount">{data.percentOff}%</Descriptions.Item>
+            <Descriptions.Item label="Warehouse">
+              {data.location?.name ?? "—"}
+            </Descriptions.Item>
+            <Descriptions.Item label="Starts">{formatDate(data.startDate)}</Descriptions.Item>
+            <Descriptions.Item label="Ends">
+              {data.validUntil ? formatDate(data.validUntil) : "—"}
+            </Descriptions.Item>
+          </Descriptions>
+          <Table<BaseProductReturnDto>
+            rowKey="id"
+            dataSource={data.products ?? []}
+            columns={columns}
+            pagination={false}
+            size="small"
+            onRow={(r) => ({
+              onClick: () => onOpenProduct(r.id),
+              style: { cursor: "pointer" },
+            })}
           />
         </div>
-        <div className="space-y-1.5">
-          <Label>End date</Label>
-          <Input
-            type="datetime-local"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-          />
-        </div>
-      </div>
-      <div className="space-y-1.5">
-        <Label>Image</Label>
-        {currentImageUrl && !file && (
-          <div className="mb-2 overflow-hidden rounded-md border bg-muted">
-            <img
-              src={currentImageUrl}
-              alt="Current"
-              className="mx-auto max-h-40 w-auto object-contain"
-            />
-            <div className="border-t px-3 py-1 text-center text-xs text-muted-foreground">
-              Current image — choose a new file to replace
-            </div>
-          </div>
-        )}
-        <label className="flex cursor-pointer items-center gap-2 rounded-md border border-dashed px-3 py-3 text-sm text-muted-foreground hover:bg-accent">
-          <Upload className="h-4 w-4" />
-          <span>{file ? file.name : "Choose an image (optional)"}</span>
-          <input
-            type="file"
-            className="hidden"
-            accept="image/*"
-            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-          />
-        </label>
-      </div>
-      <div className="space-y-1.5">
-        <Label>Products</Label>
-        <ProductSearchMultiSelect
-          value={productIds}
-          onChange={setProductIds}
-          initialSelection={initialSelection}
-          extraParams={{
-            hasPromo: "false",
-            locationId: warehouseId || undefined,
-          }}
-        />
-      </div>
-    </div>
+      )}
+    </Modal>
   );
 }

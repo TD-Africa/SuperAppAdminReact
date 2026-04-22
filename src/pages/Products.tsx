@@ -1,41 +1,36 @@
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
-import { Download, Eye, RefreshCw } from "lucide-react";
+import {
+  Card,
+  Input,
+  Select,
+  Typography,
+  App as AntdApp,
+  Table,
+  Button,
+  Space,
+  Tag,
+  Switch,
+} from "antd";
+import type { TableColumnsType } from "antd";
+import {
+  DownloadOutlined,
+  EyeOutlined,
+  SyncOutlined,
+} from "@ant-design/icons";
 import { apiGet, apiPatch, apiPut, apiPost, API_BASE_URL } from "@/lib/api";
 import type { PaginationResponse, ProductReturnDto } from "@/lib/types";
 import { Permission } from "@/lib/permissions";
 import { useAuthStore } from "@/stores/auth";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { formatCurrency, formatNumber } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { DataTablePagination } from "@/components/DataTablePagination";
 import { ProductDetailModal } from "@/components/products/ProductDetailModal";
 
 const ALL = "__all__";
 
 export default function ProductsPage() {
   const queryClient = useQueryClient();
+  const { message } = AntdApp.useApp();
   const canEdit = useAuthStore((s) => s.hasPermission(Permission.CanEditProducts));
 
   const [keyword, setKeyword] = useState("");
@@ -96,38 +91,33 @@ export default function ProductsPage() {
       [field]: value,
     });
     if (!res.status) {
-      toast.error(res.message ?? "Update failed");
+      message.error(res.message ?? "Update failed");
       queryClient.setQueryData(queryKey, prev);
     } else {
-      toast.success(res.message ?? "Updated");
+      message.success(res.message ?? "Updated");
     }
   }
 
   async function syncPrice(id: string) {
     const res = await apiPut<boolean>(`product/SyncProductPrice/${id}`);
     if (res.status) {
-      toast.success(res.message ?? "Price synced");
+      message.success(res.message ?? "Price synced");
       refetch();
     } else {
-      toast.error(res.message ?? "Sync failed");
+      message.error(res.message ?? "Sync failed");
     }
   }
 
   async function syncAllImages() {
-    toast.promise(
-      apiPost<boolean>("Product/SyncAllProductImages/sync-all-images", null).then(
-        (res) => {
-          if (!res.status) throw new Error(res.message ?? "Sync failed");
-          refetch();
-          return res.message ?? "Sync started";
-        },
-      ),
-      {
-        loading: "Syncing all product images…",
-        success: (msg) => msg,
-        error: (err: Error) => err.message,
-      },
-    );
+    const hide = message.loading("Syncing all product images…", 0);
+    const res = await apiPost<boolean>("Product/SyncAllProductImages/sync-all-images", null);
+    hide();
+    if (!res.status) {
+      message.error(res.message ?? "Sync failed");
+    } else {
+      message.success(res.message ?? "Sync started");
+      refetch();
+    }
   }
 
   function downloadAll() {
@@ -135,8 +125,10 @@ export default function ProductsPage() {
   }
 
   function downloadFiltered() {
-    const url = `${API_BASE_URL}Product/DownloadAllProducts?${queryParams.toString()}`;
-    window.open(url, "_blank");
+    window.open(
+      `${API_BASE_URL}Product/DownloadAllProducts?${queryParams.toString()}`,
+      "_blank",
+    );
   }
 
   function openDetail(id: string) {
@@ -147,197 +139,169 @@ export default function ProductsPage() {
   const rows = data?.data ?? [];
   const totalItems = Number(data?.count ?? 0);
 
+  const columns: TableColumnsType<ProductReturnDto> = [
+    {
+      title: "Product",
+      dataIndex: "productName",
+      render: (v, r) => (
+        <div className="max-w-[260px]">
+          <div className="truncate font-medium">{v}</div>
+          <div className="truncate text-xs text-muted-foreground">
+            {r.category ?? "—"}
+          </div>
+        </div>
+      ),
+    },
+    { title: "Brand", dataIndex: ["brand", "name"], render: (v) => v ?? "—" },
+    { title: "Qty", dataIndex: "quantity", align: "right", render: (v) => formatNumber(v) },
+    {
+      title: "Price (NGN)",
+      dataIndex: "priceInNaira",
+      align: "right",
+      render: (v) => formatCurrency(v, "NGN"),
+    },
+    {
+      title: "Price (USD)",
+      dataIndex: "priceInDollar",
+      align: "right",
+      render: (v) => formatCurrency(v, "USD"),
+    },
+    {
+      title: "Dynamics ID",
+      dataIndex: "dynamicsId",
+      render: (v) => <span className="text-xs text-muted-foreground">{v ?? "—"}</span>,
+    },
+    {
+      title: "Visible",
+      dataIndex: "isVisible",
+      render: (v: boolean) => <Tag color={v ? "blue" : "default"}>{v ? "Yes" : "No"}</Tag>,
+    },
+    {
+      title: "Active",
+      dataIndex: "isActive",
+      render: (v: boolean, r) => (
+        <Switch checked={v} disabled={!canEdit} onChange={(val) => toggleField(r.id, "IsActive", val)} />
+      ),
+    },
+    {
+      title: "Featured",
+      dataIndex: "isFeaturedProduct",
+      render: (v: boolean, r) => (
+        <Switch checked={v} disabled={!canEdit} onChange={(val) => toggleField(r.id, "IsFeaturedProduct", val)} />
+      ),
+    },
+    {
+      title: "",
+      key: "actions",
+      width: 100,
+      align: "right",
+      render: (_, r) => (
+        <Space size={4}>
+          <Button size="small" icon={<EyeOutlined />} onClick={() => openDetail(r.id)} />
+          {canEdit && (
+            <Button
+              size="small"
+              icon={<SyncOutlined />}
+              onClick={() => syncPrice(r.id)}
+              title="Sync price"
+            />
+          )}
+        </Space>
+      ),
+    },
+  ];
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Products</h1>
-        <p className="text-sm text-muted-foreground">
+      <div>
+        <Typography.Title level={3} className="!m-0">
+          Products
+        </Typography.Title>
+        <Typography.Text type="secondary">
           Browse, search, and manage the product catalog.
-        </p>
+        </Typography.Text>
       </div>
 
-      <Card>
-        <CardContent className="grid gap-3 p-4 md:grid-cols-12">
+      <Card styles={{ body: { padding: 16 } }}>
+        <div className="grid gap-3 md:grid-cols-12">
           <Input
             className="md:col-span-6"
             placeholder="Search products by name, SKU, Dynamics ID…"
             value={keyword}
+            allowClear
             onChange={(e) => {
               setPage(1);
               setKeyword(e.target.value);
             }}
           />
           <Select
+            className="md:col-span-3"
             value={isActive}
-            onValueChange={(v) => {
+            onChange={(v) => {
               setPage(1);
               setIsActive(v);
             }}
-          >
-            <SelectTrigger className="md:col-span-3">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>All statuses</SelectItem>
-              <SelectItem value="true">Active</SelectItem>
-              <SelectItem value="false">Inactive</SelectItem>
-            </SelectContent>
-          </Select>
+            options={[
+              { value: ALL, label: "All statuses" },
+              { value: "true", label: "Active" },
+              { value: "false", label: "Inactive" },
+            ]}
+          />
           <Select
+            className="md:col-span-3"
             value={isFeatured}
-            onValueChange={(v) => {
+            onChange={(v) => {
               setPage(1);
               setIsFeatured(v);
             }}
-          >
-            <SelectTrigger className="md:col-span-3">
-              <SelectValue placeholder="Featured" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL}>All products</SelectItem>
-              <SelectItem value="true">Featured only</SelectItem>
-              <SelectItem value="false">Not featured</SelectItem>
-            </SelectContent>
-          </Select>
-        </CardContent>
+            options={[
+              { value: ALL, label: "All products" },
+              { value: "true", label: "Featured only" },
+              { value: "false", label: "Not featured" },
+            ]}
+          />
+        </div>
       </Card>
 
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="text-sm text-muted-foreground">
+        <span className="text-sm text-muted-foreground">
           {isFetching && !isLoading ? "Refreshing…" : null}
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={downloadFiltered}>
-            <Download className="h-4 w-4" /> Download (filtered)
+        </span>
+        <Space>
+          <Button icon={<DownloadOutlined />} onClick={downloadFiltered}>
+            Download (filtered)
           </Button>
-          <Button variant="outline" onClick={downloadAll}>
-            <Download className="h-4 w-4" /> Download all
+          <Button icon={<DownloadOutlined />} onClick={downloadAll}>
+            Download all
           </Button>
           {canEdit && (
-            <Button variant="secondary" onClick={syncAllImages}>
-              <RefreshCw className="h-4 w-4" /> Sync all images
+            <Button type="default" icon={<SyncOutlined />} onClick={syncAllImages}>
+              Sync all images
             </Button>
           )}
-        </div>
+        </Space>
       </div>
 
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Product</TableHead>
-                <TableHead>Brand</TableHead>
-                <TableHead className="text-right">Qty</TableHead>
-                <TableHead className="text-right">Price (NGN)</TableHead>
-                <TableHead className="text-right">Price (USD)</TableHead>
-                <TableHead>Dynamics ID</TableHead>
-                <TableHead>Visible</TableHead>
-                <TableHead>Active</TableHead>
-                <TableHead>Featured</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                Array.from({ length: 6 }).map((_, i) => (
-                  <TableRow key={i}>
-                    <TableCell colSpan={10}>
-                      <Skeleton className="h-8 w-full" />
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : rows.length === 0 ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={10}
-                    className="py-10 text-center text-muted-foreground"
-                  >
-                    No products match the current filters.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                rows.map((p) => (
-                  <TableRow key={p.id}>
-                    <TableCell className="max-w-[260px]">
-                      <div className="font-medium">{p.productName}</div>
-                      <div className="truncate text-xs text-muted-foreground">
-                        {p.category ?? "—"}
-                      </div>
-                    </TableCell>
-                    <TableCell>{p.brand?.name ?? "—"}</TableCell>
-                    <TableCell className="text-right">
-                      {formatNumber(p.quantity)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {formatCurrency(p.priceInNaira, "NGN")}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {formatCurrency(p.priceInDollar, "USD")}
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {p.dynamicsId ?? "—"}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={p.isVisible ? "default" : "secondary"}>
-                        {p.isVisible ? "Yes" : "No"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Switch
-                        checked={p.isActive}
-                        disabled={!canEdit}
-                        onCheckedChange={(v) => toggleField(p.id, "IsActive", v)}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Switch
-                        checked={p.isFeaturedProduct}
-                        disabled={!canEdit}
-                        onCheckedChange={(v) =>
-                          toggleField(p.id, "IsFeaturedProduct", v)
-                        }
-                      />
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => openDetail(p.id)}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        {canEdit && (
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => syncPrice(p.id)}
-                            title="Sync price"
-                          >
-                            <RefreshCw className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-          <DataTablePagination
-            page={page}
-            pageSize={pageSize}
-            totalItems={totalItems}
-            onPageChange={setPage}
-            onPageSizeChange={(s) => {
-              setPageSize(s);
-              setPage(1);
-            }}
-          />
-        </CardContent>
+      <Card styles={{ body: { padding: 0 } }}>
+        <Table<ProductReturnDto>
+          rowKey="id"
+          dataSource={rows}
+          columns={columns}
+          loading={isLoading || isFetching}
+          pagination={{
+            current: page,
+            pageSize,
+            total: totalItems,
+            showSizeChanger: true,
+            pageSizeOptions: [10, 20, 50, 100],
+            onChange: (p, ps) => {
+              setPage(p);
+              setPageSize(ps);
+            },
+          }}
+          scroll={{ x: 1200 }}
+          locale={{ emptyText: "No products match the current filters." }}
+        />
       </Card>
 
       <ProductDetailModal

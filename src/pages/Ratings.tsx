@@ -1,42 +1,10 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Star } from "lucide-react";
+import { Card, Input, Typography, Table, Rate } from "antd";
+import type { TableColumnsType } from "antd";
 import { apiGet } from "@/lib/api";
 import type { PaginationResponse, RatingResponseWithUser } from "@/lib/types";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { DataTablePagination } from "@/components/DataTablePagination";
-import { cn } from "@/lib/utils";
-
-function StarRow({ score }: { score: number }) {
-  const full = Math.round(score);
-  return (
-    <div className="flex items-center gap-0.5">
-      {Array.from({ length: 5 }).map((_, i) => (
-        <Star
-          key={i}
-          className={cn(
-            "h-3.5 w-3.5",
-            i < full
-              ? "fill-amber-400 text-amber-400"
-              : "fill-none text-muted-foreground/40",
-          )}
-        />
-      ))}
-      <span className="ml-1 text-xs font-medium">{score.toFixed(1)}</span>
-    </div>
-  );
-}
 
 export default function RatingsPage() {
   const [keyword, setKeyword] = useState("");
@@ -66,92 +34,78 @@ export default function RatingsPage() {
   const rows = data?.data ?? [];
   const totalItems = Number(data?.count ?? 0);
 
+  const columns: TableColumnsType<RatingResponseWithUser> = [
+    {
+      title: "Score",
+      dataIndex: "score",
+      width: 180,
+      render: (v: number) => (
+        <div className="flex items-center gap-2">
+          <Rate disabled allowHalf value={v} style={{ fontSize: 14 }} />
+          <span className="text-xs font-medium">{v.toFixed(1)}</span>
+        </div>
+      ),
+    },
+    {
+      title: "Comment",
+      dataIndex: "comment",
+      render: (v) =>
+        v ? (
+          <p className="whitespace-pre-wrap text-sm">{v}</p>
+        ) : (
+          <span className="text-muted-foreground">No comment</span>
+        ),
+    },
+    {
+      title: "Customer",
+      dataIndex: "companyName",
+      width: 240,
+      render: (v) => v ?? "—",
+    },
+  ];
+
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Ratings</h1>
-        <p className="text-sm text-muted-foreground">
+        <Typography.Title level={3} className="!m-0">
+          Ratings
+        </Typography.Title>
+        <Typography.Text type="secondary">
           Customer ratings and comments across the platform.
-        </p>
+        </Typography.Text>
       </div>
 
-      <Card>
-        <CardContent className="p-4">
-          <Input
-            placeholder="Search by comment or company…"
-            value={keyword}
-            onChange={(e) => {
-              setPage(1);
-              setKeyword(e.target.value);
-            }}
-          />
-        </CardContent>
+      <Card styles={{ body: { padding: 16 } }}>
+        <Input
+          placeholder="Search by comment or company…"
+          value={keyword}
+          allowClear
+          onChange={(e) => {
+            setPage(1);
+            setKeyword(e.target.value);
+          }}
+        />
       </Card>
 
-      <div className="text-sm text-muted-foreground">
-        {isFetching && !isLoading ? "Refreshing…" : null}
-      </div>
-
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Score</TableHead>
-                <TableHead>Comment</TableHead>
-                <TableHead>Customer</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                Array.from({ length: 6 }).map((_, i) => (
-                  <TableRow key={i}>
-                    <TableCell colSpan={3}>
-                      <Skeleton className="h-8 w-full" />
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : rows.length === 0 ? (
-                <TableRow>
-                  <TableCell
-                    colSpan={3}
-                    className="py-10 text-center text-muted-foreground"
-                  >
-                    No ratings yet.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                rows.map((r) => (
-                  <TableRow key={r.id}>
-                    <TableCell>
-                      <StarRow score={r.score} />
-                    </TableCell>
-                    <TableCell className="max-w-[640px]">
-                      <p className="whitespace-pre-wrap text-sm">
-                        {r.comment ?? (
-                          <span className="text-muted-foreground">No comment</span>
-                        )}
-                      </p>
-                    </TableCell>
-                    <TableCell className="text-sm">
-                      {r.companyName ?? "—"}
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-          <DataTablePagination
-            page={page}
-            pageSize={pageSize}
-            totalItems={totalItems}
-            onPageChange={setPage}
-            onPageSizeChange={(s) => {
-              setPageSize(s);
-              setPage(1);
-            }}
-          />
-        </CardContent>
+      <Card styles={{ body: { padding: 0 } }}>
+        <Table<RatingResponseWithUser>
+          rowKey="id"
+          dataSource={rows}
+          columns={columns}
+          loading={isLoading || isFetching}
+          pagination={{
+            current: page,
+            pageSize,
+            total: totalItems,
+            showSizeChanger: true,
+            pageSizeOptions: [10, 20, 50, 100],
+            onChange: (p, ps) => {
+              setPage(p);
+              setPageSize(ps);
+            },
+          }}
+          locale={{ emptyText: "No ratings yet." }}
+        />
       </Card>
     </div>
   );

@@ -1,121 +1,126 @@
 import { useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Button, Card, Form, Input, Typography, App as AntdApp } from "antd";
+import { MailOutlined, LockOutlined } from "@ant-design/icons";
 import { useAuthStore } from "@/stores/auth";
 
-const schema = z.object({
-  userName: z.string().min(1, "Email is required").email("Enter a valid email"),
-  password: z.string().min(1, "Password is required"),
-});
-
-type FormValues = z.infer<typeof schema>;
+interface FormValues {
+  userName: string;
+  password: string;
+}
 
 export default function LoginPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const returnUrl = searchParams.get("returnUrl") ?? "/";
+  const { message } = AntdApp.useApp();
   const isLoggedIn = useAuthStore((s) => s.isLoggedIn());
   const login = useAuthStore((s) => s.login);
-
-  const {
-    register,
-    handleSubmit,
-    formState: { errors, isSubmitting },
-  } = useForm<FormValues>({ resolver: zodResolver(schema) });
+  const [form] = Form.useForm<FormValues>();
 
   useEffect(() => {
     if (isLoggedIn) navigate(returnUrl, { replace: true });
   }, [isLoggedIn, navigate, returnUrl]);
 
-  async function onSubmit(values: FormValues) {
+  async function onFinish(values: FormValues) {
     const result = await login(values);
     if (result.status) {
-      toast.success("Signed in");
+      message.success("Signed in");
       navigate(returnUrl, { replace: true });
     } else {
-      toast.error(result.message ?? "Sign-in failed");
+      message.error(result.message ?? "Sign-in failed");
     }
   }
 
   return (
     <div className="grid min-h-screen w-full lg:grid-cols-2">
-      <div className="relative hidden overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-primary lg:block">
+      <div className="relative hidden overflow-hidden bg-gradient-to-br from-[#3f0010] via-[#550016] to-[#800020] lg:block">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.12),transparent_60%),radial-gradient(circle_at_70%_80%,rgba(255,255,255,0.08),transparent_60%)]" />
         <div className="relative flex h-full flex-col justify-between p-10 text-white">
-          <div className="text-lg font-semibold tracking-tight">TD SuperApp</div>
+          <img
+            src="/logo.png"
+            alt="TDAfrica SuperApp"
+            className="h-20 w-auto object-contain brightness-20"
+          />
           <div className="space-y-3">
-            <h1 className="text-4xl font-bold leading-tight">
-              Run the business
-              <br />
-              from one dashboard.
-            </h1>
-            <p className="max-w-md text-white/70">
-              Products, orders, promos, customers, tickets — everything your
-              team needs, in one place.
+            <Typography.Title
+              level={1}
+              className="!m-0 !max-w-md !text-white"
+              style={{ color: "#fff", fontWeight: 700, fontSize: 40, lineHeight: 1.15 }}
+            >
+              Run the business from one dashboard.
+            </Typography.Title>
+            <p className="max-w-md text-white/75">
+              Products, orders, promos, customers, tickets — everything your team
+              needs, in one place.
             </p>
           </div>
           <div className="text-xs text-white/50">
-            &copy; {new Date().getFullYear()} TD Africa
+            ...One Platform, One Purpose, Powered by Innovation
           </div>
         </div>
       </div>
 
       <div className="flex items-center justify-center px-6 py-12">
-        <Card className="w-full max-w-sm border-0 shadow-none sm:border sm:shadow-sm">
-          <CardContent className="p-6 sm:p-8">
-            <div className="mb-8 space-y-2 text-center">
-              <h2 className="text-2xl font-semibold tracking-tight">
-                Sign in
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                Enter your credentials to continue
-              </p>
-            </div>
-            <form className="space-y-4" onSubmit={handleSubmit(onSubmit)} noValidate>
-              <div className="space-y-2">
-                <Label htmlFor="userName">Email</Label>
-                <Input
-                  id="userName"
-                  type="email"
-                  autoComplete="email"
-                  placeholder="name@tdafrica.com"
-                  {...register("userName")}
-                />
-                {errors.userName && (
-                  <p className="text-xs text-destructive">
-                    {errors.userName.message}
-                  </p>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  autoComplete="current-password"
-                  placeholder="********"
-                  {...register("password")}
-                />
-                {errors.password && (
-                  <p className="text-xs text-destructive">
-                    {errors.password.message}
-                  </p>
-                )}
-              </div>
-              <Button type="submit" className="w-full" disabled={isSubmitting}>
-                {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
+        <Card
+          variant="borderless"
+          className="w-full max-w-sm sm:border sm:shadow-sm"
+          styles={{ body: { padding: 32 } }}
+        >
+          <div className="mb-6 flex flex-col items-center">
+            <img
+              src="/logolight.png"
+              alt="TDAfrica SuperApp"
+              className="h-24 w-auto object-contain"
+            />
+          </div>
+          <div className="mb-6 space-y-1 text-center">
+            <Typography.Title level={4} className="!m-0">
+              Sign in
+            </Typography.Title>
+            <Typography.Text type="secondary">
+              Enter your credentials to continue
+            </Typography.Text>
+          </div>
+          <Form<FormValues>
+            form={form}
+            layout="vertical"
+            requiredMark={false}
+            onFinish={onFinish}
+            autoComplete="off"
+            size="large"
+          >
+            <Form.Item
+              name="userName"
+              label="Email"
+              rules={[
+                { required: true, message: "Email is required" },
+                { type: "email", message: "Enter a valid email" },
+              ]}
+            >
+              <Input
+                prefix={<MailOutlined className="text-muted-foreground" />}
+                placeholder="name@tdafrica.com"
+                autoComplete="email"
+              />
+            </Form.Item>
+            <Form.Item
+              name="password"
+              label="Password"
+              rules={[{ required: true, message: "Password is required" }]}
+            >
+              <Input.Password
+                prefix={<LockOutlined className="text-muted-foreground" />}
+                placeholder="••••••••"
+                autoComplete="current-password"
+              />
+            </Form.Item>
+            <Form.Item className="!mb-0 !mt-6">
+              <Button type="primary" htmlType="submit" block size="large">
                 Sign in
               </Button>
-            </form>
-          </CardContent>
+            </Form.Item>
+          </Form>
         </Card>
       </div>
     </div>

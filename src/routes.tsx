@@ -1,9 +1,9 @@
 import { lazy, Suspense } from "react";
 import { Navigate, createBrowserRouter } from "react-router-dom";
+import { Skeleton, Card, Row, Col } from "antd";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { Permission } from "@/lib/permissions";
-import { Skeleton } from "@/components/ui/skeleton";
 
 const LoginPage = lazy(() => import("@/pages/Login"));
 const DashboardPage = lazy(() => import("@/pages/Dashboard"));
@@ -29,12 +29,16 @@ const ForbiddenPage = lazy(() => import("@/pages/Forbidden"));
 
 const pageLoader = (
   <div className="p-6">
-    <Skeleton className="h-10 w-64" />
-    <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+    <Skeleton active title paragraph={{ rows: 1 }} />
+    <Row gutter={[16, 16]} className="mt-6">
       {Array.from({ length: 8 }).map((_, i) => (
-        <Skeleton key={i} className="h-28 w-full" />
+        <Col key={i} xs={24} sm={12} xl={6}>
+          <Card>
+            <Skeleton active paragraph={{ rows: 1 }} />
+          </Card>
+        </Col>
       ))}
-    </div>
+    </Row>
   </div>
 );
 

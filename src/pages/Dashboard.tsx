@@ -27,6 +27,8 @@ import {
   TeamOutlined,
   CustomerServiceOutlined,
   AppstoreOutlined,
+  ShoppingOutlined,
+  ExclamationCircleOutlined,
 } from "@ant-design/icons";
 import {
   PieChart,
@@ -43,6 +45,8 @@ import type {
   TopRankingProductResponse,
 } from "@/lib/types";
 import { formatCurrency, formatDate, formatNumber } from "@/lib/utils";
+import { AbandonedCartUsersModal } from "@/components/dashboard/AbandonedCartUsersModal";
+import { DebtCollectionModal } from "@/components/dashboard/DebtCollectionModal";
 
 const { RangePicker } = DatePicker;
 
@@ -110,6 +114,8 @@ export default function DashboardPage() {
     s: string | null;
     e: string | null;
   }>({ s: null, e: null });
+  const [abandonedCartOpen, setAbandonedCartOpen] = useState(false);
+  const [debtCollectionOpen, setDebtCollectionOpen] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ["admin-dashboard", appliedRange.s, appliedRange.e],
@@ -354,6 +360,58 @@ export default function DashboardPage() {
             </Col>
           </Row>
 
+          {/* Action items — clickable to open detail modals */}
+          <Row gutter={[16, 16]}>
+            <Col xs={24} md={12}>
+              <Card
+                hoverable
+                onClick={() => setAbandonedCartOpen(true)}
+                className="!border-l-4 !border-l-amber-500"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="text-sm text-muted-foreground">
+                      Abandoned carts
+                    </div>
+                    <div className="mt-2 text-2xl font-semibold tracking-tight text-primary">
+                      {formatNumber(data.totalNumberOfAbandonedCarts)}
+                    </div>
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      Tap to view users with items left behind
+                    </div>
+                  </div>
+                  <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-amber-100 text-lg text-amber-600">
+                    <ShoppingOutlined />
+                  </div>
+                </div>
+              </Card>
+            </Col>
+            <Col xs={24} md={12}>
+              <Card
+                hoverable
+                onClick={() => setDebtCollectionOpen(true)}
+                className="!border-l-4 !border-l-rose-700"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="text-sm text-muted-foreground">
+                      Debt collection
+                    </div>
+                    <div className="mt-2 text-2xl font-semibold tracking-tight text-primary">
+                      {formatNumber(data.totalNumberOfUnpaidOrders)}
+                    </div>
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      Unpaid credit orders awaiting collection
+                    </div>
+                  </div>
+                  <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-rose-100 text-lg text-rose-700">
+                    <ExclamationCircleOutlined />
+                  </div>
+                </div>
+              </Card>
+            </Col>
+          </Row>
+
           <Row gutter={[16, 16]}>
             <Col xs={24} lg={12}>
               <Card title="Transaction mix">
@@ -463,6 +521,18 @@ export default function DashboardPage() {
           </Card>
         </>
       ) : null}
+
+      <AbandonedCartUsersModal
+        open={abandonedCartOpen}
+        onOpenChange={setAbandonedCartOpen}
+        startDate={range?.[0] ?? null}
+        endDate={range?.[1] ?? null}
+      />
+
+      <DebtCollectionModal
+        open={debtCollectionOpen}
+        onOpenChange={setDebtCollectionOpen}
+      />
     </div>
   );
 }

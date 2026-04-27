@@ -506,6 +506,22 @@ export interface EditDealRequest {
   productIds?: string[] | null;
 }
 
+// ---- Abandoned cart ----
+export interface CartProductDTO {
+  productId: string;
+  quantity: number;
+  locationId: string;
+  dateAdded: string;
+}
+
+export interface AbandonedCartUserDTO {
+  userId: string;
+  email: string;
+  cartId: string;
+  lastUpdated: string;
+  cartProducts: CartProductDTO[];
+}
+
 // ---- Audit logs ----
 export interface PaginatedApiResponse<T> {
   data: T[];

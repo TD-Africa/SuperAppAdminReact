@@ -253,6 +253,26 @@ function formatValue(v: unknown): string {
   return s;
 }
 
+type ActionMode = "created" | "deleted" | "updated";
+
+function classifyAction(item: AuditLogItem): ActionMode {
+  const a = item.action?.toLowerCase() ?? "";
+  if (a.includes("delete") || a.includes("remove")) return "deleted";
+  if (a.includes("create") || a.includes("add") || a.includes("insert")) return "created";
+  if (a.includes("update") || a.includes("edit") || a.includes("modif") || a.includes("change")) return "updated";
+  // Fall back to inspecting the data shape: empty before → created, empty after → deleted.
+  const beforeEmpty = !item.beforeData || Object.keys(item.beforeData).length === 0;
+  const afterEmpty = !item.afterData || Object.keys(item.afterData).length === 0;
+  if (beforeEmpty && !afterEmpty) return "created";
+  if (afterEmpty && !beforeEmpty) return "deleted";
+  return "updated";
+}
+
+interface SingleRow {
+  fieldName: string;
+  value: unknown;
+}
+
 function AuditLogDetailModal({
   item,
   open,
@@ -262,27 +282,40 @@ function AuditLogDetailModal({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const { allFields, changedFields } = useMemo(() => {
-    if (!item) return { allFields: [], changedFields: [] };
+  const mode: ActionMode = item ? classifyAction(item) : "updated";
+
+  const { allFields, changedFields, snapshotFields } = useMemo(() => {
+    if (!item) return { allFields: [], changedFields: [], snapshotFields: [] };
     const before = (item.beforeData ?? {}) as Record<string, unknown>;
     const after = (item.afterData ?? {}) as Record<string, unknown>;
     const changes = (item.updatedData?.changes ?? {}) as Record<string, unknown>;
     const keys = Array.from(
       new Set([...Object.keys(before), ...Object.keys(after)]),
     ).sort();
-    const rows: Row[] = keys.map((k) => ({
+    const diff: Row[] = keys.map((k) => ({
       fieldName: humanFieldName(k),
       before: before[k],
       after: after[k],
       changed: k in changes,
     }));
+    // The single source of values for created/deleted entries — backends differ
+    // on whether the snapshot lands in beforeData or afterData, so pick whichever
+    // is populated. If both happen to be present (mixed convention), prefer after.
+    const snapshotSource =
+      Object.keys(after).length > 0 ? after : before;
+    const snapshotKeys = Object.keys(snapshotSource).sort();
+    const snapshot: SingleRow[] = snapshotKeys.map((k) => ({
+      fieldName: humanFieldName(k),
+      value: snapshotSource[k],
+    }));
     return {
-      allFields: rows,
-      changedFields: rows.filter((r) => r.changed),
+      allFields: diff,
+      changedFields: diff.filter((r) => r.changed),
+      snapshotFields: snapshot,
     };
   }, [item]);
 
-  const columns: TableColumnsType<Row> = [
+  const diffColumns: TableColumnsType<Row> = [
     { title: "Field", dataIndex: "fieldName", width: "25%" },
     {
       title: "Before",
@@ -316,6 +349,29 @@ function AuditLogDetailModal({
     },
   ];
 
+  const snapshotColumns: TableColumnsType<SingleRow> = [
+    { title: "Field", dataIndex: "fieldName", width: "33%" },
+    {
+      title: mode === "created" ? "New value" : "Final value",
+      dataIndex: "value",
+      render: (v) => (
+        <span
+          className={
+            "block whitespace-pre-wrap break-words px-2 py-1 " +
+            (mode === "created"
+              ? "bg-emerald-100/70 text-emerald-900"
+              : "bg-rose-100/70 text-rose-900")
+          }
+        >
+          {formatValue(v)}
+        </span>
+      ),
+    },
+  ];
+
+  const tagColor =
+    mode === "created" ? "success" : mode === "deleted" ? "error" : "default";
+
   return (
     <Modal
       open={open}
@@ -332,38 +388,58 @@ function AuditLogDetailModal({
       {item && (
         <div className="space-y-5">
           <div className="flex flex-wrap items-center gap-2">
-            <Tag>{item.action}</Tag>
+            <Tag color={tagColor}>{item.action}</Tag>
             <span className="text-sm text-muted-foreground">
               by {item.adminEmail} on{" "}
               {new Date(item.createdAt).toLocaleString()}
             </span>
           </div>
 
-          {changedFields.length > 0 && (
+          {mode === "updated" ? (
+            <>
+              {changedFields.length > 0 && (
+                <div>
+                  <h4 className="mb-2 text-sm font-medium">
+                    Summary of changes ({changedFields.length})
+                  </h4>
+                  <Table<Row>
+                    rowKey="fieldName"
+                    dataSource={changedFields}
+                    columns={diffColumns}
+                    pagination={false}
+                    size="small"
+                  />
+                </div>
+              )}
+              <div>
+                <h4 className="mb-2 text-sm font-medium">Full before / after</h4>
+                <Table<Row>
+                  rowKey="fieldName"
+                  dataSource={allFields}
+                  columns={diffColumns}
+                  pagination={false}
+                  size="small"
+                  locale={{ emptyText: "No data recorded." }}
+                />
+              </div>
+            </>
+          ) : (
             <div>
               <h4 className="mb-2 text-sm font-medium">
-                Summary of changes ({changedFields.length})
+                {mode === "created"
+                  ? "New record values"
+                  : "Record state at deletion"}
               </h4>
-              <Table<Row>
+              <Table<SingleRow>
                 rowKey="fieldName"
-                dataSource={changedFields}
-                columns={columns}
+                dataSource={snapshotFields}
+                columns={snapshotColumns}
                 pagination={false}
                 size="small"
+                locale={{ emptyText: "No data recorded." }}
               />
             </div>
           )}
-          <div>
-            <h4 className="mb-2 text-sm font-medium">Full before / after</h4>
-            <Table<Row>
-              rowKey="fieldName"
-              dataSource={allFields}
-              columns={columns}
-              pagination={false}
-              size="small"
-              locale={{ emptyText: "No data recorded." }}
-            />
-          </div>
         </div>
       )}
     </Modal>

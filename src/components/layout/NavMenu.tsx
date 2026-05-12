@@ -21,6 +21,7 @@ import {
   KeyOutlined,
   PercentageOutlined,
   HistoryOutlined,
+  AccountBookOutlined,
 } from "@ant-design/icons";
 import { useAuthStore } from "@/stores/auth";
 import { Permission } from "@/lib/permissions";
@@ -38,6 +39,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/", label: "Home", icon: <DashboardOutlined />, permission: Permission.CanViewDashboard, exact: true },
   { to: "/products", label: "Products", icon: <AppstoreOutlined />, permission: Permission.CanViewProducts },
   { to: "/orders", label: "Orders", icon: <ShoppingCartOutlined />, permission: Permission.CanViewOrders },
+  { to: "/debt-collection", label: "Debt Collection", icon: <AccountBookOutlined />, permission: Permission.CanViewOrders },
   { to: "/customers", label: "Customers", icon: <TeamOutlined />, permission: Permission.CanViewUser },
   { to: "/cac-data", label: "CAC Data", icon: <IdcardOutlined />, permission: Permission.CanViewUser },
   { to: "/kyc", label: "KYC", icon: <SafetyCertificateOutlined />, permission: Permission.CanEditUser },

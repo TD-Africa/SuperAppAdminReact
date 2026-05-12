@@ -137,7 +137,10 @@ export interface BaseProductReturnDto {
   nairaCurrency: string | null;
   dollarCurrency: string | null;
   showNairaCurrency: boolean;
-  warehouses: LocationWithQuantityResponse[];
+  // Backend serializes Warehouses as the singular "warehouse" via
+  // [JsonPropertyName("warehouse")] on the C# DTO — the property is plural but
+  // the wire name is singular. Match the wire name here.
+  warehouse: LocationWithQuantityResponse[] | null;
   exchangeRate: number;
   isFeaturedProduct: boolean;
   isVisible: boolean;
@@ -504,6 +507,36 @@ export interface EditDealRequest {
   locationId?: string | null;
   isActive?: boolean | null;
   productIds?: string[] | null;
+}
+
+// ---- Debt collection ----
+// Mirror of TDSuperApp.DTOs.Response.AlmostDueOrderResponse
+export interface AlmostDueOrderResponse {
+  orderId: string;
+  orderReference: string;
+  userName: string | null;
+  userEmail: string | null;
+  companyName: string | null;
+  amountDue: number;
+  amountPaid: number;
+  totalAmount: number;
+  dueDate: string | null;
+  daysUntilDue: number;
+  isDue: boolean;
+  reminderCount: number;
+  orderStatus: string;
+  paymentMethod: string;
+  orderDate: string;
+}
+
+// Mirror of TDSuperApp.DTOs.Response.DebtCollectionSummaryResponse
+export interface DebtCollectionSummaryResponse {
+  orders: AlmostDueOrderResponse[];
+  totalOrders: number;
+  totalAmountDue: number;
+  ordersDueThisWeek: number;
+  ordersDueNextWeek: number;
+  overdueOrders: number;
 }
 
 // ---- Abandoned cart ----

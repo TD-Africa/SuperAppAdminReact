@@ -25,6 +25,7 @@ const EmailChangeRequestsPage = lazy(() => import("@/pages/EmailChangeRequests")
 const RequestAppealsPage = lazy(() => import("@/pages/RequestAppeals"));
 const AdminUsersPage = lazy(() => import("@/pages/AdminUsers"));
 const RolesPage = lazy(() => import("@/pages/Roles"));
+const DebtCollectionPage = lazy(() => import("@/pages/DebtCollection"));
 const ForbiddenPage = lazy(() => import("@/pages/Forbidden"));
 
 const pageLoader = (
@@ -81,6 +82,14 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute permission={Permission.CanViewOrders}>
             {withSuspense(<OrdersPage />)}
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "debt-collection",
+        element: (
+          <ProtectedRoute permission={Permission.CanViewOrders}>
+            {withSuspense(<DebtCollectionPage />)}
           </ProtectedRoute>
         ),
       },

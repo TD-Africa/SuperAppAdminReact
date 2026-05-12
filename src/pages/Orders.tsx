@@ -128,10 +128,17 @@ export default function OrdersPage() {
       render: (v) => <span className="text-xs text-muted-foreground">{formatDate(v)}</span>,
     },
     { title: "Payment", dataIndex: ["paymentMethod", "method"], render: (v) => v ?? "—" },
+    { title: "Delivery", dataIndex: ["deliveryMethod", "method"], render: (v) => v ?? "—" },
     {
       title: "POA",
       dataIndex: "isPoaTransaction",
       render: (v: boolean) => (v ? <Tag color="gold">POA</Tag> : <Tag>—</Tag>),
+    },
+    {
+      title: "Fully paid",
+      dataIndex: "isFullyPaid",
+      render: (v: boolean) =>
+        v ? <Tag color="success">Yes</Tag> : <Tag color="warning">No</Tag>,
     },
     {
       title: "Status",

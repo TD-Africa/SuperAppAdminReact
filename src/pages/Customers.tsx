@@ -184,6 +184,13 @@ export default function CustomersPage() {
       render: (v) => formatNumber(v ?? 0),
     },
     {
+      title: "Date joined",
+      dataIndex: "dateCreated",
+      render: (v) => (
+        <span className="text-xs text-muted-foreground">{v ? formatDate(v) : "—"}</span>
+      ),
+    },
+    {
       title: "Last order",
       dataIndex: "lastOrderDate",
       render: (v) => <span className="text-xs text-muted-foreground">{v ? formatDate(v) : "—"}</span>,

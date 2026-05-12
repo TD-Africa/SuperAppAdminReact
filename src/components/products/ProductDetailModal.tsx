@@ -11,6 +11,7 @@ import {
   App as AntdApp,
   Empty,
   Table,
+  Result,
 } from "antd";
 import type { TableColumnsType } from "antd";
 import {
@@ -40,15 +41,18 @@ export function ProductDetailModal({ productId, open, onOpenChange }: Props) {
   const [imageIndex, setImageIndex] = useState(0);
   const [syncing, setSyncing] = useState(false);
 
-  const { data, isLoading, refetch } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["product", productId],
     queryFn: async () => {
       if (!productId) return null;
       const res = await apiGet<ProductReturnDto>(`Product/GetProduct/${productId}`);
-      if (!res.status) throw new Error(res.message ?? "Failed to load product");
+      // Backend returns Result<T> with status=false for 404s (inactive/deleted products).
+      // Surface the message verbatim and skip retrying — there's nothing to retry.
+      if (!res.status) throw new Error(res.message ?? "Product not found");
       return res.data;
     },
     enabled: !!productId && open,
+    retry: false,
   });
 
   useEffect(() => {
@@ -75,17 +79,25 @@ export function ProductDetailModal({ productId, open, onOpenChange }: Props) {
   }
 
   const warehouseColumns: TableColumnsType<LocationWithQuantityResponse> = [
-    { title: "Warehouse", dataIndex: "name", render: (v) => <span className="font-medium">{v}</span> },
     {
-      title: "Dynamics ID",
+      title: "Warehouse name",
+      dataIndex: "name",
+      render: (v) => <span className="font-medium">{v}</span>,
+    },
+    {
+      title: "Warehouse Dynamics ID",
       dataIndex: "dynamicsId",
-      render: (v) => <span className="text-xs text-muted-foreground">{v ?? "—"}</span>,
+      render: (v) => (
+        <span className="text-xs text-muted-foreground">{v ?? "—"}</span>
+      ),
     },
     {
       title: "Quantity",
       dataIndex: "quantity",
       align: "right",
-      render: (v: number) => formatNumber(v),
+      render: (v: number) => (
+        <span className="font-medium">{formatNumber(v)}</span>
+      ),
     },
   ];
 
@@ -112,8 +124,17 @@ export function ProductDetailModal({ productId, open, onOpenChange }: Props) {
       ]}
       destroyOnClose
     >
-      {isLoading || !data ? (
+      {isLoading ? (
         <Skeleton active paragraph={{ rows: 6 }} />
+      ) : isError || !data ? (
+        <Result
+          status="404"
+          title="Product unavailable"
+          subTitle={
+            (error as Error)?.message ??
+            "This product may be inactive or no longer exists."
+          }
+        />
       ) : (
         <div className="space-y-5">
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
@@ -192,19 +213,28 @@ export function ProductDetailModal({ productId, open, onOpenChange }: Props) {
             </div>
           </div>
 
-          {data.warehouses.length > 0 && (
-            <div>
-              <Typography.Text strong>Stock breakdown</Typography.Text>
-              <Table<LocationWithQuantityResponse>
-                rowKey="id"
-                dataSource={data.warehouses}
-                columns={warehouseColumns}
-                pagination={false}
-                size="small"
-                className="mt-2"
-              />
-            </div>
-          )}
+          <Divider className="!my-4" />
+          <div className="mx-auto max-w-3xl">
+            <Typography.Title level={5} className="!mb-3 text-center">
+              Stock Breakdown
+            </Typography.Title>
+            <Table<LocationWithQuantityResponse>
+              rowKey={(r) => `${r.id}-${r.dynamicsId ?? ""}`}
+              dataSource={data.warehouse ?? []}
+              columns={warehouseColumns}
+              pagination={false}
+              size="middle"
+              bordered
+              locale={{
+                emptyText: (
+                  <Empty
+                    image={Empty.PRESENTED_IMAGE_SIMPLE}
+                    description="No warehouse stock data for this product."
+                  />
+                ),
+              }}
+            />
+          </div>
         </div>
       )}
     </Modal>

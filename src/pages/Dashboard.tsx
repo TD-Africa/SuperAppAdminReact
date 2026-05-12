@@ -46,7 +46,6 @@ import type {
 } from "@/lib/types";
 import { formatCurrency, formatDate, formatNumber } from "@/lib/utils";
 import { AbandonedCartUsersModal } from "@/components/dashboard/AbandonedCartUsersModal";
-import { DebtCollectionModal } from "@/components/dashboard/DebtCollectionModal";
 
 const { RangePicker } = DatePicker;
 
@@ -115,7 +114,6 @@ export default function DashboardPage() {
     e: string | null;
   }>({ s: null, e: null });
   const [abandonedCartOpen, setAbandonedCartOpen] = useState(false);
-  const [debtCollectionOpen, setDebtCollectionOpen] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ["admin-dashboard", appliedRange.s, appliedRange.e],
@@ -389,7 +387,7 @@ export default function DashboardPage() {
             <Col xs={24} md={12}>
               <Card
                 hoverable
-                onClick={() => setDebtCollectionOpen(true)}
+                onClick={() => navigate("/debt-collection")}
                 className="!border-l-4 !border-l-rose-700"
               >
                 <div className="flex items-start justify-between gap-4">
@@ -527,11 +525,6 @@ export default function DashboardPage() {
         onOpenChange={setAbandonedCartOpen}
         startDate={range?.[0] ?? null}
         endDate={range?.[1] ?? null}
-      />
-
-      <DebtCollectionModal
-        open={debtCollectionOpen}
-        onOpenChange={setDebtCollectionOpen}
       />
     </div>
   );

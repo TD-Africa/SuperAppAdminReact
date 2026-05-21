@@ -235,6 +235,11 @@ export function OrderDetailModal({ orderId, open, onOpenChange, onUpdated }: Pro
         ) : (
           <div className="space-y-5">
             <Descriptions column={{ xs: 1, sm: 2, md: 4 }} size="small" colon={false}>
+              <Descriptions.Item label="Order ID" span={4}>
+                <Typography.Text copyable className="text-xs font-mono">
+                  {data.id}
+                </Typography.Text>
+              </Descriptions.Item>
               <Descriptions.Item label="Company">
                 {data.companyName ?? "—"}
               </Descriptions.Item>

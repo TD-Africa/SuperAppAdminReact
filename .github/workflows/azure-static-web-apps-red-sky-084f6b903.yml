@@ -31,6 +31,11 @@ jobs:
           app_location: "/" # App source code path
           api_location: "" # Api source code path - optional
           output_location: "build" # Built app content directory - optional
+
+        env:
+            # Environment variables can be set here. These variables will be available during the build and deployment process.
+           VITE_API_BASE_URL: "https://tdsuperapp-admin-api-test.azurewebsites.net/api/v1/"
+           VITE_AUTH_STORAGE_KEY: "SuperAppAdminReact__Authentication"  
           ###### End of Repository/Build Configurations ######
 
   close_pull_request_job:
@@ -44,3 +49,4 @@ jobs:
         with:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_RED_SKY_084F6B903 }}
           action: "close"
+          app_location: "/"

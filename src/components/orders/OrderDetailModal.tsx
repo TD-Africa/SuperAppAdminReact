@@ -75,9 +75,9 @@ export function OrderDetailModal({ orderId, open, onOpenChange, onUpdated }: Pro
     if (!data?.orderedProducts) return [];
     const seen = new Map<string, InvoiceRow>();
     for (const op of data.orderedProducts) {
-      if (!op.salesId || seen.has(op.salesId)) continue;
-      seen.set(op.salesId, {
-        salesId: op.salesId,
+      if (!op.salesID || seen.has(op.salesID)) continue;
+      seen.set(op.salesID, {
+        salesId: op.salesID,
         invoiceId: op.invoiceID ?? "—",
         invoiceCreationDate: op.invoiceCreationDate,
         amountDueInNaira: op.amountInNaira * op.quantity,
@@ -183,8 +183,8 @@ export function OrderDetailModal({ orderId, open, onOpenChange, onUpdated }: Pro
     },
     { title: "Warehouse", dataIndex: ["warehouse", "name"], render: (v) => v ?? "—" },
     { title: "Qty", dataIndex: "quantity", align: "right", render: (v) => formatNumber(v) },
-    { title: "Sales ID", dataIndex: "salesId", render: (v) => <span className="text-xs">{v ?? "—"}</span> },
-    { title: "Voucher ID", dataIndex: "voucherId", render: (v) => <span className="text-xs">{v ?? "—"}</span> },
+    { title: "Sales ID", dataIndex: "salesID", render: (v) => <span className="text-xs">{v ?? "—"}</span> },
+    { title: "Voucher ID", dataIndex: "voucherID", render: (v) => <span className="text-xs">{v ?? "—"}</span> },
     {
       title: "USD",
       dataIndex: "amountInDollar",
@@ -308,7 +308,7 @@ export function OrderDetailModal({ orderId, open, onOpenChange, onUpdated }: Pro
                 Products ({data.orderedProducts?.length ?? 0})
               </Typography.Text>
               <Table<OrderProductReturnDto>
-                rowKey={(r) => `${r.product.id}-${r.salesId ?? ""}`}
+                rowKey={(r) => `${r.product.id}-${r.salesID ?? ""}`}
                 dataSource={data.orderedProducts ?? []}
                 columns={productColumns}
                 pagination={false}

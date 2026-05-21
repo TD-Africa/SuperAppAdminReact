@@ -626,9 +626,9 @@ export interface OrderProductReturnDto {
   product: BaseProductReturnDto;
   quantity: number;
   dateOrdered: string;
-  voucherId: string | null;
+  voucherID: string | null;
   invoiceID: string | null;
-  salesId: string | null;
+  salesID: string | null;
   warehouse: LocationReturnDTO | null;
   amountInNaira: number;
   amountInDollar: number;

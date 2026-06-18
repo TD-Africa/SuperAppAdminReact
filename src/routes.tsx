@@ -13,6 +13,7 @@ const BrandsPage = lazy(() => import("@/pages/Brands"));
 const WarehousesPage = lazy(() => import("@/pages/Warehouses"));
 const TicketsPage = lazy(() => import("@/pages/Tickets"));
 const CustomersPage = lazy(() => import("@/pages/Customers"));
+const EmployeesPage = lazy(() => import("@/pages/Employees"));
 const CacDataPage = lazy(() => import("@/pages/CacData"));
 const KycPage = lazy(() => import("@/pages/Kyc"));
 const ProductGroupsPage = lazy(() => import("@/pages/ProductGroups"));
@@ -98,6 +99,14 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute permission={Permission.CanViewUser}>
             {withSuspense(<CustomersPage />)}
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "employees",
+        element: (
+          <ProtectedRoute permission={Permission.CanViewDashboard}>
+            {withSuspense(<EmployeesPage />)}
           </ProtectedRoute>
         ),
       },

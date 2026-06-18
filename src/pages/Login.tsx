@@ -127,16 +127,13 @@ export default function LoginPage() {
           >
             <Form.Item
               name="userName"
-              label="Email"
-              rules={[
-                { required: true, message: "Email is required" },
-                { type: "email", message: "Enter a valid email" },
-              ]}
+              label="Username or Email"
+              rules={[{ required: true, message: "Username is required" }]}
             >
               <Input
                 prefix={<MailOutlined className="text-muted-foreground" />}
-                placeholder="name@tdafrica.com"
-                autoComplete="email"
+                placeholder="admin or name@tdafrica.com"
+                autoComplete="username"
               />
             </Form.Item>
             <Form.Item

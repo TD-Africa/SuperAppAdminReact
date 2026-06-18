@@ -10,6 +10,18 @@ export const AUTH_STORAGE_KEY =
 const RAW_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
 export const API_BASE_URL = RAW_BASE.endsWith("/") ? RAW_BASE : RAW_BASE + "/";
 
+// Some endpoints (e.g. the Worker/sales-personnel controller) live directly
+// under the host at `/api/...` rather than the versioned `/api/v1/` base.
+// Expose the bare origin so those absolute URLs can be built. Falls back to the
+// base URL string if it isn't a parseable absolute URL.
+export const API_ORIGIN = (() => {
+  try {
+    return new URL(API_BASE_URL).origin;
+  } catch {
+    return API_BASE_URL.replace(/\/+$/, "");
+  }
+})();
+
 interface StoredAuth {
   accessToken: string;
 }

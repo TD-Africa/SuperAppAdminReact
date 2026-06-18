@@ -701,3 +701,28 @@ export interface AdminDashboardResponse {
   topFiveSellingProducts: TopRankingProductResponse[];
   lastFiveOrders: TopRankingOrderResponse[];
 }
+
+// ── Worker / sales personnel (TDSuperApp Worker controller) ───────────────────
+// Mirror of WorkerSalesStats — per-employee converted-order sales stats.
+export interface WorkerSalesStats {
+  referralId: string | null;
+  personnelNumber: string | null;
+  fullName: string | null;
+  isActive: boolean;
+  orderCount: number;
+  totalAmount: number;
+  lastConvertedUtc: string | null;
+}
+
+// Mirror of WorkerSalesOverview — aggregate KPIs plus the per-worker breakdown.
+export interface WorkerSalesOverview {
+  generatedUtc: string;
+  totalWorkers: number;
+  activeWorkers: number;
+  workersWithSales: number;
+  totalConvertedOrders: number;
+  totalConvertedAmount: number;
+  unattributedOrders: number;
+  unattributedAmount: number;
+  workers: WorkerSalesStats[] | null;
+}

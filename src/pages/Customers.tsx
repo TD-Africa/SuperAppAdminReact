@@ -16,6 +16,7 @@ import {
 } from "antd";
 import type { TableColumnsType } from "antd";
 import {
+  ApiOutlined,
   DownloadOutlined,
   EditOutlined,
   PlusOutlined,
@@ -38,6 +39,7 @@ import { PromptDialog } from "@/components/PromptDialog";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { CreateCustomerModal } from "@/components/customers/CreateCustomerModal";
 import { EditCustomerModal } from "@/components/customers/EditCustomerModal";
+import { DynamicsLinkModal } from "@/components/customers/DynamicsLinkModal";
 
 const { RangePicker } = DatePicker;
 const ALL = "__all__";
@@ -69,6 +71,7 @@ export default function CustomersPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [suspendTarget, setSuspendTarget] = useState<CustomerResponse | null>(null);
   const [reactivateTarget, setReactivateTarget] = useState<CustomerResponse | null>(null);
+  const [dynamicsTarget, setDynamicsTarget] = useState<CustomerResponse | null>(null);
 
   const queryParams = useMemo(() => {
     const params = new URLSearchParams();
@@ -170,7 +173,12 @@ export default function CustomersPage() {
     {
       title: "Dynamics ID",
       dataIndex: "dynamicsId",
-      render: (v) => <span className="text-xs text-muted-foreground">{v ?? "—"}</span>,
+      render: (v: string | null) =>
+        v ? (
+          <span className="text-xs text-muted-foreground">{v}</span>
+        ) : (
+          <Tag color="warning">Not linked</Tag>
+        ),
     },
     {
       title: "Status",
@@ -205,7 +213,7 @@ export default function CustomersPage() {
     {
       title: "",
       key: "actions",
-      width: 140,
+      width: 180,
       align: "right",
       render: (_, r) => (
         <Space size={4}>
@@ -217,6 +225,15 @@ export default function CustomersPage() {
               setEditOpen(true);
             }}
           />
+          {canEdit && (
+            <Button
+              size="small"
+              icon={<ApiOutlined />}
+              type={r.dynamicsId ? "default" : "primary"}
+              onClick={() => setDynamicsTarget(r)}
+              title={r.dynamicsId ? "Manage Dynamics link" : "Link to Dynamics"}
+            />
+          )}
           {canEdit && !r.isSuspended && (
             <Button
               size="small"
@@ -357,6 +374,13 @@ export default function CustomersPage() {
           if (!v) setEditId(null);
         }}
         onUpdated={() => refetch()}
+      />
+
+      <DynamicsLinkModal
+        customer={dynamicsTarget}
+        open={!!dynamicsTarget}
+        onOpenChange={(v) => !v && setDynamicsTarget(null)}
+        onLinked={() => refetch()}
       />
 
       <PromptDialog

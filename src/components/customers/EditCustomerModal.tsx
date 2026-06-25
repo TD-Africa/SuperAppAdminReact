@@ -11,7 +11,10 @@ import {
   Divider,
   Row,
   Col,
+  Button,
+  Space,
 } from "antd";
+import { ApiOutlined } from "@ant-design/icons";
 import { apiGet, apiPatch } from "@/lib/api";
 import type {
   CustomerResponse,
@@ -19,6 +22,7 @@ import type {
   LocationReturnDTO,
 } from "@/lib/types";
 import { MultiSelect } from "@/components/MultiSelect";
+import { DynamicsLinkModal } from "@/components/customers/DynamicsLinkModal";
 
 interface Props {
   customerId: string | null;
@@ -105,6 +109,7 @@ export function EditCustomerModal({
   const { message } = AntdApp.useApp();
   const [state, setState] = useState<FormState | null>(null);
   const [initial, setInitial] = useState<FormState | null>(null);
+  const [dynamicsOpen, setDynamicsOpen] = useState(false);
 
   const { data: customer, isLoading: loadingCustomer } = useQuery({
     queryKey: ["customer", customerId],
@@ -291,8 +296,21 @@ export function EditCustomerModal({
                 </Form.Item>
               </Col>
             </Row>
-            <Form.Item label="Dynamics ID (read-only)">
-              <Input value={customer.dynamicsId ?? ""} disabled />
+            <Form.Item label="Dynamics ID">
+              <Space.Compact className="w-full">
+                <Input
+                  value={customer.dynamicsId ?? ""}
+                  placeholder="Not linked to Dynamics"
+                  disabled
+                />
+                <Button
+                  icon={<ApiOutlined />}
+                  type={customer.dynamicsId ? "default" : "primary"}
+                  onClick={() => setDynamicsOpen(true)}
+                >
+                  {customer.dynamicsId ? "Manage" : "Link"}
+                </Button>
+              </Space.Compact>
             </Form.Item>
 
             <Divider />
@@ -311,6 +329,18 @@ export function EditCustomerModal({
             </Form.Item>
           </Form>
         </div>
+      )}
+
+      {customer && (
+        <DynamicsLinkModal
+          customer={customer}
+          open={dynamicsOpen}
+          onOpenChange={setDynamicsOpen}
+          onLinked={() => {
+            queryClient.invalidateQueries({ queryKey: ["customer", customerId] });
+            onUpdated?.();
+          }}
+        />
       )}
     </Modal>
   );

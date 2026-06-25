@@ -209,6 +209,29 @@ export interface DynamicsAccountRequest {
   invoiceAddressCountry: string;
 }
 
+// ---- Dynamics linking ----
+// Mirror of TDSuperApp.DTOs.Response.CustomerSearchResponse — a candidate
+// Dynamics customer record returned by GetDynamicsCandidates.
+export interface CustomerSearchResponse {
+  customerAccount: string | null;
+  name: string | null;
+}
+
+// Mirror of TDSuperApp.DTOs.Request.LinkDynamicsRequest.
+export interface LinkDynamicsRequest {
+  dynamicsId: string;
+}
+
+// Mirror of TDSuperApp.DTOs.Response.DynamicsSyncResponse — returned by both
+// the LinkDynamics and CreateInDynamics endpoints.
+export interface DynamicsSyncResponse {
+  userId: string | null;
+  dynamicsId: string | null;
+  message: string | null;
+  method: string | null;
+  syncDate: string;
+}
+
 // ---- Customer / User ----
 export type UserStatus =
   | "Pending"

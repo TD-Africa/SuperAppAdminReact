@@ -474,6 +474,72 @@ export interface EditPromoRequest {
   isActive?: boolean | null;
 }
 
+// ---- Coupon ----
+// Mirror of TDSuperApp.DTOs.Response.CouponCustomerResponse.
+export interface CouponCustomerResponse {
+  userId: string | null;
+  companyName: string | null;
+  email: string | null;
+  dynamicsId: string | null;
+}
+
+// Mirror of TDSuperApp.DTOs.Response.CouponProductResponse.
+export interface CouponProductResponse {
+  productId: string;
+  productName: string | null;
+  dynamicsId: string | null;
+  overridePriceInNaira: number | null;
+  overridePriceInDollar: number | null;
+}
+
+// Mirror of TDSuperApp.DTOs.Request.CouponProductInput.
+export interface CouponProductInput {
+  productId: string;
+  overridePriceInNaira?: number | null;
+  overridePriceInDollar?: number | null;
+}
+
+// Mirror of TDSuperApp.DTOs.Response.CouponResponse.
+export interface CouponResponse {
+  id: string;
+  code: string | null;
+  name: string | null;
+  isActive: boolean;
+  startDate: string | null;
+  validUntil: string | null;
+  maxRedemptions: number | null;
+  redemptionCount: number;
+  oncePerCustomer: boolean;
+  customers: CouponCustomerResponse[] | null;
+  products: CouponProductResponse[] | null;
+}
+
+// Mirror of TDSuperApp.DTOs.Request.CreateCouponRequest.
+export interface CreateCouponRequest {
+  code: string;
+  name: string;
+  isActive: boolean;
+  startDate?: string | null;
+  validUntil?: string | null;
+  maxRedemptions?: number | null;
+  oncePerCustomer: boolean;
+  customerUserIds?: string[] | null;
+  products?: CouponProductInput[] | null;
+}
+
+// Mirror of TDSuperApp.DTOs.Request.UpdateCouponRequest. Note: `code` is not
+// editable after creation.
+export interface UpdateCouponRequest {
+  name?: string | null;
+  isActive?: boolean | null;
+  startDate?: string | null;
+  validUntil?: string | null;
+  maxRedemptions?: number | null;
+  oncePerCustomer?: boolean | null;
+  customerUserIds?: string[] | null;
+  products?: CouponProductInput[] | null;
+}
+
 // ---- Deal ----
 export type DealEnum = "PercentageDiscount" | "FixedDiscount" | "BuyOneGetOneFree";
 

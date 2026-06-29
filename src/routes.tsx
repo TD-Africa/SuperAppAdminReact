@@ -18,6 +18,7 @@ const CacDataPage = lazy(() => import("@/pages/CacData"));
 const KycPage = lazy(() => import("@/pages/Kyc"));
 const ProductGroupsPage = lazy(() => import("@/pages/ProductGroups"));
 const PromosPage = lazy(() => import("@/pages/Promos"));
+const CouponsPage = lazy(() => import("@/pages/Coupons"));
 const DealsPage = lazy(() => import("@/pages/Deals"));
 const PromosAuditLogsPage = lazy(() => import("@/pages/PromosAuditLogs"));
 const DealsAuditLogsPage = lazy(() => import("@/pages/DealsAuditLogs"));
@@ -131,6 +132,14 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute permission={Permission.CanViewPromos}>
             {withSuspense(<PromosPage />)}
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "coupons",
+        element: (
+          <ProtectedRoute permission={Permission.CanViewPromos}>
+            {withSuspense(<CouponsPage />)}
           </ProtectedRoute>
         ),
       },

@@ -23,6 +23,7 @@ import {
   HistoryOutlined,
   AccountBookOutlined,
   UsergroupAddOutlined,
+  GiftOutlined,
 } from "@ant-design/icons";
 import { useAuthStore } from "@/stores/auth";
 import { Permission } from "@/lib/permissions";
@@ -46,6 +47,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/cac-data", label: "CAC Data", icon: <IdcardOutlined />, permission: Permission.CanViewUser },
   { to: "/kyc", label: "KYC", icon: <SafetyCertificateOutlined />, permission: Permission.CanEditUser },
   { to: "/promos", label: "Promos", icon: <PercentageOutlined />, permission: Permission.CanViewPromos },
+  { to: "/coupons", label: "Coupons", icon: <GiftOutlined />, permission: Permission.CanViewPromos },
   { to: "/promos-audit-logs", label: "Promos Audit Logs", icon: <HistoryOutlined />, permission: Permission.CanViewPromos },
   { to: "/product-groups", label: "Product Groups", icon: <GroupOutlined />, permission: Permission.CanViewProductGroup },
   { to: "/brands", label: "Brands", icon: <ShopOutlined />, permission: Permission.CanViewBrands },

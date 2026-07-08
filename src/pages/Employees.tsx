@@ -22,8 +22,9 @@ import {
   ReloadOutlined,
   SyncOutlined,
   SearchOutlined,
+  DownloadOutlined,
 } from "@ant-design/icons";
-import { apiGet, apiPost, API_ORIGIN } from "@/lib/api";
+import { apiGet, apiPost, downloadFile, API_BASE_URL, API_ORIGIN } from "@/lib/api";
 import type { WorkerSalesOverview, WorkerSalesStats } from "@/lib/types";
 import { formatCurrency, formatDate, formatNumber } from "@/lib/utils";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
@@ -42,6 +43,7 @@ export default function EmployeesPage() {
   const debouncedSearch = useDebouncedValue(search, 300);
   const [selectedReferralId, setSelectedReferralId] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   const queryString = useMemo(() => {
     const params = new URLSearchParams();
@@ -95,6 +97,24 @@ export default function EmployeesPage() {
       }
     } finally {
       setSyncing(false);
+    }
+  }
+
+  async function downloadWorkerSales() {
+    setDownloading(true);
+    try {
+      const params = new URLSearchParams();
+      if (applied.from) params.set("fromUtc", applied.from);
+      if (applied.to) params.set("toUtc", applied.to);
+      const qs = params.toString();
+      const err = await downloadFile(
+        `${API_BASE_URL}Order/DownloadWorkerSales${qs ? `?${qs}` : ""}`,
+        "WorkerSales.xlsx",
+      );
+      if (err) message.error(err);
+      else message.success("Worker sales report downloaded.");
+    } finally {
+      setDownloading(false);
     }
   }
 
@@ -192,14 +212,23 @@ export default function EmployeesPage() {
             Sales personnel and the converted orders attributed to their referral codes.
           </Typography.Text>
         </div>
-        <Button
-          type="primary"
-          icon={<SyncOutlined spin={syncing} />}
-          loading={syncing}
-          onClick={runSync}
-        >
-          Sync from Dynamics
-        </Button>
+        <Space wrap>
+          <Button
+            icon={<DownloadOutlined />}
+            loading={downloading}
+            onClick={downloadWorkerSales}
+          >
+            Download report
+          </Button>
+          <Button
+            type="primary"
+            icon={<SyncOutlined spin={syncing} />}
+            loading={syncing}
+            onClick={runSync}
+          >
+            Sync from Dynamics
+          </Button>
+        </Space>
       </div>
 
       <Card styles={{ body: { padding: 16 } }}>

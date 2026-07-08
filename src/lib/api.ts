@@ -181,6 +181,40 @@ export async function apiDelete<T>(
   }
 }
 
+// Authenticated file download. Unlike `window.open(...)`, this routes through the
+// axios instance so the Bearer token is attached (required by endpoints like
+// Order/DownloadWorkerSales that return 401 without it). Streams the response as a
+// blob and triggers a browser download, honoring the server's Content-Disposition
+// filename when present. Returns an error message on failure, or null on success.
+export async function downloadFile(
+  url: string,
+  fallbackFilename: string,
+  config?: AxiosRequestConfig,
+): Promise<string | null> {
+  try {
+    const res = await http.get(url, { ...config, responseType: "blob" });
+
+    let filename = fallbackFilename;
+    const disposition = res.headers?.["content-disposition"] as
+      | string
+      | undefined;
+    const match = disposition?.match(/filename\*?=(?:UTF-8'')?"?([^;"]+)"?/i);
+    if (match?.[1]) filename = decodeURIComponent(match[1]);
+
+    const blobUrl = URL.createObjectURL(res.data as Blob);
+    const link = document.createElement("a");
+    link.href = blobUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(blobUrl);
+    return null;
+  } catch (err) {
+    return fail<never>(err).message ?? "Download failed";
+  }
+}
+
 // Multipart helper mirroring HttpService.PostFormAsync: flattens an object into a FormData
 // body (arrays become indexed fields, dates serialize to ISO). Files pass through as-is.
 export function toFormData(data: Record<string, unknown>, file?: File): FormData {

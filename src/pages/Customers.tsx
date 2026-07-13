@@ -40,6 +40,7 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { CreateCustomerModal } from "@/components/customers/CreateCustomerModal";
 import { EditCustomerModal } from "@/components/customers/EditCustomerModal";
 import { DynamicsLinkModal } from "@/components/customers/DynamicsLinkModal";
+import { CustomerDetailModal } from "@/components/customers/CustomerDetailModal";
 
 const { RangePicker } = DatePicker;
 const ALL = "__all__";
@@ -72,6 +73,7 @@ export default function CustomersPage() {
   const [suspendTarget, setSuspendTarget] = useState<CustomerResponse | null>(null);
   const [reactivateTarget, setReactivateTarget] = useState<CustomerResponse | null>(null);
   const [dynamicsTarget, setDynamicsTarget] = useState<CustomerResponse | null>(null);
+  const [detailTarget, setDetailTarget] = useState<CustomerResponse | null>(null);
 
   const queryParams = useMemo(() => {
     const params = new URLSearchParams();
@@ -207,7 +209,9 @@ export default function CustomersPage() {
       title: "Credit txns",
       dataIndex: "isCreditTransactionEnabled",
       render: (v: boolean, r) => (
-        <Switch checked={v} disabled={!canEdit} onChange={(val) => toggleCreditTransactions(r, val)} />
+        <span onClick={(e) => e.stopPropagation()}>
+          <Switch checked={v} disabled={!canEdit} onChange={(val) => toggleCreditTransactions(r, val)} />
+        </span>
       ),
     },
     {
@@ -216,7 +220,7 @@ export default function CustomersPage() {
       width: 180,
       align: "right",
       render: (_, r) => (
-        <Space size={4}>
+        <Space size={4} onClick={(e) => e.stopPropagation()}>
           <Button
             size="small"
             icon={<EditOutlined />}
@@ -357,6 +361,10 @@ export default function CustomersPage() {
           }}
           scroll={{ x: 1200 }}
           locale={{ emptyText: "No customers match the current filters." }}
+          onRow={(record) => ({
+            onClick: () => setDetailTarget(record),
+            style: { cursor: "pointer" },
+          })}
         />
       </Card>
 
@@ -381,6 +389,12 @@ export default function CustomersPage() {
         open={!!dynamicsTarget}
         onOpenChange={(v) => !v && setDynamicsTarget(null)}
         onLinked={() => refetch()}
+      />
+
+      <CustomerDetailModal
+        customer={detailTarget}
+        open={!!detailTarget}
+        onOpenChange={(v) => !v && setDetailTarget(null)}
       />
 
       <PromptDialog

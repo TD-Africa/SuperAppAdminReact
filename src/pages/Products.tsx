@@ -43,6 +43,7 @@ export default function ProductsPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [inventorySyncing, setInventorySyncing] = useState(false);
+  const [pricesSyncing, setPricesSyncing] = useState(false);
 
   const queryParams = useMemo(() => {
     const params = new URLSearchParams();
@@ -106,6 +107,25 @@ export default function ProductsPage() {
       refetch();
     } else {
       message.error(res.message ?? "Sync failed");
+    }
+  }
+
+  async function syncAllPrices() {
+    setPricesSyncing(true);
+    const hide = message.loading("Syncing all product prices…", 0);
+    try {
+      const res = await apiPut<boolean>(
+        "Product/SyncAllProductPrices/sync-all-prices",
+      );
+      if (res.status) {
+        message.success(res.message ?? "All prices synced");
+        refetch();
+      } else {
+        message.error(res.message ?? "Price sync failed");
+      }
+    } finally {
+      hide();
+      setPricesSyncing(false);
     }
   }
 
@@ -298,6 +318,16 @@ export default function ProductsPage() {
           {canEdit && (
             <Button type="default" icon={<SyncOutlined />} onClick={syncAllImages}>
               Sync all images
+            </Button>
+          )}
+          {canEdit && (
+            <Button
+              type="default"
+              icon={<SyncOutlined spin={pricesSyncing} />}
+              loading={pricesSyncing}
+              onClick={syncAllPrices}
+            >
+              Sync all prices
             </Button>
           )}
           {canEdit && (

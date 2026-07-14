@@ -24,6 +24,7 @@ import { apiGet, apiPost } from "@/lib/api";
 import type {
   LocationWithQuantityResponse,
   ProductReturnDto,
+  ProductVariantReturnDto,
 } from "@/lib/types";
 import { useAuthStore } from "@/stores/auth";
 import { Permission } from "@/lib/permissions";
@@ -78,6 +79,68 @@ export function ProductDetailModal({ productId, open, onOpenChange }: Props) {
     }
   }
 
+  const variants = data?.variants ?? [];
+  // Variant attribute columns vary per product (a phone has color+config, a
+  // shirt has size+style). Only surface the attributes that at least one
+  // variant actually populates so the table doesn't fill with empty columns.
+  const variantAttributes = (
+    [
+      { key: "colorId", title: "Color" },
+      { key: "configId", title: "Configuration" },
+      { key: "sizeId", title: "Size" },
+      { key: "styleId", title: "Style" },
+      { key: "versionId", title: "Version" },
+    ] as const
+  ).filter(({ key }) => variants.some((v) => v[key]));
+
+  const variantColumns: TableColumnsType<ProductVariantReturnDto> = [
+    ...variantAttributes.map(({ key, title }) => ({
+      title,
+      dataIndex: key,
+      render: (v: string | null) => v || "—",
+    })),
+    {
+      title: "Price (NGN)",
+      dataIndex: "priceInNaira",
+      align: "right" as const,
+      render: (v: number) => formatCurrency(v, "NGN"),
+    },
+    {
+      title: "Price (USD)",
+      dataIndex: "priceInDollar",
+      align: "right" as const,
+      render: (v: number) => formatCurrency(v, "USD"),
+    },
+    {
+      title: "Warehouse",
+      key: "warehouse",
+      render: (_: unknown, v: ProductVariantReturnDto) => {
+        const names = (v.warehouses ?? []).map((w) => w.name).filter(Boolean);
+        return names.length ? names.join(", ") : "—";
+      },
+    },
+    {
+      title: "Quantity",
+      dataIndex: "quantity",
+      align: "right" as const,
+      render: (v: number) => (
+        <span className="font-medium">{formatNumber(v)}</span>
+      ),
+    },
+    {
+      title: "Status",
+      key: "status",
+      render: (_: unknown, v: ProductVariantReturnDto) => (
+        <div className="flex flex-wrap gap-1">
+          <Tag color={v.isActive ? "success" : "default"}>
+            {v.isActive ? "Active" : "Inactive"}
+          </Tag>
+          {v.isDefault && <Tag color="blue">Default</Tag>}
+        </div>
+      ),
+    },
+  ];
+
   const warehouseColumns: TableColumnsType<LocationWithQuantityResponse> = [
     {
       title: "Warehouse name",
@@ -92,11 +155,32 @@ export function ProductDetailModal({ productId, open, onOpenChange }: Props) {
       ),
     },
     {
+      title: "Price (NGN)",
+      key: "priceInNaira",
+      align: "right",
+      // Prices are product-level, not per-warehouse — pull from the product.
+      render: () => formatCurrency(data?.priceInNaira ?? 0, "NGN"),
+    },
+    {
+      title: "Price (USD)",
+      key: "priceInDollar",
+      align: "right",
+      render: () => formatCurrency(data?.priceInDollar ?? 0, "USD"),
+    },
+    {
       title: "Quantity",
       dataIndex: "quantity",
       align: "right",
       render: (v: number) => (
         <span className="font-medium">{formatNumber(v)}</span>
+      ),
+    },
+    {
+      title: "Status",
+      dataIndex: "isActive",
+      align: "center",
+      render: (v: boolean) => (
+        <Tag color={v ? "success" : "default"}>{v ? "Active" : "Inactive"}</Tag>
       ),
     },
   ];
@@ -214,27 +298,44 @@ export function ProductDetailModal({ productId, open, onOpenChange }: Props) {
           </div>
 
           <Divider className="!my-4" />
-          <div className="mx-auto max-w-3xl">
-            <Typography.Title level={5} className="!mb-3 text-center">
-              Stock Breakdown
-            </Typography.Title>
-            <Table<LocationWithQuantityResponse>
-              rowKey={(r) => `${r.id}-${r.dynamicsId ?? ""}`}
-              dataSource={data.warehouse ?? []}
-              columns={warehouseColumns}
-              pagination={false}
-              size="middle"
-              bordered
-              locale={{
-                emptyText: (
-                  <Empty
-                    image={Empty.PRESENTED_IMAGE_SIMPLE}
-                    description="No warehouse stock data for this product."
-                  />
-                ),
-              }}
-            />
-          </div>
+          {data.hasVariants && variants.length > 0 ? (
+            <div>
+              <Typography.Title level={5} className="!mb-3 text-center">
+                Stock Breakdown
+              </Typography.Title>
+              <Table<ProductVariantReturnDto>
+                rowKey="id"
+                dataSource={variants}
+                columns={variantColumns}
+                pagination={false}
+                size="middle"
+                bordered
+                scroll={{ x: "max-content" }}
+              />
+            </div>
+          ) : (
+            <div className="mx-auto max-w-3xl">
+              <Typography.Title level={5} className="!mb-3 text-center">
+                Stock Breakdown
+              </Typography.Title>
+              <Table<LocationWithQuantityResponse>
+                rowKey={(r) => `${r.id}-${r.dynamicsId ?? ""}`}
+                dataSource={data.warehouse ?? []}
+                columns={warehouseColumns}
+                pagination={false}
+                size="middle"
+                bordered
+                locale={{
+                  emptyText: (
+                    <Empty
+                      image={Empty.PRESENTED_IMAGE_SIMPLE}
+                      description="No warehouse stock data for this product."
+                    />
+                  ),
+                }}
+              />
+            </div>
+          )}
         </div>
       )}
     </Modal>

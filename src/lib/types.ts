@@ -147,8 +147,26 @@ export interface BaseProductReturnDto {
   hasProductGroup: boolean;
 }
 
+export interface ProductVariantReturnDto {
+  id: string;
+  isDefault: boolean;
+  isActive: boolean;
+  colorId: string | null;
+  configId: string | null;
+  sizeId: string | null;
+  styleId: string | null;
+  versionId: string | null;
+  priceInNaira: number;
+  priceInDollar: number;
+  specialPrice: number;
+  quantity: number;
+  warehouses: LocationWithQuantityResponse[] | null;
+}
+
 export interface ProductReturnDto extends BaseProductReturnDto {
   productGroup: ProductGroupResponse | null;
+  hasVariants: boolean;
+  variants: ProductVariantReturnDto[] | null;
 }
 
 // ---- Customer write DTOs ----

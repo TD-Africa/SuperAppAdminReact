@@ -18,7 +18,7 @@ import {
   EyeOutlined,
   SyncOutlined,
 } from "@ant-design/icons";
-import { apiGet, apiPatch, apiPut, apiPost, API_BASE_URL } from "@/lib/api";
+import { apiGet, apiPatch, apiPut, apiPost, API_BASE_URL, API_ORIGIN } from "@/lib/api";
 import type { PaginationResponse, ProductReturnDto } from "@/lib/types";
 import { Permission } from "@/lib/permissions";
 import { useAuthStore } from "@/stores/auth";
@@ -42,6 +42,7 @@ export default function ProductsPage() {
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [inventorySyncing, setInventorySyncing] = useState(false);
 
   const queryParams = useMemo(() => {
     const params = new URLSearchParams();
@@ -117,6 +118,26 @@ export default function ProductsPage() {
     } else {
       message.success(res.message ?? "Sync started");
       refetch();
+    }
+  }
+
+  async function runInventorySync() {
+    setInventorySyncing(true);
+    const hide = message.loading("Running inventory sync…", 0);
+    try {
+      const res = await apiPost<unknown>(
+        `${API_ORIGIN}/api/jobs/run-inventory-sync`,
+        null,
+      );
+      if (res.status) {
+        message.success(res.message ?? "Inventory sync started");
+        refetch();
+      } else {
+        message.error(res.message ?? "Inventory sync failed");
+      }
+    } finally {
+      hide();
+      setInventorySyncing(false);
     }
   }
 
@@ -277,6 +298,16 @@ export default function ProductsPage() {
           {canEdit && (
             <Button type="default" icon={<SyncOutlined />} onClick={syncAllImages}>
               Sync all images
+            </Button>
+          )}
+          {canEdit && (
+            <Button
+              type="primary"
+              icon={<SyncOutlined spin={inventorySyncing} />}
+              loading={inventorySyncing}
+              onClick={runInventorySync}
+            >
+              Run inventory sync
             </Button>
           )}
         </Space>

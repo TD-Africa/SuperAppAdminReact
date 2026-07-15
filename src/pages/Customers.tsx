@@ -21,10 +21,11 @@ import {
   EditOutlined,
   PlusOutlined,
   StopOutlined,
+  SyncOutlined,
   UndoOutlined,
 } from "@ant-design/icons";
 import type { Dayjs } from "dayjs";
-import { apiGet, apiPatch, API_BASE_URL } from "@/lib/api";
+import { apiGet, apiPatch, apiPost, API_BASE_URL } from "@/lib/api";
 import type {
   CustomerResponse,
   PaginationResponse,
@@ -66,6 +67,7 @@ export default function CustomersPage() {
   const [orderRange, setOrderRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
+  const [creditSyncing, setCreditSyncing] = useState(false);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -147,6 +149,26 @@ export default function CustomersPage() {
     }
     message.success(res.message ?? "Customer reactivated");
     refetch();
+  }
+
+  async function triggerCreditSync() {
+    setCreditSyncing(true);
+    const hide = message.loading("Triggering credit sync…", 0);
+    try {
+      const res = await apiPost<boolean>(
+        "User/TriggerCreditSync/trigger-credit-sync",
+        null,
+      );
+      if (res.status) {
+        message.success(res.message ?? "Credit sync started");
+        refetch();
+      } else {
+        message.error(res.message ?? "Credit sync failed");
+      }
+    } finally {
+      hide();
+      setCreditSyncing(false);
+    }
   }
 
   function downloadAll() {
@@ -333,6 +355,16 @@ export default function CustomersPage() {
           {isFetching && !isLoading ? "Refreshing…" : null}
         </span>
         <Space>
+          {canEdit && (
+            <Button
+              type="default"
+              icon={<SyncOutlined spin={creditSyncing} />}
+              loading={creditSyncing}
+              onClick={triggerCreditSync}
+            >
+              Trigger credit sync
+            </Button>
+          )}
           <Button icon={<DownloadOutlined />} onClick={downloadFiltered}>
             Download (filtered)
           </Button>

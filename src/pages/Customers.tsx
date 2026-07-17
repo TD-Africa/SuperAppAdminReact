@@ -19,6 +19,7 @@ import {
   ApiOutlined,
   DownloadOutlined,
   EditOutlined,
+  EyeOutlined,
   PlusOutlined,
   StopOutlined,
   SyncOutlined,
@@ -243,6 +244,12 @@ export default function CustomersPage() {
       align: "right",
       render: (_, r) => (
         <Space size={4} onClick={(e) => e.stopPropagation()}>
+          <Button
+            size="small"
+            icon={<EyeOutlined />}
+            onClick={() => setDetailTarget(r)}
+            title="View details"
+          />
           <Button
             size="small"
             icon={<EditOutlined />}

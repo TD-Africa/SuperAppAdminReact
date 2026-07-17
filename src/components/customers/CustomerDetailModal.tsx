@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { Modal, Tag, Button, Typography } from "antd";
 import { FileTextOutlined, ShopOutlined } from "@ant-design/icons";
 import type { CustomerResponse, UserStatus } from "@/lib/types";
-import { formatCurrency, formatDate, formatNumber } from "@/lib/utils";
+import { formatDate, formatNumber } from "@/lib/utils";
 import { ImageViewerModal } from "@/components/ImageViewerModal";
 
 interface CustomerDetailModalProps {
@@ -43,30 +43,36 @@ function Field({ label, value }: { label: string; value: ReactNode }) {
   );
 }
 
+function formatAmount(n: number | null | undefined) {
+  if (n == null || Number.isNaN(n)) return "—";
+  return new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(n);
+}
+
 function BalanceTile({
   label,
   value,
-  highlight,
 }: {
   label: string;
   value: number | null | undefined;
-  highlight?: boolean;
 }) {
+  const hasValue = value != null && !Number.isNaN(value);
   return (
-    <div
-      className={`rounded-lg border p-3 ${
-        highlight ? "border-primary/40 bg-primary/5" : "border-border bg-muted/40"
-      }`}
-    >
-      <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+    <div className="overflow-hidden rounded-lg border border-border bg-muted/40 p-3">
+      <div className="truncate text-[11px] uppercase tracking-wide text-muted-foreground">
         {label}
       </div>
-      <div
-        className={`mt-1 text-lg font-semibold tabular-nums ${
-          highlight ? "text-primary" : "text-foreground"
-        }`}
-      >
-        {formatCurrency(value, "NGN")}
+      <div className="mt-1 flex items-baseline gap-1 whitespace-nowrap">
+        {hasValue && (
+          <span className="text-[11px] font-medium text-muted-foreground">
+            NGN
+          </span>
+        )}
+        <span className="text-base font-semibold leading-tight tabular-nums text-foreground">
+          {formatAmount(value)}
+        </span>
       </div>
     </div>
   );
@@ -152,7 +158,7 @@ export function CustomerDetailModal({
             <div>
               <SectionLabel>Balances</SectionLabel>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <BalanceTile label="Wallet" value={c.walletBalance} highlight />
+                <BalanceTile label="Wallet" value={c.walletBalance} />
                 <BalanceTile label="Credit balance" value={c.creditBalance} />
                 <BalanceTile label="Credit limit" value={c.creditLimit} />
                 <BalanceTile label="Customer balance" value={c.customerBalance} />

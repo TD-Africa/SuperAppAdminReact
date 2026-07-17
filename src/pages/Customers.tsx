@@ -47,6 +47,8 @@ import { CustomerDetailModal } from "@/components/customers/CustomerDetailModal"
 const { RangePicker } = DatePicker;
 const ALL = "__all__";
 
+type CreditFilter = typeof ALL | "enabled" | "disabled";
+
 const statusColor: Record<UserStatus, "success" | "warning" | "error" | "default"> = {
   Active: "success",
   Pending: "warning",
@@ -64,6 +66,7 @@ export default function CustomersPage() {
   const [keyword, setKeyword] = useState("");
   const debouncedKeyword = useDebouncedValue(keyword, 350);
   const [status, setStatus] = useState<string>(ALL);
+  const [creditFilter, setCreditFilter] = useState<CreditFilter>(ALL);
   const [joinedRange, setJoinedRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
   const [orderRange, setOrderRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
   const [page, setPage] = useState(1);
@@ -78,10 +81,11 @@ export default function CustomersPage() {
   const [dynamicsTarget, setDynamicsTarget] = useState<CustomerResponse | null>(null);
   const [detailTarget, setDetailTarget] = useState<CustomerResponse | null>(null);
 
-  const queryParams = useMemo(() => {
+  // The GetUsers endpoint has no credit-transactions filter, so we page through
+  // every customer matching the server-side filters (search/status/dates) and
+  // then apply the credit filter + pagination on the client.
+  const serverParams = useMemo(() => {
     const params = new URLSearchParams();
-    params.set("PageSize", String(pageSize));
-    params.set("PageNumber", String(page));
     if (debouncedKeyword.trim()) params.set("SearchString", debouncedKeyword.trim());
     if (status !== ALL) params.set("status", status);
     const [js, je] = joinedRange ?? [null, null];
@@ -91,30 +95,44 @@ export default function CustomersPage() {
     if (os) params.set("orderStartDate", os.format("YYYY-MM-DD"));
     if (oe) params.set("orderEndDate", oe.format("YYYY-MM-DD"));
     return params;
-  }, [pageSize, page, debouncedKeyword, status, joinedRange, orderRange]);
+  }, [debouncedKeyword, status, joinedRange, orderRange]);
 
-  const queryKey = ["customers", queryParams.toString()];
+  const queryKey = ["customers", serverParams.toString()];
 
   const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey,
     queryFn: async () => {
-      const res = await apiGet<PaginationResponse<CustomerResponse>>(
-        `User/GetUsers?${queryParams.toString()}`,
-      );
-      if (!res.status) throw new Error(res.message ?? "Failed to load customers");
-      return res.data;
+      const FETCH_SIZE = 200;
+      const all: CustomerResponse[] = [];
+      let pageNumber = 1;
+      let total = Infinity;
+      while (all.length < total) {
+        const params = new URLSearchParams(serverParams);
+        params.set("PageSize", String(FETCH_SIZE));
+        params.set("PageNumber", String(pageNumber));
+        const res = await apiGet<PaginationResponse<CustomerResponse>>(
+          `User/GetUsers?${params.toString()}`,
+        );
+        if (!res.status) throw new Error(res.message ?? "Failed to load customers");
+        const chunk = res.data?.data ?? [];
+        all.push(...chunk);
+        total = Number(res.data?.count ?? all.length);
+        if (chunk.length === 0) break;
+        pageNumber += 1;
+      }
+      return all;
     },
   });
 
   async function toggleCreditTransactions(c: CustomerResponse, value: boolean) {
-    const prev = queryClient.getQueryData<PaginationResponse<CustomerResponse>>(queryKey);
-    if (prev?.data) {
-      queryClient.setQueryData<PaginationResponse<CustomerResponse>>(queryKey, {
-        ...prev,
-        data: prev.data.map((x) =>
+    const prev = queryClient.getQueryData<CustomerResponse[]>(queryKey);
+    if (prev) {
+      queryClient.setQueryData<CustomerResponse[]>(
+        queryKey,
+        prev.map((x) =>
           x.id === c.id ? { ...x, isCreditTransactionEnabled: value } : x,
         ),
-      });
+      );
     }
     const res = await apiPatch<boolean>(`User/EditCustomerAccount/${c.id}`, {
       enableCreditTransactions: value,
@@ -177,19 +195,29 @@ export default function CustomersPage() {
   }
 
   function downloadFiltered() {
-    window.open(`${API_BASE_URL}User/DownloadCustomers?${queryParams}`, "_blank");
+    window.open(`${API_BASE_URL}User/DownloadCustomers?${serverParams}`, "_blank");
   }
 
   function clearFilters() {
     setKeyword("");
     setStatus(ALL);
+    setCreditFilter(ALL);
     setJoinedRange(null);
     setOrderRange(null);
     setPage(1);
   }
 
-  const rows = data?.data ?? [];
-  const totalItems = Number(data?.count ?? 0);
+  const allRows = data ?? [];
+  const filteredRows = useMemo(() => {
+    if (creditFilter === ALL) return allRows;
+    const want = creditFilter === "enabled";
+    return allRows.filter((r) => r.isCreditTransactionEnabled === want);
+  }, [allRows, creditFilter]);
+  const totalItems = filteredRows.length;
+  const rows = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return filteredRows.slice(start, start + pageSize);
+  }, [filteredRows, page, pageSize]);
 
   const columns: TableColumnsType<CustomerResponse> = [
     { title: "Company", dataIndex: "companyName", render: (v) => <span className="font-medium">{v ?? "—"}</span> },
@@ -310,7 +338,7 @@ export default function CustomersPage() {
       <Card styles={{ body: { padding: 16 } }}>
         <Form layout="vertical">
           <div className="grid gap-3 md:grid-cols-12">
-            <Form.Item className="md:col-span-8 !mb-0" label="Search">
+            <Form.Item className="md:col-span-5 !mb-0" label="Search">
               <Input
                 placeholder="Search by company, email, phone, Dynamics ID…"
                 value={keyword}
@@ -331,6 +359,20 @@ export default function CustomersPage() {
                 options={[
                   { value: ALL, label: "All statuses" },
                   ...UserStatusValues.map((s) => ({ value: s, label: s })),
+                ]}
+              />
+            </Form.Item>
+            <Form.Item className="md:col-span-3 !mb-0" label="Credit transactions">
+              <Select
+                value={creditFilter}
+                onChange={(v: CreditFilter) => {
+                  setPage(1);
+                  setCreditFilter(v);
+                }}
+                options={[
+                  { value: ALL, label: "All" },
+                  { value: "enabled", label: "Enabled" },
+                  { value: "disabled", label: "Disabled" },
                 ]}
               />
             </Form.Item>

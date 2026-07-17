@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { Modal, Descriptions, Tag, Button, Space, Typography } from "antd";
-import { FileTextOutlined } from "@ant-design/icons";
+import type { ReactNode } from "react";
+import { Modal, Tag, Button, Typography } from "antd";
+import { FileTextOutlined, ShopOutlined } from "@ant-design/icons";
 import type { CustomerResponse, UserStatus } from "@/lib/types";
 import { formatCurrency, formatDate, formatNumber } from "@/lib/utils";
 import { ImageViewerModal } from "@/components/ImageViewerModal";
@@ -19,6 +20,71 @@ const statusColor: Record<UserStatus, "success" | "warning" | "error" | "default
   Incomplete: "default",
 };
 
+function initials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  return (parts[0][0] + (parts[1]?.[0] ?? "")).toUpperCase();
+}
+
+function SectionLabel({ children }: { children: ReactNode }) {
+  return (
+    <div className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+      {children}
+    </div>
+  );
+}
+
+function Field({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <span className="text-sm">{value ?? "—"}</span>
+    </div>
+  );
+}
+
+function BalanceTile({
+  label,
+  value,
+  highlight,
+}: {
+  label: string;
+  value: number | null | undefined;
+  highlight?: boolean;
+}) {
+  return (
+    <div
+      className={`rounded-lg border p-3 ${
+        highlight ? "border-primary/40 bg-primary/5" : "border-border bg-muted/40"
+      }`}
+    >
+      <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+        {label}
+      </div>
+      <div
+        className={`mt-1 text-lg font-semibold tabular-nums ${
+          highlight ? "text-primary" : "text-foreground"
+        }`}
+      >
+        {formatCurrency(value, "NGN")}
+      </div>
+    </div>
+  );
+}
+
+function StatTile({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div className="rounded-lg border border-border bg-muted/40 p-3">
+      <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+        {label}
+      </div>
+      <div className="mt-1 text-lg font-semibold tabular-nums text-foreground">
+        {value}
+      </div>
+    </div>
+  );
+}
+
 function yesNo(v: boolean | null | undefined) {
   return v ? <Tag color="success">Yes</Tag> : <Tag>No</Tag>;
 }
@@ -34,6 +100,7 @@ export function CustomerDetailModal({
   const fullName = c
     ? [c.firstName, c.lastName].filter(Boolean).join(" ") || "—"
     : "—";
+  const displayName = c?.companyName || fullName;
   const address =
     c &&
     [c.addressLine, c.street, c.city, c.state, c.country]
@@ -45,140 +112,161 @@ export function CustomerDetailModal({
       <Modal
         open={open}
         onCancel={() => onOpenChange(false)}
-        footer={null}
-        width={760}
+        width={780}
         destroyOnClose
-        title={
-          <div>
-            <div>{c?.companyName ?? "Customer details"}</div>
-            {c && (
-              <Space size={6} className="mt-1">
-                <Tag color={statusColor[c.userStatus] ?? "default"}>
-                  {c.userStatus}
-                </Tag>
-                {c.userType && <Tag>{c.userType}</Tag>}
-                {c.isSuspended && <Tag color="error">Suspended</Tag>}
-              </Space>
-            )}
-          </div>
-        }
+        title={null}
+        styles={{ body: { paddingTop: 8 } }}
+        footer={[
+          <Button key="close" type="primary" onClick={() => onOpenChange(false)}>
+            Close
+          </Button>,
+        ]}
       >
         {c && (
-          <div className="space-y-4">
-            <Descriptions
-              title="Contact"
-              column={{ xs: 1, sm: 2 }}
-              size="small"
-              bordered
-            >
-              <Descriptions.Item label="Full name">
-                {fullName}
-              </Descriptions.Item>
-              <Descriptions.Item label="Username">
-                {c.userName ?? "—"}
-              </Descriptions.Item>
-              <Descriptions.Item label="Email">
-                {c.email ?? "—"}
-              </Descriptions.Item>
-              <Descriptions.Item label="Phone">
-                {c.phoneNumber ?? "—"}
-              </Descriptions.Item>
-              <Descriptions.Item label="Address" span={2}>
-                {address || "—"}
-              </Descriptions.Item>
-            </Descriptions>
-
-            <Descriptions
-              title="Account & credit"
-              column={{ xs: 1, sm: 2 }}
-              size="small"
-              bordered
-            >
-              <Descriptions.Item label="Dynamics ID">
-                {c.dynamicsId ?? <Tag color="warning">Not linked</Tag>}
-              </Descriptions.Item>
-              <Descriptions.Item label="Existing partner">
-                {yesNo(c.isExistingPartner)}
-              </Descriptions.Item>
-              <Descriptions.Item label="Credit txns enabled">
-                {yesNo(c.isCreditTransactionEnabled)}
-              </Descriptions.Item>
-              <Descriptions.Item label="Credit days">
-                {c.creditDays ?? "—"}
-              </Descriptions.Item>
-              <Descriptions.Item label="Credit limit">
-                {formatCurrency(c.creditLimit, "NGN")}
-              </Descriptions.Item>
-              <Descriptions.Item label="Credit balance">
-                {formatCurrency(c.creditBalance, "NGN")}
-              </Descriptions.Item>
-              <Descriptions.Item label="Customer balance">
-                {formatCurrency(c.customerBalance, "NGN")}
-              </Descriptions.Item>
-            </Descriptions>
-
-            <Descriptions
-              title="Orders"
-              column={{ xs: 1, sm: 2 }}
-              size="small"
-              bordered
-            >
-              <Descriptions.Item label="Total orders">
-                {formatNumber(c.numberOfOrders ?? c.totalOrders ?? 0)}
-              </Descriptions.Item>
-              <Descriptions.Item label="Pending orders">
-                {formatNumber(c.pendingOrders ?? 0)}
-              </Descriptions.Item>
-              <Descriptions.Item label="Date joined">
-                {c.dateCreated ? formatDate(c.dateCreated) : "—"}
-              </Descriptions.Item>
-              <Descriptions.Item label="Last order">
-                {c.lastOrderDate ? formatDate(c.lastOrderDate) : "—"}
-              </Descriptions.Item>
-            </Descriptions>
-
-            <div>
-              <Typography.Text strong>Warehouses</Typography.Text>
-              <div className="mt-2">
-                {c.userWarehouses && c.userWarehouses.length > 0 ? (
-                  <Space wrap size={[4, 8]}>
-                    {c.userWarehouses.map((w) => (
-                      <Tag key={w.id}>{w.name}</Tag>
-                    ))}
-                  </Space>
-                ) : (
-                  <Typography.Text type="secondary">
-                    No warehouses assigned.
-                  </Typography.Text>
+          <div className="space-y-6">
+            {/* Header */}
+            <div className="flex items-start gap-4">
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-primary/10 text-lg font-semibold text-primary">
+                {initials(displayName)}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-lg font-semibold leading-tight">
+                  {displayName}
+                </div>
+                {c.email && (
+                  <div className="truncate text-sm text-muted-foreground">
+                    {c.email}
+                  </div>
                 )}
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  <Tag color={statusColor[c.userStatus] ?? "default"}>
+                    {c.userStatus}
+                  </Tag>
+                  {c.userType && <Tag>{c.userType}</Tag>}
+                  {c.isSuspended && <Tag color="error">Suspended</Tag>}
+                </div>
               </div>
             </div>
 
+            {/* Balances */}
             <div>
-              <Typography.Text strong>Documents</Typography.Text>
-              <div className="mt-2">
-                <Space wrap>
-                  <Button
-                    icon={<FileTextOutlined />}
-                    disabled={!c.cac_FileName}
-                    onClick={() =>
-                      c.cac_FileName &&
-                      setDoc({ title: "CAC document", url: c.cac_FileName })
-                    }
-                  >
-                    {c.cac_FileName ? "View CAC document" : "No CAC document"}
-                  </Button>
-                  <Button
-                    icon={<FileTextOutlined />}
-                    disabled={!c.utility_FileName}
-                    onClick={() =>
-                      c.utility_FileName &&
-                      setDoc({ title: "Utility bill", url: c.utility_FileName })
-                    }
-                  >
-                    {c.utility_FileName ? "View utility bill" : "No utility bill"}
-                  </Button>
-                </Space>
+              <SectionLabel>Balances</SectionLabel>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <BalanceTile label="Wallet" value={c.walletBalance} highlight />
+                <BalanceTile label="Credit balance" value={c.creditBalance} />
+                <BalanceTile label="Credit limit" value={c.creditLimit} />
+                <BalanceTile label="Customer balance" value={c.customerBalance} />
+              </div>
+            </div>
+
+            {/* Contact */}
+            <div>
+              <SectionLabel>Contact</SectionLabel>
+              <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
+                <Field label="Full name" value={fullName} />
+                <Field label="Username" value={c.userName} />
+                <Field label="Phone" value={c.phoneNumber} />
+                <Field
+                  label="Dynamics ID"
+                  value={
+                    c.dynamicsId ?? <Tag color="warning">Not linked</Tag>
+                  }
+                />
+                <div className="sm:col-span-2">
+                  <Field label="Address" value={address || "—"} />
+                </div>
+              </div>
+            </div>
+
+            {/* Account */}
+            <div>
+              <SectionLabel>Account &amp; credit</SectionLabel>
+              <div className="grid gap-x-6 gap-y-4 sm:grid-cols-3">
+                <Field label="Credit days" value={c.creditDays} />
+                <Field
+                  label="Credit transactions"
+                  value={yesNo(c.isCreditTransactionEnabled)}
+                />
+                <Field
+                  label="Existing partner"
+                  value={yesNo(c.isExistingPartner)}
+                />
+              </div>
+            </div>
+
+            {/* Orders */}
+            <div>
+              <SectionLabel>Orders</SectionLabel>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <StatTile
+                  label="Total orders"
+                  value={formatNumber(c.numberOfOrders ?? c.totalOrders ?? 0)}
+                />
+                <StatTile
+                  label="Pending"
+                  value={formatNumber(c.pendingOrders ?? 0)}
+                />
+                <StatTile
+                  label="Joined"
+                  value={
+                    <span className="text-sm font-medium">
+                      {c.dateCreated ? formatDate(c.dateCreated) : "—"}
+                    </span>
+                  }
+                />
+                <StatTile
+                  label="Last order"
+                  value={
+                    <span className="text-sm font-medium">
+                      {c.lastOrderDate ? formatDate(c.lastOrderDate) : "—"}
+                    </span>
+                  }
+                />
+              </div>
+            </div>
+
+            {/* Warehouses */}
+            <div>
+              <SectionLabel>Warehouses</SectionLabel>
+              {c.userWarehouses && c.userWarehouses.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {c.userWarehouses.map((w) => (
+                    <Tag key={w.id} icon={<ShopOutlined />}>
+                      {w.name}
+                    </Tag>
+                  ))}
+                </div>
+              ) : (
+                <Typography.Text type="secondary" className="text-sm">
+                  No warehouses assigned.
+                </Typography.Text>
+              )}
+            </div>
+
+            {/* Documents */}
+            <div>
+              <SectionLabel>Documents</SectionLabel>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  icon={<FileTextOutlined />}
+                  disabled={!c.cac_FileName}
+                  onClick={() =>
+                    c.cac_FileName &&
+                    setDoc({ title: "CAC document", url: c.cac_FileName })
+                  }
+                >
+                  {c.cac_FileName ? "View CAC document" : "No CAC document"}
+                </Button>
+                <Button
+                  icon={<FileTextOutlined />}
+                  disabled={!c.utility_FileName}
+                  onClick={() =>
+                    c.utility_FileName &&
+                    setDoc({ title: "Utility bill", url: c.utility_FileName })
+                  }
+                >
+                  {c.utility_FileName ? "View utility bill" : "No utility bill"}
+                </Button>
               </div>
             </div>
           </div>

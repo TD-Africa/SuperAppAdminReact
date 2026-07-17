@@ -10,6 +10,7 @@ import {
   Space,
   Modal,
   Form,
+  InputNumber,
   Skeleton,
   Empty,
 } from "antd";
@@ -23,6 +24,8 @@ import {
 import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api";
 import type {
   BaseProductReturnDto,
+  CreateProductGroupRequest,
+  EditProductGroupRequest,
   MiniProductResponse,
   PaginationResponse,
   ProductGroupResponse,
@@ -218,11 +221,13 @@ function CreateGroupModal({
   const { message } = AntdApp.useApp();
   const [name, setName] = useState("");
   const [productIds, setProductIds] = useState<string[]>([]);
+  const [maxRemovableFromCart, setMaxRemovableFromCart] = useState<number | null>(null);
 
   useEffect(() => {
     if (open) {
       setName("");
       setProductIds([]);
+      setMaxRemovableFromCart(null);
     }
   }, [open]);
 
@@ -230,10 +235,12 @@ function CreateGroupModal({
     mutationFn: async () => {
       if (!name.trim()) throw new Error("Name is required");
       if (productIds.length === 0) throw new Error("Select at least one product");
-      const res = await apiPost<boolean>("Product/CreateProductGroup", {
+      const payload: CreateProductGroupRequest = {
         name: name.trim(),
         productIds,
-      });
+      };
+      if (maxRemovableFromCart != null) payload.maxRemovableFromCart = maxRemovableFromCart;
+      const res = await apiPost<boolean>("Product/CreateProductGroup", payload);
       if (!res.status) throw new Error(res.message ?? "Create failed");
       return res.message ?? "Group created";
     },
@@ -267,6 +274,18 @@ function CreateGroupModal({
         <Form.Item label="Products" required>
           <ProductSearchMultiSelect value={productIds} onChange={setProductIds} />
         </Form.Item>
+        <Form.Item
+          label="Max removable from cart"
+          help="Optional. Maximum units of this group a customer may remove from their cart."
+        >
+          <InputNumber
+            className="w-full"
+            min={0}
+            value={maxRemovableFromCart}
+            onChange={(v) => setMaxRemovableFromCart(v)}
+            placeholder="No limit"
+          />
+        </Form.Item>
       </Form>
     </Modal>
   );
@@ -287,6 +306,7 @@ function EditGroupModal({
   const { message } = AntdApp.useApp();
   const [name, setName] = useState("");
   const [productIds, setProductIds] = useState<string[]>([]);
+  const [maxRemovableFromCart, setMaxRemovableFromCart] = useState<number | null>(null);
   const [initialSelection, setInitialSelection] = useState<MiniProductResponse[]>([]);
 
   const { data, isLoading } = useQuery({
@@ -306,6 +326,9 @@ function EditGroupModal({
     if (data) {
       setName(data.name);
       setProductIds(data.products.map((p) => p.id));
+      // ProductGroupResponse does not return maxRemovableFromCart, so we can't
+      // prefill it; leave blank and only send when the user sets a value.
+      setMaxRemovableFromCart(null);
       setInitialSelection(
         data.products.map((p) => ({
           id: p.id,
@@ -320,10 +343,12 @@ function EditGroupModal({
     mutationFn: async () => {
       if (!groupId) throw new Error("No group");
       if (productIds.length === 0) throw new Error("Select at least one product");
-      const res = await apiPatch<boolean>(`Product/EditProductGroup/${groupId}`, {
+      const payload: EditProductGroupRequest = {
         name: name.trim(),
         productIds,
-      });
+      };
+      if (maxRemovableFromCart != null) payload.maxRemovableFromCart = maxRemovableFromCart;
+      const res = await apiPatch<boolean>(`Product/EditProductGroup/${groupId}`, payload);
       if (!res.status) throw new Error(res.message ?? "Update failed");
       return res.message ?? "Group updated";
     },
@@ -358,6 +383,18 @@ function EditGroupModal({
               value={productIds}
               onChange={setProductIds}
               initialSelection={initialSelection}
+            />
+          </Form.Item>
+          <Form.Item
+            label="Max removable from cart"
+            help="Optional. Leave blank to keep the current value unchanged."
+          >
+            <InputNumber
+              className="w-full"
+              min={0}
+              value={maxRemovableFromCart}
+              onChange={(v) => setMaxRemovableFromCart(v)}
+              placeholder="Unchanged"
             />
           </Form.Item>
         </Form>

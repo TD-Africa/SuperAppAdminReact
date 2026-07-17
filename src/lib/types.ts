@@ -275,6 +275,7 @@ export interface CustomerResponse extends BaseUserResponse {
   creditLimit: number;
   creditDays: string | null;
   customerBalance: number;
+  walletBalance: number;
   cac_FileName: string | null;
   utility_FileName: string | null;
   creditBalance: number;
@@ -454,9 +455,20 @@ export interface ProductGroupRequest {
   productIds: string[];
 }
 
-export interface EditProductGroupRequest {
+// Mirror of ProductGroupRequest. `name` + `productIds` are required;
+// `maxRemovableFromCart` caps how many units of this group a user may remove
+// from their cart and is optional.
+export interface CreateProductGroupRequest {
   name: string;
   productIds: string[];
+  maxRemovableFromCart?: number;
+}
+
+// All fields nullable on the wire; omit a field to leave it unchanged.
+export interface EditProductGroupRequest {
+  name?: string;
+  productIds?: string[];
+  maxRemovableFromCart?: number;
 }
 
 // ---- Promo ----

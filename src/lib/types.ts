@@ -457,11 +457,13 @@ export interface ProductGroupRequest {
 
 // Mirror of ProductGroupRequest. `name` + `productIds` are required;
 // `maxRemovableFromCart` caps how many units of this group a user may remove
-// from their cart and is optional.
+// from their cart and is optional. `parentProductId` optionally designates a
+// product as the group's parent.
 export interface CreateProductGroupRequest {
   name: string;
   productIds: string[];
   maxRemovableFromCart?: number;
+  parentProductId?: string | null;
 }
 
 // All fields nullable on the wire; omit a field to leave it unchanged.
@@ -469,6 +471,7 @@ export interface EditProductGroupRequest {
   name?: string;
   productIds?: string[];
   maxRemovableFromCart?: number;
+  parentProductId?: string | null;
 }
 
 // ---- Promo ----

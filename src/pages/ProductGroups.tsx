@@ -35,6 +35,7 @@ import { useAuthStore } from "@/stores/auth";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { ProductSearchMultiSelect } from "@/components/ProductSearchMultiSelect";
+import { ProductSearchSelect } from "@/components/ProductSearchSelect";
 import { ProductDetailModal } from "@/components/products/ProductDetailModal";
 
 export default function ProductGroupsPage() {
@@ -222,12 +223,14 @@ function CreateGroupModal({
   const [name, setName] = useState("");
   const [productIds, setProductIds] = useState<string[]>([]);
   const [maxRemovableFromCart, setMaxRemovableFromCart] = useState<number | null>(null);
+  const [parentProductId, setParentProductId] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
       setName("");
       setProductIds([]);
       setMaxRemovableFromCart(null);
+      setParentProductId(null);
     }
   }, [open]);
 
@@ -240,6 +243,7 @@ function CreateGroupModal({
         productIds,
       };
       if (maxRemovableFromCart != null) payload.maxRemovableFromCart = maxRemovableFromCart;
+      if (parentProductId) payload.parentProductId = parentProductId;
       const res = await apiPost<boolean>("Product/CreateProductGroup", payload);
       if (!res.status) throw new Error(res.message ?? "Create failed");
       return res.message ?? "Group created";
@@ -275,6 +279,12 @@ function CreateGroupModal({
           <ProductSearchMultiSelect value={productIds} onChange={setProductIds} />
         </Form.Item>
         <Form.Item
+          label="Parent product"
+          help="Optional. Designates a product as the parent of this group."
+        >
+          <ProductSearchSelect value={parentProductId} onChange={setParentProductId} />
+        </Form.Item>
+        <Form.Item
           label="Max removable from cart"
           help="Optional. Maximum units of this group a customer may remove from their cart."
         >
@@ -307,6 +317,7 @@ function EditGroupModal({
   const [name, setName] = useState("");
   const [productIds, setProductIds] = useState<string[]>([]);
   const [maxRemovableFromCart, setMaxRemovableFromCart] = useState<number | null>(null);
+  const [parentProductId, setParentProductId] = useState<string | null>(null);
   const [initialSelection, setInitialSelection] = useState<MiniProductResponse[]>([]);
 
   const { data, isLoading } = useQuery({
@@ -326,9 +337,11 @@ function EditGroupModal({
     if (data) {
       setName(data.name);
       setProductIds(data.products.map((p) => p.id));
-      // ProductGroupResponse does not return maxRemovableFromCart, so we can't
-      // prefill it; leave blank and only send when the user sets a value.
+      // ProductGroupResponse does not return maxRemovableFromCart or
+      // parentProductId, so we can't prefill them; leave blank and only send
+      // when the user sets a value.
       setMaxRemovableFromCart(null);
+      setParentProductId(null);
       setInitialSelection(
         data.products.map((p) => ({
           id: p.id,
@@ -348,6 +361,7 @@ function EditGroupModal({
         productIds,
       };
       if (maxRemovableFromCart != null) payload.maxRemovableFromCart = maxRemovableFromCart;
+      if (parentProductId) payload.parentProductId = parentProductId;
       const res = await apiPatch<boolean>(`Product/EditProductGroup/${groupId}`, payload);
       if (!res.status) throw new Error(res.message ?? "Update failed");
       return res.message ?? "Group updated";
@@ -384,6 +398,12 @@ function EditGroupModal({
               onChange={setProductIds}
               initialSelection={initialSelection}
             />
+          </Form.Item>
+          <Form.Item
+            label="Parent product"
+            help="Optional. Leave blank to keep the current value unchanged."
+          >
+            <ProductSearchSelect value={parentProductId} onChange={setParentProductId} />
           </Form.Item>
           <Form.Item
             label="Max removable from cart"

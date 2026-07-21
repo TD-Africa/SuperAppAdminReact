@@ -17,6 +17,7 @@ import {
   DownloadOutlined,
   EyeOutlined,
   SyncOutlined,
+  FontSizeOutlined,
 } from "@ant-design/icons";
 import { apiGet, apiPatch, apiPut, apiPost, API_BASE_URL, API_ORIGIN } from "@/lib/api";
 import type { PaginationResponse, ProductReturnDto } from "@/lib/types";
@@ -44,6 +45,7 @@ export default function ProductsPage() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [inventorySyncing, setInventorySyncing] = useState(false);
   const [pricesSyncing, setPricesSyncing] = useState(false);
+  const [namesSyncing, setNamesSyncing] = useState(false);
 
   const queryParams = useMemo(() => {
     const params = new URLSearchParams();
@@ -126,6 +128,35 @@ export default function ProductsPage() {
     } finally {
       hide();
       setPricesSyncing(false);
+    }
+  }
+
+  async function syncName(id: string) {
+    const res = await apiPut<boolean>(`Product/SyncProductName/${id}/sync-name`);
+    if (res.status) {
+      message.success(res.message ?? "Name synced");
+      refetch();
+    } else {
+      message.error(res.message ?? "Sync failed");
+    }
+  }
+
+  async function syncAllNames() {
+    setNamesSyncing(true);
+    const hide = message.loading("Syncing all product names…", 0);
+    try {
+      const res = await apiPut<boolean>(
+        "Product/SyncAllProductNames/sync-all-names",
+      );
+      if (res.status) {
+        message.success(res.message ?? "All names synced");
+        refetch();
+      } else {
+        message.error(res.message ?? "Name sync failed");
+      }
+    } finally {
+      hide();
+      setNamesSyncing(false);
     }
   }
 
@@ -234,7 +265,7 @@ export default function ProductsPage() {
     {
       title: "",
       key: "actions",
-      width: 100,
+      width: 140,
       align: "right",
       render: (_, r) => (
         <Space size={4}>
@@ -245,6 +276,14 @@ export default function ProductsPage() {
               icon={<SyncOutlined />}
               onClick={() => syncPrice(r.id)}
               title="Sync price"
+            />
+          )}
+          {canEdit && (
+            <Button
+              size="small"
+              icon={<FontSizeOutlined />}
+              onClick={() => syncName(r.id)}
+              title="Sync name"
             />
           )}
         </Space>
@@ -328,6 +367,16 @@ export default function ProductsPage() {
               onClick={syncAllPrices}
             >
               Sync all prices
+            </Button>
+          )}
+          {canEdit && (
+            <Button
+              type="default"
+              icon={<SyncOutlined spin={namesSyncing} />}
+              loading={namesSyncing}
+              onClick={syncAllNames}
+            >
+              Sync all names
             </Button>
           )}
           {canEdit && (

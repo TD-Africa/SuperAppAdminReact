@@ -237,13 +237,14 @@ function CreateGroupModal({
   const mutation = useMutation({
     mutationFn: async () => {
       if (!name.trim()) throw new Error("Name is required");
+      if (!parentProductId) throw new Error("Select a parent product");
       if (productIds.length === 0) throw new Error("Select at least one product");
       const payload: CreateProductGroupRequest = {
         name: name.trim(),
         productIds,
+        parentProductId,
       };
       if (maxRemovableFromCart != null) payload.maxRemovableFromCart = maxRemovableFromCart;
-      if (parentProductId) payload.parentProductId = parentProductId;
       const res = await apiPost<boolean>("Product/CreateProductGroup", payload);
       if (!res.status) throw new Error(res.message ?? "Create failed");
       return res.message ?? "Group created";
@@ -275,14 +276,15 @@ function CreateGroupModal({
             placeholder="e.g. Summer essentials"
           />
         </Form.Item>
-        <Form.Item label="Products" required>
-          <ProductSearchMultiSelect value={productIds} onChange={setProductIds} />
-        </Form.Item>
         <Form.Item
           label="Parent product"
-          help="Optional. Designates a product as the parent of this group."
+          required
+          help="Designates a product as the parent of this group."
         >
           <ProductSearchSelect value={parentProductId} onChange={setParentProductId} />
+        </Form.Item>
+        <Form.Item label="Products" required>
+          <ProductSearchMultiSelect value={productIds} onChange={setProductIds} />
         </Form.Item>
         <Form.Item
           label="Max removable from cart"
@@ -392,18 +394,18 @@ function EditGroupModal({
           <Form.Item label="Name" required>
             <Input value={name} onChange={(e) => setName(e.target.value)} />
           </Form.Item>
+          <Form.Item
+            label="Parent product"
+            help="Optional. Leave blank to keep the current value unchanged."
+          >
+            <ProductSearchSelect value={parentProductId} onChange={setParentProductId} />
+          </Form.Item>
           <Form.Item label="Products" required>
             <ProductSearchMultiSelect
               value={productIds}
               onChange={setProductIds}
               initialSelection={initialSelection}
             />
-          </Form.Item>
-          <Form.Item
-            label="Parent product"
-            help="Optional. Leave blank to keep the current value unchanged."
-          >
-            <ProductSearchSelect value={parentProductId} onChange={setParentProductId} />
           </Form.Item>
           <Form.Item
             label="Max removable from cart"

@@ -9,14 +9,18 @@ import {
   Avatar,
   App as AntdApp,
   Table,
+  Button,
+  Tooltip,
+  Space,
 } from "antd";
 import type { TableColumnsType } from "antd";
-import { ShopOutlined } from "@ant-design/icons";
-import { apiGet, apiPatch } from "@/lib/api";
+import { ShopOutlined, AppstoreOutlined, SyncOutlined } from "@ant-design/icons";
+import { apiGet, apiPatch, apiPost } from "@/lib/api";
 import type { BrandReturnDTO, PaginationResponse } from "@/lib/types";
 import { Permission } from "@/lib/permissions";
 import { useAuthStore } from "@/stores/auth";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { BrandProductsModal } from "@/components/brands/BrandProductsModal";
 
 const ALL = "__all__";
 
@@ -31,6 +35,10 @@ export default function BrandsPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
 
+  const [productsBrand, setProductsBrand] = useState<BrandReturnDTO | null>(null);
+  const [productsOpen, setProductsOpen] = useState(false);
+  const [syncingId, setSyncingId] = useState<string | null>(null);
+
   const queryParams = useMemo(() => {
     const params = new URLSearchParams();
     params.set("PageSize", String(pageSize));
@@ -42,7 +50,7 @@ export default function BrandsPage() {
 
   const queryKey = ["brands", queryParams.toString()];
 
-  const { data, isLoading, isFetching } = useQuery({
+  const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey,
     queryFn: async () => {
       const res = await apiGet<PaginationResponse<BrandReturnDTO>>(
@@ -73,6 +81,25 @@ export default function BrandsPage() {
     }
   }
 
+  async function syncPrices(id: string) {
+    setSyncingId(id);
+    const hide = message.loading("Syncing brand prices…", 0);
+    try {
+      const res = await apiPost<boolean>(
+        `Brand/SyncBrandPrices/${id}/sync-prices`,
+      );
+      if (res.status) {
+        message.success(res.message ?? "Brand prices synced");
+        refetch();
+      } else {
+        message.error(res.message ?? "Price sync failed");
+      }
+    } finally {
+      hide();
+      setSyncingId(null);
+    }
+  }
+
   const rows = data?.data ?? [];
   const totalItems = Number(data?.count ?? 0);
 
@@ -97,6 +124,36 @@ export default function BrandsPage() {
       width: 100,
       render: (v: boolean, r) => (
         <Switch checked={v} disabled={!canEdit} onChange={(val) => toggleActive(r.id, val)} />
+      ),
+    },
+    {
+      title: "",
+      key: "actions",
+      width: 104,
+      align: "right",
+      render: (_, r) => (
+        <Space size={4}>
+          <Tooltip title="View products">
+            <Button
+              size="small"
+              icon={<AppstoreOutlined />}
+              onClick={() => {
+                setProductsBrand(r);
+                setProductsOpen(true);
+              }}
+            />
+          </Tooltip>
+          {canEdit && (
+            <Tooltip title="Sync prices">
+              <Button
+                size="small"
+                icon={<SyncOutlined />}
+                loading={syncingId === r.id}
+                onClick={() => syncPrices(r.id)}
+              />
+            </Tooltip>
+          )}
+        </Space>
       ),
     },
   ];
@@ -159,6 +216,16 @@ export default function BrandsPage() {
           }}
         />
       </Card>
+
+      <BrandProductsModal
+        brandId={productsBrand?.id ?? null}
+        brandName={productsBrand?.name}
+        open={productsOpen}
+        onOpenChange={(v) => {
+          setProductsOpen(v);
+          if (!v) setProductsBrand(null);
+        }}
+      />
     </div>
   );
 }

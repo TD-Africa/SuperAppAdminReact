@@ -45,6 +45,33 @@ const pageLoader = (
   </div>
 );
 
+// Mirrors the Login page layout so the fallback doesn't jump to a different shape.
+const loginLoader = (
+  <div className="grid min-h-screen w-full lg:grid-cols-[1.1fr_1fr]">
+    <div className="relative hidden overflow-hidden lg:block">
+      <div className="absolute inset-0 bg-gradient-to-br from-[#3f0010] via-[#550016] to-[#800020]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_25%_15%,rgba(255,255,255,0.18),transparent_55%)]" />
+    </div>
+    <div className="relative flex items-center justify-center bg-gradient-to-br from-white via-[#fbf0f2]/40 to-white px-6 py-12">
+      <Card
+        variant="borderless"
+        className="w-full max-w-[400px] !rounded-2xl !shadow-[0_10px_40px_-12px_rgba(128,0,32,0.18)]"
+        styles={{ body: { padding: 40 } }}
+      >
+        <div className="mb-8 flex flex-col items-center gap-3">
+          <Skeleton.Node active className="!mb-3 !h-20 !w-40" />
+          <Skeleton active title={false} paragraph={{ rows: 2, width: ["60%", "85%"] }} />
+        </div>
+        <div className="flex flex-col gap-6">
+          <Skeleton.Input active block size="large" />
+          <Skeleton.Input active block size="large" />
+          <Skeleton.Button active block size="large" className="!mt-2" />
+        </div>
+      </Card>
+    </div>
+  </div>
+);
+
 function withSuspense(node: React.ReactNode) {
   return <Suspense fallback={pageLoader}>{node}</Suspense>;
 }
@@ -52,7 +79,7 @@ function withSuspense(node: React.ReactNode) {
 export const router = createBrowserRouter([
   {
     path: "/login",
-    element: withSuspense(<LoginPage />),
+    element: <Suspense fallback={loginLoader}><LoginPage /></Suspense>,
   },
   {
     path: "/",

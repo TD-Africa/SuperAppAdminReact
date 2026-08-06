@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button, Card, Form, Input, Typography, App as AntdApp } from "antd";
 import { MailOutlined, LockOutlined } from "@ant-design/icons";
@@ -17,18 +17,25 @@ export default function LoginPage() {
   const isLoggedIn = useAuthStore((s) => s.isLoggedIn());
   const login = useAuthStore((s) => s.login);
   const [form] = Form.useForm<FormValues>();
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (isLoggedIn) navigate(returnUrl, { replace: true });
   }, [isLoggedIn, navigate, returnUrl]);
 
   async function onFinish(values: FormValues) {
-    const result = await login(values);
-    if (result.status) {
-      message.success("Signed in");
-      navigate(returnUrl, { replace: true });
-    } else {
-      message.error(result.message ?? "Sign-in failed");
+    if (submitting) return;
+    setSubmitting(true);
+    try {
+      const result = await login(values);
+      if (result.status) {
+        message.success("Signed in");
+        navigate(returnUrl, { replace: true });
+      } else {
+        message.error(result.message ?? "Sign-in failed");
+      }
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -124,6 +131,7 @@ export default function LoginPage() {
             onFinish={onFinish}
             autoComplete="off"
             size="large"
+            disabled={submitting}
           >
             <Form.Item
               name="userName"
@@ -148,8 +156,17 @@ export default function LoginPage() {
               />
             </Form.Item>
             <Form.Item className="!mb-0 !mt-8">
-              <Button type="primary" htmlType="submit" block size="large">
-                Sign in
+              {/* Explicit disabled={false} opts out of the Form-level lock so the
+                  button stays primary-coloured while it spins. */}
+              <Button
+                type="primary"
+                htmlType="submit"
+                block
+                size="large"
+                loading={submitting}
+                disabled={false}
+              >
+                {submitting ? "Signing in…" : "Sign in"}
               </Button>
             </Form.Item>
           </Form>

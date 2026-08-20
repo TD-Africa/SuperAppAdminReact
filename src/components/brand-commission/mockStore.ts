@@ -7,9 +7,16 @@ export interface CommissionBrand {
   name: string;
   commissionRate: number | null;
   isInheritable: boolean;
+  dynamicsId: string;
+  isActive: boolean;
   updatedAt: string;
   updatedBy: string;
 }
+
+export type FranchiseBrandRow = CommissionBrand & {
+  productCount: number;
+  overrideCount: number;
+};
 
 export interface CommissionProduct {
   id: string;
@@ -34,10 +41,10 @@ export interface AuditEntry {
 }
 
 let brands: CommissionBrand[] = [
-  { id: "samsung", name: "Samsung", commissionRate: 8, isInheritable: true, updatedAt: "2026-08-17T14:20:00Z", updatedBy: "Ada Okafor" },
-  { id: "apple", name: "Apple", commissionRate: 10, isInheritable: true, updatedAt: "2026-08-16T09:45:00Z", updatedBy: "Kemi Adeyemi" },
-  { id: "hp", name: "HP", commissionRate: null, isInheritable: false, updatedAt: "2026-08-12T11:00:00Z", updatedBy: "System migration" },
-  { id: "lenovo", name: "Lenovo", commissionRate: 6.5, isInheritable: false, updatedAt: "2026-08-15T16:10:00Z", updatedBy: "Ada Okafor" },
+  { id: "samsung", name: "Samsung", commissionRate: 8, isInheritable: true, dynamicsId: "DYN-BRAND-SAM", isActive: true, updatedAt: "2026-08-17T14:20:00Z", updatedBy: "Ada Okafor" },
+  { id: "apple", name: "Apple", commissionRate: 10, isInheritable: true, dynamicsId: "DYN-BRAND-APL", isActive: true, updatedAt: "2026-08-16T09:45:00Z", updatedBy: "Kemi Adeyemi" },
+  { id: "hp", name: "HP", commissionRate: null, isInheritable: false, dynamicsId: "DYN-BRAND-HP", isActive: true, updatedAt: "2026-08-12T11:00:00Z", updatedBy: "System migration" },
+  { id: "lenovo", name: "Lenovo", commissionRate: 6.5, isInheritable: false, dynamicsId: "DYN-BRAND-LEN", isActive: false, updatedAt: "2026-08-15T16:10:00Z", updatedBy: "Ada Okafor" },
 ];
 
 let products: CommissionProduct[] = [
@@ -172,6 +179,14 @@ export const commissionMockStore = {
   },
   getBrands: () => wait([...brands]),
   getBrand: (id: string) => wait(brands.find((brand) => brand.id === id) ?? null),
+  getBrandSummaries: (): Promise<FranchiseBrandRow[]> => {
+    const rows: FranchiseBrandRow[] = brands.map((brand) => ({
+      ...brand,
+      productCount: products.filter((product) => product.brandId === brand.id).length,
+      overrideCount: products.filter((product) => product.brandId === brand.id && product.commissionOverride !== null).length,
+    }));
+    return wait(rows);
+  },
   getProducts: (brandId: string) => wait(products.filter((product) => product.brandId === brandId)),
   getCatalog: (): Promise<FranchiseCatalogRow[]> => {
     const rows: FranchiseCatalogRow[] = products.map((product) => {

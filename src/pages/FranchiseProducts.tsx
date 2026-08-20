@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
-  Alert, App as AntdApp, Button, Card, Empty, Input, Select, Table, Tag, Typography,
+  App as AntdApp, Button, Card, Empty, Input, Select, Table, Tag, Typography,
 } from "antd";
 import type { TableColumnsType } from "antd";
 import { EditOutlined, PercentageOutlined } from "@ant-design/icons";
@@ -20,10 +20,11 @@ const sourceTag = (source: CommissionSource, markup: number | null, brandName: s
 
 export default function FranchiseProductsPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { message } = AntdApp.useApp();
   const [rows, setRows] = useState<FranchiseCatalogRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(searchParams.get("brand") ?? "");
   const [sourceFilter, setSourceFilter] = useState<CommissionSource | "all">("all");
 
   useEffect(() => {

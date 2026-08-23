@@ -52,7 +52,7 @@ export default function LoginPage() {
         />
         {/* Burgundy brand tint */}
         <div className="absolute inset-0 bg-gradient-to-br from-[#3f0010]/85 via-[#550016]/55 to-[#800020]/40" />
-        {/* Bottom vignette for tagline legibility */}
+        {/* Bottom vignette for tagline legibility  */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent" />
         {/* Subtle radial sheen */}
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_25%_15%,rgba(255,255,255,0.18),transparent_55%)]" />

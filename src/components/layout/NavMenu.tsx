@@ -40,7 +40,9 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { to: "/", label: "Home", icon: <DashboardOutlined />, permission: Permission.CanViewDashboard, exact: true },
   { to: "/products", label: "Products", icon: <AppstoreOutlined />, permission: Permission.CanViewProducts },
+  { to: "/franchise-products", label: "Franchise Products", icon: <AppstoreOutlined />, permission: Permission.CanViewProducts },
   { to: "/orders", label: "Orders", icon: <ShoppingCartOutlined />, permission: Permission.CanViewOrders },
+  { to: "/franchise-orders", label: "Franchise Orders", icon: <ShoppingCartOutlined />, permission: Permission.CanViewOrders },
   { to: "/debt-collection", label: "Debt Collection", icon: <AccountBookOutlined />, permission: Permission.CanViewOrders },
   { to: "/customers", label: "Customers", icon: <TeamOutlined />, permission: Permission.CanViewUser },
   { to: "/employees", label: "Employees", icon: <UsergroupAddOutlined />, permission: Permission.CanViewDashboard },
@@ -51,6 +53,8 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/promos-audit-logs", label: "Promos Audit Logs", icon: <HistoryOutlined />, permission: Permission.CanViewPromos },
   { to: "/product-groups", label: "Product Groups", icon: <GroupOutlined />, permission: Permission.CanViewProductGroup },
   { to: "/brands", label: "Brands", icon: <ShopOutlined />, permission: Permission.CanViewBrands },
+  { to: "/franchise-brands", label: "Franchise Brands", icon: <ShopOutlined />, permission: Permission.CanViewBrands },
+  { to: "/franchise-brand-commissions", label: "Franchise Brand Commissions", icon: <PercentageOutlined />, permission: Permission.CanViewBrands },
   { to: "/deals", label: "Deals", icon: <TagsOutlined />, permission: Permission.CanViewBrands },
   { to: "/deals-audit-logs", label: "Deals Audit Logs", icon: <HistoryOutlined />, permission: Permission.CanViewBrands },
   { to: "/warehouses", label: "Warehouses", icon: <ContainerOutlined />, permission: Permission.CanViewWarehouses },

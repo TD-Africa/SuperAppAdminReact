@@ -1,159 +1,215 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import {
-  App as AntdApp, Button, Card, Empty, Input, Select, Table, Tag, Typography,
+  App as AntdApp,
+  Avatar,
+  Button,
+  Card,
+  Empty,
+  Input,
+  Select,
+  Table,
+  Tag,
+  Typography,
 } from "antd";
 import type { TableColumnsType } from "antd";
-import { EditOutlined, PercentageOutlined } from "@ant-design/icons";
+import { AppstoreOutlined, PercentageOutlined } from "@ant-design/icons";
+import { getActiveStorefrontBrands, getStorefrontProducts } from "@/lib/storefrontApi";
 import {
-  commissionMockStore,
-  formatNaira,
-  type CommissionSource,
-  type FranchiseCatalogRow,
-} from "@/components/brand-commission/mockStore";
+  formatStorefrontNaira,
+  pickDefaultVariant,
+  storefrontMarkupPercent,
+  type StorefrontProductDto,
+} from "@/lib/storefrontTypes";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 
-const sourceTag = (source: CommissionSource, markup: number | null, brandName: string) => {
-  if (source === "override") return <Tag color="purple">Override · {markup?.toFixed(2)}%</Tag>;
-  if (source === "inherited") return <Tag color="success">Inherited ({brandName} {markup?.toFixed(2)}%)</Tag>;
-  return <Tag color="warning">Not configured</Tag>;
-};
+const ALL = "__all__";
 
 export default function FranchiseProductsPage() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { message } = AntdApp.useApp();
-  const [rows, setRows] = useState<FranchiseCatalogRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState(searchParams.get("brand") ?? "");
-  const [sourceFilter, setSourceFilter] = useState<CommissionSource | "all">("all");
+
+  const brandIdFromUrl = searchParams.get("brandId") ?? "";
+  const brandNameFromUrl = searchParams.get("brand") ?? "";
+
+  const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search, 350);
+  const [brandId, setBrandId] = useState(brandIdFromUrl || ALL);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
 
   useEffect(() => {
-    let active = true;
-    const load = async () => {
-      setLoading(true);
-      try {
-        const catalog = await commissionMockStore.getCatalog();
-        if (active) setRows(catalog);
-      } catch {
-        message.error("Unable to load mock franchise products.");
-      } finally {
-        if (active) setLoading(false);
-      }
-    };
-    void load();
-    return commissionMockStore.subscribe(() => void load());
-  }, [message]);
+    if (brandIdFromUrl) setBrandId(brandIdFromUrl);
+  }, [brandIdFromUrl]);
 
-  const visible = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return rows.filter((row) => {
-      if (sourceFilter !== "all" && row.source !== sourceFilter) return false;
-      if (!q) return true;
-      return row.name.toLowerCase().includes(q)
-        || row.sku.toLowerCase().includes(q)
-        || row.brandName.toLowerCase().includes(q)
-        || row.dynamicsId.toLowerCase().includes(q);
-    });
-  }, [rows, search, sourceFilter]);
+  const brandsQuery = useQuery({
+    queryKey: ["storefront", "brands"],
+    queryFn: async () => {
+      const res = await getActiveStorefrontBrands();
+      if (!res.status) throw new Error(res.message ?? "Failed to load brands");
+      return res.data ?? [];
+    },
+  });
 
-  const columns: TableColumnsType<FranchiseCatalogRow> = [
+  const queryParams = useMemo(
+    () => ({
+      PageSize: pageSize,
+      PageNumber: page,
+      SearchString: debouncedSearch.trim() || undefined,
+      storefrontBrandId: brandId !== ALL ? brandId : undefined,
+    }),
+    [pageSize, page, debouncedSearch, brandId],
+  );
+
+  const productsQuery = useQuery({
+    queryKey: ["storefront", "products", queryParams],
+    queryFn: async () => {
+      const res = await getStorefrontProducts(queryParams);
+      if (!res.status) throw new Error(res.message ?? "Failed to load storefront products");
+      return res.data;
+    },
+  });
+
+  useEffect(() => {
+    if (productsQuery.isError) {
+      message.error(
+        productsQuery.error instanceof Error
+          ? productsQuery.error.message
+          : "Unable to load storefront products.",
+      );
+    }
+  }, [productsQuery.isError, productsQuery.error, message]);
+
+  const rows = productsQuery.data?.data ?? [];
+  const totalItems = Number(productsQuery.data?.count ?? 0);
+
+  const brandOptions = useMemo(() => {
+    const options = (brandsQuery.data ?? []).map((b) => ({
+      value: b.id,
+      label: b.name,
+    }));
+    return [{ value: ALL, label: "All brands" }, ...options];
+  }, [brandsQuery.data]);
+
+  const selectedBrandLabel =
+    brandId !== ALL
+      ? (brandsQuery.data?.find((b) => b.id === brandId)?.name ?? brandNameFromUrl)
+      : null;
+
+  const columns: TableColumnsType<StorefrontProductDto> = [
+    {
+      title: "",
+      key: "image",
+      width: 64,
+      fixed: "left",
+      render: (_, row) => {
+        const src = row.images?.[0] ?? undefined;
+        return (
+          <Avatar
+            shape="square"
+            src={src}
+            icon={!src ? <AppstoreOutlined /> : undefined}
+          />
+        );
+      },
+    },
     {
       title: "Product",
-      dataIndex: "name",
+      dataIndex: "productName",
       fixed: "left",
-      width: 220,
+      width: 240,
       render: (name: string, row) => (
-        <div className="max-w-[200px]">
+        <div className="max-w-[220px]">
           <div className="truncate font-medium">{name}</div>
-          <div className="truncate text-xs text-muted-foreground">{row.sku}</div>
+          {row.slug && (
+            <div className="truncate text-xs text-muted-foreground">{row.slug}</div>
+          )}
         </div>
       ),
     },
-    { title: "Brand", dataIndex: "brandName", width: 120 },
+    {
+      title: "Brand",
+      dataIndex: "brandName",
+      width: 140,
+      render: (v: string | null) => v ?? "—",
+    },
     {
       title: "Qty",
-      dataIndex: "quantity",
-      width: 80,
+      key: "qty",
+      width: 90,
       align: "right",
-      render: (qty: number) => qty.toLocaleString(),
+      render: (_, row) => {
+        const v = pickDefaultVariant(row);
+        return v ? v.availableQuantity.toLocaleString() : "—";
+      },
     },
     {
       title: "Price (NGN)",
-      dataIndex: "basePrice",
+      key: "price",
       width: 140,
       align: "right",
-      render: (price: number) => formatNaira(price),
-    },
-    {
-      title: "Price (USD)",
-      dataIndex: "priceInDollar",
-      width: 120,
-      align: "right",
-      render: (price: number) => `$${price.toLocaleString()}`,
+      render: (_, row) => {
+        const v = pickDefaultVariant(row);
+        return v ? formatStorefrontNaira(v.priceInNaira) : "—";
+      },
     },
     {
       title: "Storefront price",
       key: "storefront",
       width: 160,
       align: "right",
-      render: (_, row) => row.storefront === null
-        ? <Typography.Text type="secondary">Not configured</Typography.Text>
-        : <span className="font-semibold text-[#800020]">{formatNaira(row.storefront)}</span>,
+      render: (_, row) => {
+        const v = pickDefaultVariant(row);
+        if (!v) return <Typography.Text type="secondary">—</Typography.Text>;
+        return (
+          <span className="font-semibold text-[#800020]">
+            {formatStorefrontNaira(v.storefrontPrice)}
+          </span>
+        );
+      },
     },
     {
       title: "Markup",
       key: "markup",
       width: 100,
       align: "right",
-      render: (_, row) => row.markupPercent === null
-        ? "—"
-        : <span className="font-medium">{row.markupPercent.toFixed(2)}%</span>,
+      render: (_, row) => {
+        const v = pickDefaultVariant(row);
+        if (!v) return "—";
+        const markup = storefrontMarkupPercent(v.priceInNaira, v.storefrontPrice);
+        return markup === null ? "—" : <span className="font-medium">{markup.toFixed(2)}%</span>;
+      },
     },
     {
-      title: "Source",
-      key: "source",
-      width: 200,
-      render: (_, row) => sourceTag(row.source, row.markupPercent, row.brandName),
-    },
-    {
-      title: "Dynamics ID",
-      dataIndex: "dynamicsId",
-      width: 140,
-      render: (v: string) => <span className="text-xs text-muted-foreground">{v}</span>,
-    },
-    {
-      title: "Visible",
-      dataIndex: "isVisible",
-      width: 90,
-      render: (v: boolean) => <Tag color={v ? "blue" : "default"}>{v ? "Yes" : "No"}</Tag>,
-    },
-    {
-      title: "Active",
-      dataIndex: "isActive",
-      width: 90,
-      render: (v: boolean) => <Tag color={v ? "success" : "default"}>{v ? "Yes" : "No"}</Tag>,
-    },
-    {
-      title: "Featured",
-      dataIndex: "isFeatured",
-      width: 100,
-      render: (v: boolean) => <Tag color={v ? "gold" : "default"}>{v ? "Yes" : "No"}</Tag>,
-    },
-    {
-      title: "",
-      key: "actions",
-      fixed: "right",
-      width: 150,
-      align: "right",
-      render: (_, row) => (
-        <Button
-          size="small"
-          icon={<EditOutlined />}
-          onClick={() => navigate(`/franchise-brand-commissions/${row.brandId}`)}
-        >
-          Edit storefront
-        </Button>
+      title: "Published",
+      dataIndex: "isStorefrontPublished",
+      width: 110,
+      render: (v: boolean) => (
+        <Tag color={v ? "success" : "default"}>{v ? "Yes" : "No"}</Tag>
       ),
+    },
+    {
+      title: "Available",
+      key: "available",
+      width: 110,
+      render: (_, row) => {
+        const v = pickDefaultVariant(row);
+        if (!v) return <Tag>Unknown</Tag>;
+        return (
+          <Tag color={v.isAvailable ? "blue" : "default"}>
+            {v.isAvailable ? "Yes" : "No"}
+          </Tag>
+        );
+      },
+    },
+    {
+      title: "Variants",
+      key: "variants",
+      width: 90,
+      align: "right",
+      render: (_, row) => row.variants?.length ?? 0,
     },
   ];
 
@@ -162,52 +218,74 @@ export default function FranchiseProductsPage() {
       <div>
         <Typography.Title level={3} className="!m-0">Franchise products</Typography.Title>
         <Typography.Text type="secondary">
-          Parallel catalogue (mock). Includes storefront price and markup — use this page, not Products.
+          Storefront catalogue with NGN base and storefront prices
+          {selectedBrandLabel ? ` · filtered by ${selectedBrandLabel}` : ""}.
         </Typography.Text>
       </div>
-
-      {/* <Alert
-        type="info"
-        showIcon
-        message="Storefront price = product price + markup"
-        description="Scroll the table horizontally to see Storefront price, Markup, Source, and the rest of the columns."
-      /> */}
 
       <Card styles={{ body: { padding: 16 } }}>
         <div className="grid gap-3 md:grid-cols-12">
           <Input
-            className="md:col-span-8"
+            className="md:col-span-7"
             allowClear
-            placeholder="Search product, SKU, brand, or Dynamics ID…"
+            placeholder="Search products…"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setPage(1);
+              setSearch(e.target.value);
+            }}
             prefix={<PercentageOutlined className="text-muted-foreground" />}
           />
           <Select
-            className="md:col-span-4"
-            value={sourceFilter}
-            onChange={setSourceFilter}
-            options={[
-              { value: "all", label: "All sources" },
-              { value: "inherited", label: "Inherited" },
-              { value: "override", label: "Overridden" },
-              { value: "unset", label: "Not configured" },
-            ]}
+            className="md:col-span-5"
+            value={brandId || ALL}
+            loading={brandsQuery.isLoading}
+            options={brandOptions}
+            onChange={(value) => {
+              setPage(1);
+              setBrandId(value);
+              const next = new URLSearchParams(searchParams);
+              if (value === ALL) {
+                next.delete("brandId");
+                next.delete("brand");
+              } else {
+                next.set("brandId", value);
+                const name = brandsQuery.data?.find((b) => b.id === value)?.name;
+                if (name) next.set("brand", name);
+              }
+              setSearchParams(next, { replace: true });
+            }}
           />
         </div>
       </Card>
 
       <Card styles={{ body: { padding: 0 } }}>
-        <Table<FranchiseCatalogRow>
-          rowKey="id"
+        <Table<StorefrontProductDto>
+          rowKey="productId"
           columns={columns}
-          dataSource={visible}
-          loading={loading}
-          scroll={{ x: 1700 }}
-          locale={{ emptyText: <Empty description="No franchise products" /> }}
-          pagination={{ pageSize: 10 }}
+          dataSource={rows}
+          loading={productsQuery.isLoading || productsQuery.isFetching}
+          scroll={{ x: 1200 }}
+          locale={{ emptyText: <Empty description="No storefront products" /> }}
+          pagination={{
+            current: page,
+            pageSize,
+            total: totalItems,
+            showSizeChanger: true,
+            pageSizeOptions: [10, 20, 50, 100],
+            onChange: (p, ps) => {
+              setPage(p);
+              setPageSize(ps);
+            },
+          }}
         />
       </Card>
+
+      {brandId !== ALL && (
+        <Button type="link" className="!px-0" onClick={() => navigate("/franchise-brands")}>
+          ← Back to franchise brands
+        </Button>
+      )}
     </div>
   );
 }

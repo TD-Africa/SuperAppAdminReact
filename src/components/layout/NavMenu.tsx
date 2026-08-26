@@ -54,6 +54,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/product-groups", label: "Product Groups", icon: <GroupOutlined />, permission: Permission.CanViewProductGroup },
   { to: "/brands", label: "Brands", icon: <ShopOutlined />, permission: Permission.CanViewBrands },
   { to: "/franchise-brands", label: "Franchise Brands", icon: <ShopOutlined />, permission: Permission.CanViewBrands },
+  { to: "/franchise-store-owners", label: "Franchise Store Owners", icon: <TeamOutlined />, permission: Permission.CanViewUser },
   { to: "/franchise-brand-commissions", label: "Franchise Brand Commissions", icon: <PercentageOutlined />, permission: Permission.CanViewBrands },
   { to: "/deals", label: "Deals", icon: <TagsOutlined />, permission: Permission.CanViewBrands },
   { to: "/deals-audit-logs", label: "Deals Audit Logs", icon: <HistoryOutlined />, permission: Permission.CanViewBrands },

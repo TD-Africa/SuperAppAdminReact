@@ -1,201 +1,289 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
-  App as AntdApp, Button, Card, Descriptions, Drawer, Empty, Input, Select, Table, Tag, Typography,
+  Card,
+  Input,
+  Select,
+  Typography,
+  Table,
+  Button,
+  Space,
+  Tag,
 } from "antd";
 import type { TableColumnsType } from "antd";
-import { EyeOutlined } from "@ant-design/icons";
-import {
-  commissionMockStore,
-  formatNaira,
-  type FranchiseOrder,
-  type FranchiseOrderLine,
-} from "@/components/brand-commission/mockStore";
+import { DownloadOutlined, EyeOutlined } from "@ant-design/icons";
+import { apiGet, API_BASE_URL } from "@/lib/api";
+import type {
+  OrderReturnDto,
+  OrderStatusReturnDTO,
+  PaginationResponse,
+} from "@/lib/types";
+import { PaymentMethodId } from "@/lib/paymentMethods";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { formatCurrency, formatDate, formatNumber } from "@/lib/utils";
+import { OrderDetailModal } from "@/components/orders/OrderDetailModal";
 
-function orderTotal(order: FranchiseOrder) {
-  return order.lines.reduce((sum, line) => sum + line.lineTotal, 0);
-}
-
-function statusTag(status: FranchiseOrder["status"]) {
-  if (status === "Completed") return <Tag color="success">Completed</Tag>;
-  if (status === "Pending") return <Tag color="processing">Pending</Tag>;
-  return <Tag color="error">Cancelled</Tag>;
-}
+const ALL = "__all__";
 
 export default function FranchiseOrdersPage() {
-  const { message } = AntdApp.useApp();
-  const [orders, setOrders] = useState<FranchiseOrder[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<FranchiseOrder["status"] | "all">("all");
-  const [selected, setSelected] = useState<FranchiseOrder | null>(null);
+  const [keyword, setKeyword] = useState("");
+  const debouncedKeyword = useDebouncedValue(keyword, 350);
+  const [orderStatusId, setOrderStatusId] = useState<string>(ALL);
+  const [isPaid, setIsPaid] = useState<string>(ALL);
+  const [paymentMethodId, setPaymentMethodId] = useState<string>(ALL);
+  const [isPoa, setIsPoa] = useState<string>(ALL);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
 
-  useEffect(() => {
-    let active = true;
-    const load = async () => {
-      setLoading(true);
-      try {
-        const rows = await commissionMockStore.getOrders();
-        if (active) setOrders(rows);
-      } catch {
-        message.error("Unable to load mock franchise orders.");
-      } finally {
-        if (active) setLoading(false);
-      }
-    };
-    void load();
-    return commissionMockStore.subscribe(() => void load());
-  }, [message]);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
 
-  const visible = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return orders.filter((order) => {
-      if (statusFilter !== "all" && order.status !== statusFilter) return false;
-      if (!q) return true;
-      return order.orderNumber.toLowerCase().includes(q)
-        || order.founderName.toLowerCase().includes(q)
-        || order.tdCustomerName.toLowerCase().includes(q);
-    });
-  }, [orders, search, statusFilter]);
-
-  const columns: TableColumnsType<FranchiseOrder> = [
-    {
-      title: "Order",
-      dataIndex: "orderNumber",
-      render: (value: string) => <span className="font-medium">{value}</span>,
+  const { data: statuses } = useQuery({
+    queryKey: ["franchise-order-statuses"],
+    queryFn: async () => {
+      const res = await apiGet<OrderStatusReturnDTO[]>("Component/GetOrderStatuses");
+      if (!res.status) throw new Error(res.message ?? "Failed to load statuses");
+      return res.data ?? [];
     },
-    { title: "Franchise Founder", dataIndex: "founderName" },
-    { title: "TD Customer", dataIndex: "tdCustomerName" },
+    staleTime: 5 * 60_000,
+  });
+
+  const queryParams = useMemo(() => {
+    const params = new URLSearchParams();
+    params.set("PageSize", String(pageSize));
+    params.set("PageNumber", String(page));
+    if (debouncedKeyword.trim()) params.set("SearchString", debouncedKeyword.trim());
+    if (orderStatusId !== ALL) params.set("orderStatusId", orderStatusId);
+    if (isPaid !== ALL) params.set("isPaid", isPaid);
+    if (paymentMethodId !== ALL) params.set("paymentMethodId", paymentMethodId);
+    if (isPoa !== ALL) params.set("isPoa", isPoa);
+    return params;
+  }, [pageSize, page, debouncedKeyword, orderStatusId, isPaid, paymentMethodId, isPoa]);
+
+  const { data, isLoading, isFetching, refetch } = useQuery({
+    queryKey: ["franchise-orders", queryParams.toString()],
+    queryFn: async () => {
+      const res = await apiGet<PaginationResponse<OrderReturnDto>>(
+        `Order/GetAllOrders?${queryParams.toString()}`,
+      );
+      if (!res.status) throw new Error(res.message ?? "Failed to load orders");
+      return res.data;
+    },
+  });
+
+  const rows = data?.data ?? [];
+  const totalItems = Number(data?.count ?? 0);
+
+  function openDetail(id: string) {
+    setSelectedOrderId(id);
+    setDetailOpen(true);
+  }
+
+  function downloadAll() {
+    window.open(`${API_BASE_URL}Order/DownloadOrders`, "_blank");
+  }
+
+  function downloadFiltered() {
+    window.open(`${API_BASE_URL}Order/DownloadOrders?${queryParams}`, "_blank");
+  }
+
+  function totalFor(order: OrderReturnDto, currency: "NGN" | "USD") {
+    const picker =
+      currency === "NGN"
+        ? (op: OrderReturnDto["orderedProducts"][number]) => op.amountInNaira
+        : (op: OrderReturnDto["orderedProducts"][number]) => op.amountInDollar;
+    return (order.orderedProducts ?? []).reduce(
+      (acc, op) => acc + picker(op) * op.quantity,
+      0,
+    );
+  }
+
+  const columns: TableColumnsType<OrderReturnDto> = [
+    { title: "Company", dataIndex: "companyName", render: (v) => <span className="font-medium">{v ?? "—"}</span> },
+    { title: "Phone", dataIndex: "phoneNumber", render: (v) => <span className="text-xs">{v ?? "—"}</span> },
     {
-      title: "Storefront total",
-      key: "total",
+      title: "NGN",
+      key: "ngn",
       align: "right",
-      render: (_, order) => <span className="font-medium">{formatNaira(orderTotal(order))}</span>,
+      render: (_, r) => formatCurrency(totalFor(r, "NGN"), "NGN"),
     },
     {
-      title: "Lines",
-      key: "lines",
-      render: (_, order) => `${order.lines.length} item${order.lines.length === 1 ? "" : "s"}`,
+      title: "USD",
+      key: "usd",
+      align: "right",
+      render: (_, r) => formatCurrency(totalFor(r, "USD"), "USD"),
     },
-    { title: "Status", dataIndex: "status", render: (status: FranchiseOrder["status"]) => statusTag(status) },
+    {
+      title: "Location",
+      key: "location",
+      render: (_, r) => (
+        <span className="block max-w-[220px] truncate">
+          {r.deliveryAddress ?? r.location?.name ?? "—"}
+        </span>
+      ),
+    },
     {
       title: "Date",
       dataIndex: "dateCreated",
-      render: (value: string) => new Date(value).toLocaleString(),
+      render: (v) => <span className="text-xs text-muted-foreground">{formatDate(v)}</span>,
+    },
+    { title: "Payment", dataIndex: ["paymentMethod", "method"], render: (v) => v ?? "—" },
+    { title: "Delivery", dataIndex: ["deliveryMethod", "method"], render: (v) => v ?? "—" },
+    {
+      title: "POA",
+      dataIndex: "isPoaTransaction",
+      render: (v: boolean) => (v ? <Tag color="gold">POA</Tag> : <Tag>—</Tag>),
+    },
+    {
+      title: "Fully paid",
+      dataIndex: "isFullyPaid",
+      render: (v: boolean) =>
+        v ? <Tag color="success">Yes</Tag> : <Tag color="warning">No</Tag>,
+    },
+    {
+      title: "Status",
+      dataIndex: ["orderStatus", "status"],
+      render: (v: string) => <Tag>{v ?? "—"}</Tag>,
+    },
+    {
+      title: "Qty",
+      key: "qty",
+      align: "right",
+      render: (_, r) => formatNumber(r.orderedProducts?.length ?? 0),
     },
     {
       title: "",
       key: "actions",
+      width: 60,
       align: "right",
-      render: (_, order) => (
-        <Button size="small" icon={<EyeOutlined />} onClick={() => setSelected(order)}>
-          View
-        </Button>
+      render: (_, r) => (
+        <Button size="small" icon={<EyeOutlined />} onClick={() => openDetail(r.id)} />
       ),
-    },
-  ];
-
-  const lineColumns: TableColumnsType<FranchiseOrderLine> = [
-    { title: "Product", dataIndex: "productName" },
-    { title: "Qty", dataIndex: "quantity", width: 70 },
-    {
-      title: "Product price",
-      dataIndex: "productPrice",
-      render: (price: number) => formatNaira(price),
-    },
-    {
-      title: "Markup",
-      dataIndex: "markupPercent",
-      render: (markup: number) => `${markup.toFixed(2)}%`,
-    },
-    {
-      title: "Storefront unit",
-      dataIndex: "storefrontUnitPrice",
-      render: (price: number) => <span className="font-medium">{formatNaira(price)}</span>,
-    },
-    {
-      title: "Line total",
-      dataIndex: "lineTotal",
-      align: "right",
-      render: (total: number) => formatNaira(total),
     },
   ];
 
   return (
     <div className="space-y-6">
       <div>
-        <Typography.Title level={3} className="!m-0">Franchise orders</Typography.Title>
+        <Typography.Title level={3} className="!m-0">
+          Franchise orders
+        </Typography.Title>
         <Typography.Text type="secondary">
-          Mock orders charged at storefront price (product price + markup), snapshotted at purchase time.
+          Search, filter, and inspect storefront orders.
         </Typography.Text>
       </div>
 
       <Card styles={{ body: { padding: 16 } }}>
         <div className="grid gap-3 md:grid-cols-12">
           <Input
-            className="md:col-span-8"
+            className="md:col-span-12"
+            placeholder="Search by company, phone, Dynamics ID…"
+            value={keyword}
             allowClear
-            placeholder="Search order, Franchise Founder, or TD Customer…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setPage(1);
+              setKeyword(e.target.value);
+            }}
           />
           <Select
-            className="md:col-span-4"
-            value={statusFilter}
-            onChange={setStatusFilter}
+            className="md:col-span-3"
+            value={orderStatusId}
+            onChange={(v) => {
+              setPage(1);
+              setOrderStatusId(v);
+            }}
             options={[
-              { value: "all", label: "All statuses" },
-              { value: "Pending", label: "Pending" },
-              { value: "Completed", label: "Completed" },
-              { value: "Cancelled", label: "Cancelled" },
+              { value: ALL, label: "All statuses" },
+              ...(statuses ?? []).map((s) => ({ value: s.id, label: s.status })),
+            ]}
+          />
+          <Select
+            className="md:col-span-3"
+            value={isPaid}
+            onChange={(v) => {
+              setPage(1);
+              setIsPaid(v);
+            }}
+            options={[
+              { value: ALL, label: "All payment statuses" },
+              { value: "true", label: "Paid" },
+              { value: "false", label: "Unpaid" },
+            ]}
+          />
+          <Select
+            className="md:col-span-3"
+            value={paymentMethodId}
+            onChange={(v) => {
+              setPage(1);
+              setPaymentMethodId(v);
+            }}
+            options={[
+              { value: ALL, label: "All methods" },
+              { value: PaymentMethodId.Credit, label: "Credit" },
+              { value: PaymentMethodId.CashOrCard, label: "Cash/Card" },
+            ]}
+          />
+          <Select
+            className="md:col-span-3"
+            value={isPoa}
+            onChange={(v) => {
+              setPage(1);
+              setIsPoa(v);
+            }}
+            options={[
+              { value: ALL, label: "All transactions" },
+              { value: "true", label: "POA only" },
+              { value: "false", label: "Non-POA" },
             ]}
           />
         </div>
       </Card>
 
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="text-sm text-muted-foreground">
+          {isFetching && !isLoading ? "Refreshing…" : null}
+        </span>
+        <Space>
+          <Button icon={<DownloadOutlined />} onClick={downloadFiltered}>
+            Download (filtered)
+          </Button>
+          <Button icon={<DownloadOutlined />} onClick={downloadAll}>
+            Download all
+          </Button>
+        </Space>
+      </div>
+
       <Card styles={{ body: { padding: 0 } }}>
-        <Table<FranchiseOrder>
+        <Table<OrderReturnDto>
           rowKey="id"
+          dataSource={rows}
           columns={columns}
-          dataSource={visible}
-          loading={loading}
-          locale={{ emptyText: <Empty description="No franchise orders" /> }}
-          pagination={{ pageSize: 10 }}
+          loading={isLoading || isFetching}
+          pagination={{
+            current: page,
+            pageSize,
+            total: totalItems,
+            showSizeChanger: true,
+            pageSizeOptions: [10, 20, 50, 100],
+            onChange: (p, ps) => {
+              setPage(p);
+              setPageSize(ps);
+            },
+          }}
+          scroll={{ x: 1200 }}
+          locale={{ emptyText: "No franchise orders match the current filters." }}
         />
       </Card>
 
-      <Drawer
-        width={720}
-        open={selected !== null}
-        onClose={() => setSelected(null)}
-        title={selected ? `Order ${selected.orderNumber}` : "Order"}
-      >
-        {selected && (
-          <div className="space-y-4">
-            <Descriptions
-              column={1}
-              size="small"
-              bordered
-              items={[
-                { key: "founder", label: "Franchise Founder", children: selected.founderName },
-                { key: "customer", label: "TD Customer", children: selected.tdCustomerName },
-                { key: "status", label: "Status", children: statusTag(selected.status) },
-                { key: "date", label: "Ordered", children: new Date(selected.dateCreated).toLocaleString() },
-                { key: "total", label: "Storefront total", children: <span className="font-medium">{formatNaira(orderTotal(selected))}</span> },
-              ]}
-            />
-            <Typography.Text type="secondary">
-              Line amounts are historical snapshots — later markup changes do not rewrite these orders.
-            </Typography.Text>
-            <Table
-              rowKey={(line) => `${line.productId}-${line.storefrontUnitPrice}`}
-              size="small"
-              pagination={false}
-              columns={lineColumns}
-              dataSource={selected.lines}
-            />
-          </div>
-        )}
-      </Drawer>
+      <OrderDetailModal
+        orderId={selectedOrderId}
+        open={detailOpen}
+        onOpenChange={(v) => {
+          setDetailOpen(v);
+          if (!v) setSelectedOrderId(null);
+        }}
+        onUpdated={() => refetch()}
+      />
     </div>
   );
 }

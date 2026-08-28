@@ -3,9 +3,14 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { Permission } from "@/lib/permissions";
 import { Card, Col, Row, Skeleton } from "antd";
 import { lazy, Suspense } from "react";
-import { createBrowserRouter, Navigate } from "react-router-dom";
+import { createBrowserRouter, Navigate, useParams } from "react-router-dom";
 
 const LoginPage = lazy(() => import("@/pages/Login"));
+
+function LegacyCommissionDetailRedirect() {
+  const { brandId } = useParams();
+  return <Navigate to={brandId ? `/franchise-brands/${brandId}` : "/franchise-brands"} replace />;
+}
 const DashboardPage = lazy(() => import("@/pages/Dashboard"));
 const ProductsPage = lazy(() => import("@/pages/Products"));
 const FranchiseProductsPage = lazy(() => import("@/pages/FranchiseProducts"));
@@ -13,9 +18,9 @@ const OrdersPage = lazy(() => import("@/pages/Orders"));
 const FranchiseOrdersPage = lazy(() => import("@/pages/FranchiseOrders"));
 const BrandsPage = lazy(() => import("@/pages/Brands"));
 const FranchiseBrandsPage = lazy(() => import("@/pages/FranchiseBrands"));
+const FranchiseBrandDetailPage = lazy(() => import("@/pages/FranchiseBrandDetail"));
 const FranchiseStoreOwnersPage = lazy(() => import("@/pages/FranchiseStoreOwners"));
-const BrandCommissionsPage = lazy(() => import("@/pages/BrandCommissions"));
-const BrandCommissionDetailPage = lazy(() => import("@/pages/BrandCommissionDetail"));
+const FranchiseStoreOwnerDetailPage = lazy(() => import("@/pages/FranchiseStoreOwnerDetail"));
 const WarehousesPage = lazy(() => import("@/pages/Warehouses"));
 const TicketsPage = lazy(() => import("@/pages/Tickets"));
 const CustomersPage = lazy(() => import("@/pages/Customers"));
@@ -225,6 +230,14 @@ export const router = createBrowserRouter([
         ),
       },
       {
+        path: "franchise-brands/:storefrontBrandId",
+        element: (
+          <ProtectedRoute permission={Permission.CanViewBrands}>
+            {withSuspense(<FranchiseBrandDetailPage />)}
+          </ProtectedRoute>
+        ),
+      },
+      {
         path: "franchise-store-owners",
         element: (
           <ProtectedRoute permission={Permission.CanViewUser}>
@@ -233,20 +246,20 @@ export const router = createBrowserRouter([
         ),
       },
       {
-        path: "franchise-brand-commissions",
+        path: "franchise-store-owners/:storeOwnerId",
         element: (
-          <ProtectedRoute permission={Permission.CanViewBrands}>
-            {withSuspense(<BrandCommissionsPage />)}
+          <ProtectedRoute permission={Permission.CanViewUser}>
+            {withSuspense(<FranchiseStoreOwnerDetailPage />)}
           </ProtectedRoute>
         ),
       },
       {
+        path: "franchise-brand-commissions",
+        element: <Navigate to="/franchise-brands" replace />,
+      },
+      {
         path: "franchise-brand-commissions/:brandId",
-        element: (
-          <ProtectedRoute permission={Permission.CanViewBrands}>
-            {withSuspense(<BrandCommissionDetailPage />)}
-          </ProtectedRoute>
-        ),
+        element: <LegacyCommissionDetailRedirect />,
       },
       {
         path: "deals",

@@ -1,15 +1,21 @@
-import { lazy, Suspense } from "react";
-import { Navigate, createBrowserRouter } from "react-router-dom";
-import { Skeleton, Card, Row, Col } from "antd";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { Permission } from "@/lib/permissions";
+import { Card, Col, Row, Skeleton } from "antd";
+import { lazy, Suspense } from "react";
+import { createBrowserRouter, Navigate } from "react-router-dom";
 
 const LoginPage = lazy(() => import("@/pages/Login"));
 const DashboardPage = lazy(() => import("@/pages/Dashboard"));
 const ProductsPage = lazy(() => import("@/pages/Products"));
+const FranchiseProductsPage = lazy(() => import("@/pages/FranchiseProducts"));
 const OrdersPage = lazy(() => import("@/pages/Orders"));
+const FranchiseOrdersPage = lazy(() => import("@/pages/FranchiseOrders"));
 const BrandsPage = lazy(() => import("@/pages/Brands"));
+const FranchiseBrandsPage = lazy(() => import("@/pages/FranchiseBrands"));
+const FranchiseStoreOwnersPage = lazy(() => import("@/pages/FranchiseStoreOwners"));
+const BrandCommissionsPage = lazy(() => import("@/pages/BrandCommissions"));
+const BrandCommissionDetailPage = lazy(() => import("@/pages/BrandCommissionDetail"));
 const WarehousesPage = lazy(() => import("@/pages/Warehouses"));
 const TicketsPage = lazy(() => import("@/pages/Tickets"));
 const CustomersPage = lazy(() => import("@/pages/Customers"));
@@ -107,10 +113,26 @@ export const router = createBrowserRouter([
         ),
       },
       {
+        path: "franchise-products",
+        element: (
+          <ProtectedRoute permission={Permission.CanViewProducts}>
+            {withSuspense(<FranchiseProductsPage />)}
+          </ProtectedRoute>
+        ),
+      },
+      {
         path: "orders",
         element: (
           <ProtectedRoute permission={Permission.CanViewOrders}>
             {withSuspense(<OrdersPage />)}
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "franchise-orders",
+        element: (
+          <ProtectedRoute permission={Permission.CanViewOrders}>
+            {withSuspense(<FranchiseOrdersPage />)}
           </ProtectedRoute>
         ),
       },
@@ -191,6 +213,38 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute permission={Permission.CanViewBrands}>
             {withSuspense(<BrandsPage />)}
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "franchise-brands",
+        element: (
+          <ProtectedRoute permission={Permission.CanViewBrands}>
+            {withSuspense(<FranchiseBrandsPage />)}
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "franchise-store-owners",
+        element: (
+          <ProtectedRoute permission={Permission.CanViewUser}>
+            {withSuspense(<FranchiseStoreOwnersPage />)}
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "franchise-brand-commissions",
+        element: (
+          <ProtectedRoute permission={Permission.CanViewBrands}>
+            {withSuspense(<BrandCommissionsPage />)}
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "franchise-brand-commissions/:brandId",
+        element: (
+          <ProtectedRoute permission={Permission.CanViewBrands}>
+            {withSuspense(<BrandCommissionDetailPage />)}
           </ProtectedRoute>
         ),
       },

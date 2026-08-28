@@ -64,8 +64,8 @@ const NAV_TREE: NavNode[] = [
   { type: "leaf", to: "/brands", label: "Brands", icon: <ShopOutlined />, permission: Permission.CanViewBrands },
   {
     type: "group",
-    key: "franchise",
-    label: "Franchise",
+    key: "storefront",
+    label: "Storefront",
     icon: <ShopOutlined />,
     children: [
       { type: "leaf", to: "/franchise-products", label: "Products", icon: <AppstoreOutlined />, permission: Permission.CanViewProducts },
@@ -86,7 +86,7 @@ const NAV_TREE: NavNode[] = [
   { type: "leaf", to: "/roles", label: "Roles", icon: <KeyOutlined />, permission: Permission.CanViewRoles },
 ];
 
-const FRANCHISE_PATHS = [
+const STOREFRONT_PATHS = [
   "/franchise-products",
   "/franchise-orders",
   "/franchise-brands",
@@ -149,8 +149,8 @@ export function NavMenu({ collapsed, onNavigate }: NavMenuProps) {
   }, [location.pathname, visibleLeaves]);
 
   useEffect(() => {
-    if (FRANCHISE_PATHS.some((p) => location.pathname.startsWith(p))) {
-      setOpenKeys((prev) => (prev.includes("franchise") ? prev : [...prev, "franchise"]));
+    if (STOREFRONT_PATHS.some((p) => location.pathname.startsWith(p))) {
+      setOpenKeys((prev) => (prev.includes("storefront") ? prev : [...prev, "storefront"]));
     }
   }, [location.pathname]);
 

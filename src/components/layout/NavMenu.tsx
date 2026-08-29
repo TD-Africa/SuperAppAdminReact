@@ -71,6 +71,7 @@ const NAV_TREE: NavNode[] = [
       { type: "leaf", to: "/franchise-products", label: "Products", icon: <AppstoreOutlined />, permission: Permission.CanViewProducts },
       { type: "leaf", to: "/franchise-orders", label: "Orders", icon: <ShoppingCartOutlined />, permission: Permission.CanViewOrders },
       { type: "leaf", to: "/franchise-brands", label: "Brands", icon: <ShopOutlined />, permission: Permission.CanViewBrands },
+      { type: "leaf", to: "/franchise-categories", label: "Categories", icon: <TagsOutlined />, permission: Permission.CanViewBrands },
       { type: "leaf", to: "/franchise-store-owners", label: "Store Owners", icon: <TeamOutlined />, permission: Permission.CanViewUser },
     ],
   },
@@ -89,6 +90,7 @@ const STOREFRONT_PATHS = [
   "/franchise-products",
   "/franchise-orders",
   "/franchise-brands",
+  "/franchise-categories",
   "/franchise-store-owners",
 ];
 

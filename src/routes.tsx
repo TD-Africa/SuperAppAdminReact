@@ -19,6 +19,8 @@ const FranchiseOrdersPage = lazy(() => import("@/pages/FranchiseOrders"));
 const BrandsPage = lazy(() => import("@/pages/Brands"));
 const FranchiseBrandsPage = lazy(() => import("@/pages/FranchiseBrands"));
 const FranchiseBrandDetailPage = lazy(() => import("@/pages/FranchiseBrandDetail"));
+const FranchiseCategoriesPage = lazy(() => import("@/pages/FranchiseCategories"));
+const FranchiseCategoryDetailPage = lazy(() => import("@/pages/FranchiseCategoryDetail"));
 const FranchiseStoreOwnersPage = lazy(() => import("@/pages/FranchiseStoreOwners"));
 const FranchiseStoreOwnerDetailPage = lazy(() => import("@/pages/FranchiseStoreOwnerDetail"));
 const WarehousesPage = lazy(() => import("@/pages/Warehouses"));
@@ -234,6 +236,22 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute permission={Permission.CanViewBrands}>
             {withSuspense(<FranchiseBrandDetailPage />)}
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "franchise-categories",
+        element: (
+          <ProtectedRoute permission={Permission.CanViewBrands}>
+            {withSuspense(<FranchiseCategoriesPage />)}
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "franchise-categories/:storefrontCategoryId",
+        element: (
+          <ProtectedRoute permission={Permission.CanViewBrands}>
+            {withSuspense(<FranchiseCategoryDetailPage />)}
           </ProtectedRoute>
         ),
       },

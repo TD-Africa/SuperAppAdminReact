@@ -1,20 +1,31 @@
-import { apiGet, apiPost, apiPut } from "./api";
+import { apiDelete, apiGet, apiPost, apiPut } from "./api";
 import type { ApiResult } from "./types";
 import type {
+  AddStorefrontBrandRequest,
+  AddStorefrontCategoryRequest,
   ProductStorefrontPricingDto,
+  SetProductVisibilityRequest,
+  SetVariantStorefrontMarginRequest,
   StorefrontBrandAdminDto,
   StorefrontBrandDto,
   StorefrontCategoryDto,
+  StorefrontCategoryProductsRequest,
   StorefrontEarningsSummaryDto,
   StorefrontPagedBrands,
+  StorefrontPagedCategories,
+  StorefrontPagedCategoryProducts,
   StorefrontPagedEarnings,
   StorefrontPagedProducts,
   StorefrontPagedStoreOwners,
   StorefrontPagedWalletLedger,
+  StorefrontProductCategoriesRequest,
+  StorefrontProductDto,
   StorefrontQuoteDto,
   StorefrontQuoteRequest,
   StorefrontWalletBalanceDto,
   UpdateStorefrontBrandRequest,
+  UpdateStorefrontCategoryRequest,
+  VariantStorefrontPricingDto,
 } from "./storefrontTypes";
 
 function toQuery(params: Record<string, string | number | boolean | undefined | null>) {
@@ -51,6 +62,10 @@ export function getStorefrontBrands(params: {
   );
 }
 
+export function addStorefrontBrand(body: AddStorefrontBrandRequest) {
+  return apiPost<StorefrontBrandAdminDto>("Storefront/AddStorefrontBrand", body);
+}
+
 export function updateStorefrontBrand(
   storefrontBrandId: string,
   body: UpdateStorefrontBrandRequest,
@@ -59,6 +74,10 @@ export function updateStorefrontBrand(
     `Storefront/UpdateStorefrontBrand/${storefrontBrandId}`,
     body,
   );
+}
+
+export function deleteStorefrontBrand(storefrontBrandId: string) {
+  return apiDelete<boolean>(`Storefront/DeleteStorefrontBrand/${storefrontBrandId}`);
 }
 
 /** No dedicated get-by-id endpoint — scan paginated list. */
@@ -85,6 +104,76 @@ export async function getStorefrontBrandById(
 
 export function getActiveStorefrontCategories() {
   return apiGet<StorefrontCategoryDto[]>("Storefront/GetActiveStorefrontCategories");
+}
+
+export function getStorefrontCategories(params: {
+  PageSize?: number;
+  PageNumber?: number;
+  SearchString?: string;
+  isActive?: boolean;
+} = {}) {
+  return apiGet<StorefrontPagedCategories>(
+    `Storefront/GetStorefrontCategories${toQuery(params)}`,
+  );
+}
+
+export function addStorefrontCategory(body: AddStorefrontCategoryRequest) {
+  return apiPost<StorefrontCategoryDto>("Storefront/AddStorefrontCategory", body);
+}
+
+export function updateStorefrontCategory(
+  storefrontCategoryId: string,
+  body: UpdateStorefrontCategoryRequest,
+) {
+  return apiPut<StorefrontCategoryDto>(
+    `Storefront/UpdateStorefrontCategory/${storefrontCategoryId}`,
+    body,
+  );
+}
+
+export function deleteStorefrontCategory(storefrontCategoryId: string) {
+  return apiDelete<boolean>(
+    `Storefront/DeleteStorefrontCategory/${storefrontCategoryId}`,
+  );
+}
+
+export function addProductsToStorefrontCategory(body: StorefrontCategoryProductsRequest) {
+  return apiPost<boolean>("Storefront/AddProductsToStorefrontCategory", body);
+}
+
+export function removeProductsFromStorefrontCategory(body: StorefrontCategoryProductsRequest) {
+  return apiPost<boolean>("Storefront/RemoveProductsFromStorefrontCategory", body);
+}
+
+export function addStorefrontCategoriesToProduct(body: StorefrontProductCategoriesRequest) {
+  return apiPost<boolean>("Storefront/AddStorefrontCategoriesToProduct", body);
+}
+
+export function removeStorefrontCategoriesFromProduct(body: StorefrontProductCategoriesRequest) {
+  return apiPost<boolean>("Storefront/RemoveStorefrontCategoriesFromProduct", body);
+}
+
+/** No dedicated get-by-id — scan paginated list. */
+export async function getStorefrontCategoryById(
+  storefrontCategoryId: string,
+): Promise<ApiResult<StorefrontCategoryDto>> {
+  const pageSize = 50;
+  let pageNumber = 1;
+
+  while (true) {
+    const res = await getStorefrontCategories({ PageSize: pageSize, PageNumber: pageNumber });
+    if (!res.status) return { data: null, message: res.message, status: false };
+
+    const found =
+      res.data?.data?.find((category) => category.id === storefrontCategoryId) ?? null;
+    if (found) return { data: found, message: res.message, status: true };
+
+    const total = res.data?.count ?? 0;
+    if (pageNumber * pageSize >= total) {
+      return { data: null, message: "Storefront category not found", status: false };
+    }
+    pageNumber += 1;
+  }
 }
 
 export function getStoreOwners(params: {
@@ -117,7 +206,7 @@ export function getProductsByStorefrontCategory(
     storefrontBrandId?: string;
   } = {},
 ) {
-  return apiGet<StorefrontPagedProducts>(
+  return apiGet<StorefrontPagedCategoryProducts>(
     `Storefront/GetProductsByStorefrontCategory/${storefrontCategoryId}${toQuery(params)}`,
   );
 }
@@ -136,6 +225,27 @@ export function setProductStorefrontMargin(body: {
     "Storefront/SetProductStorefrontMargin",
     body,
   );
+}
+
+export function setProductVisibility(body: SetProductVisibilityRequest) {
+  return apiPut<boolean>("Storefront/SetProductVisibility", body);
+}
+
+export function getVariantStorefrontPricing(variantId: string) {
+  return apiGet<VariantStorefrontPricingDto>(
+    `Storefront/GetVariantStorefrontPricing/${variantId}`,
+  );
+}
+
+export function setVariantStorefrontMargin(body: SetVariantStorefrontMarginRequest) {
+  return apiPut<VariantStorefrontPricingDto>(
+    "Storefront/SetVariantStorefrontMargin",
+    body,
+  );
+}
+
+export function getPublishedProduct(productId: string) {
+  return apiGet<StorefrontProductDto>(`Storefront/GetPublishedProduct/${productId}`);
 }
 
 export function getStorefrontCategoriesByProduct(productId: string) {

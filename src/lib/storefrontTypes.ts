@@ -28,6 +28,9 @@ export interface UpdateStorefrontBrandRequest {
   isActive: boolean;
 }
 
+/** POST AddStorefrontBrand — same fields as update (no storefront brand id yet). */
+export type AddStorefrontBrandRequest = UpdateStorefrontBrandRequest;
+
 /** GET GetProductStorefrontPricing | PUT SetProductStorefrontMargin */
 export interface ProductStorefrontPricingDto {
   productId: string;
@@ -39,17 +42,60 @@ export interface ProductStorefrontPricingDto {
   storefrontPrice: number;
 }
 
+/** GET GetVariantStorefrontPricing | PUT SetVariantStorefrontMargin response */
+export interface VariantStorefrontPricingDto {
+  variantId: string;
+  productId: string;
+  priceInNaira: number;
+  productMargin: number;
+  brandMargin: number;
+  effectiveMargin: number;
+  storefrontPrice: number;
+}
+
+export interface SetVariantStorefrontMarginRequest {
+  variantId: string;
+  storefrontPriceMargin: number;
+}
+
+export interface SetProductVisibilityRequest {
+  productId: string;
+  isVisible: boolean;
+}
+
 export type StorefrontPagedBrands = PaginationResponse<StorefrontBrandAdminDto>;
 
 export type ProductMarginSource = "override" | "inherited" | "unset";
 
-/** GET Storefront/GetActiveStorefrontCategories */
+/** GET Storefront/GetActiveStorefrontCategories | GetStorefrontCategoriesByProduct */
 export interface StorefrontCategoryDto {
   id: string;
   name: string;
   isActive: boolean;
   dateCreated: string;
   productCount: number;
+}
+
+export type StorefrontPagedCategories = PaginationResponse<StorefrontCategoryDto>;
+
+export interface AddStorefrontCategoryRequest {
+  name: string;
+  isActive: boolean;
+}
+
+export interface UpdateStorefrontCategoryRequest {
+  name: string;
+  isActive: boolean;
+}
+
+export interface StorefrontCategoryProductsRequest {
+  storefrontCategoryId: string;
+  productIds: string[];
+}
+
+export interface StorefrontProductCategoriesRequest {
+  productId: string;
+  storefrontCategoryIds: string[];
 }
 
 export interface StorefrontVariantDto {
@@ -67,7 +113,7 @@ export interface StorefrontVariantDto {
   isAvailable: boolean;
 }
 
-/** Shared product shape from GetProducts / GetProductsByStorefrontCategory */
+/** Shared product shape from GetProducts / GetPublishedProduct */
 export interface StorefrontProductDto {
   productId: string;
   productName: string;
@@ -78,6 +124,17 @@ export interface StorefrontProductDto {
   images: string[] | null;
   isStorefrontPublished: boolean;
   variants: StorefrontVariantDto[] | null;
+}
+
+/** GET GetProductsByStorefrontCategory/{storefrontCategoryId} */
+export interface StorefrontCategoryProductDto {
+  productId: string;
+  productName: string;
+  dynamicsId: string;
+  isActive: boolean;
+  priceInNaira: number;
+  storefrontPriceMargin: number;
+  storefrontPrice: number;
 }
 
 /** GET Storefront/GetStoreOwners */
@@ -92,6 +149,7 @@ export interface StorefrontStoreOwnerDto {
 }
 
 export type StorefrontPagedProducts = PaginationResponse<StorefrontProductDto>;
+export type StorefrontPagedCategoryProducts = PaginationResponse<StorefrontCategoryProductDto>;
 export type StorefrontPagedStoreOwners = PaginationResponse<StorefrontStoreOwnerDto>;
 
 /** GET storefront/wallet/balance */

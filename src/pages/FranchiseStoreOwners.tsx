@@ -1,21 +1,39 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
   App as AntdApp,
+  Button,
   Card,
   Empty,
   Input,
+  Space,
   Table,
   Tag,
   Typography,
 } from "antd";
 import type { TableColumnsType } from "antd";
-import { ShopOutlined } from "@ant-design/icons";
+import { EyeOutlined, ShopOutlined } from "@ant-design/icons";
 import { getStoreOwners } from "@/lib/storefrontApi";
 import type { StorefrontStoreOwnerDto } from "@/lib/storefrontTypes";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 
+function ownerDisplayName(row: StorefrontStoreOwnerDto) {
+  return [row.firstName, row.lastName].filter(Boolean).join(" ").trim();
+}
+
+function openOwnerPath(row: StorefrontStoreOwnerDto) {
+  const params = new URLSearchParams();
+  if (row.companyName?.trim()) params.set("company", row.companyName.trim());
+  const name = ownerDisplayName(row);
+  if (name) params.set("owner", name);
+  if (row.userName?.trim()) params.set("user", row.userName.trim());
+  const qs = params.toString();
+  return `/franchise-store-owners/${row.id}${qs ? `?${qs}` : ""}`;
+}
+
 export default function FranchiseStoreOwnersPage() {
+  const navigate = useNavigate();
   const { message } = AntdApp.useApp();
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebouncedValue(search, 350);
@@ -55,17 +73,20 @@ export default function FranchiseStoreOwnersPage() {
     {
       title: "Company",
       dataIndex: "companyName",
-      render: (v: string | null) => (
-        <span className="font-medium">{v?.trim() || "—"}</span>
+      render: (v: string | null, row) => (
+        <button
+          type="button"
+          className="cursor-pointer border-0 bg-transparent p-0 text-left font-medium text-[#800020] hover:underline"
+          onClick={() => navigate(openOwnerPath(row))}
+        >
+          {v?.trim() || "—"}
+        </button>
       ),
     },
     {
       title: "Owner",
       key: "owner",
-      render: (_, row) => {
-        const name = [row.firstName, row.lastName].filter(Boolean).join(" ").trim();
-        return name || "—";
-      },
+      render: (_, row) => ownerDisplayName(row) || "—",
     },
     {
       title: "Username",
@@ -88,6 +109,22 @@ export default function FranchiseStoreOwnersPage() {
       width: 180,
       render: (v: string | null) =>
         v ? new Date(v).toLocaleString() : <Typography.Text type="secondary">—</Typography.Text>,
+    },
+    {
+      title: "",
+      key: "actions",
+      width: 90,
+      align: "right",
+      render: (_, row) => (
+        <Space size={4}>
+          <Button
+            size="small"
+            icon={<EyeOutlined />}
+            onClick={() => navigate(openOwnerPath(row))}
+            title="View wallet & earnings"
+          />
+        </Space>
+      ),
     },
   ];
 

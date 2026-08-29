@@ -7,6 +7,42 @@ export interface StorefrontBrandDto {
   brandImageUrl: string | null;
 }
 
+/** GET Storefront/GetStorefrontBrands | PUT UpdateStorefrontBrand */
+export interface StorefrontBrandAdminDto {
+  id: string;
+  brandId: string;
+  brandImageUrl: string | null;
+  name: string;
+  dynamicsId: string;
+  isActive: boolean;
+  storefrontPriceMargin: number;
+  dateCreated: string;
+}
+
+export interface UpdateStorefrontBrandRequest {
+  brandId: string;
+  brandImageUrl: string;
+  name: string;
+  dynamicsId: string;
+  storefrontPriceMargin: number;
+  isActive: boolean;
+}
+
+/** GET GetProductStorefrontPricing | PUT SetProductStorefrontMargin */
+export interface ProductStorefrontPricingDto {
+  productId: string;
+  productName: string;
+  priceInNaira: number;
+  productMargin: number;
+  brandMargin: number;
+  effectiveMargin: number;
+  storefrontPrice: number;
+}
+
+export type StorefrontPagedBrands = PaginationResponse<StorefrontBrandAdminDto>;
+
+export type ProductMarginSource = "override" | "inherited" | "unset";
+
 /** GET Storefront/GetActiveStorefrontCategories */
 export interface StorefrontCategoryDto {
   id: string;
@@ -31,7 +67,7 @@ export interface StorefrontVariantDto {
   isAvailable: boolean;
 }
 
-/** Shared product shape from GetProducts / GetProductsByStorefrontCategory / GetProductStorefrontPricing */
+/** Shared product shape from GetProducts / GetProductsByStorefrontCategory */
 export interface StorefrontProductDto {
   productId: string;
   productName: string;
@@ -57,6 +93,58 @@ export interface StorefrontStoreOwnerDto {
 
 export type StorefrontPagedProducts = PaginationResponse<StorefrontProductDto>;
 export type StorefrontPagedStoreOwners = PaginationResponse<StorefrontStoreOwnerDto>;
+
+/** GET storefront/wallet/balance */
+export interface StorefrontWalletBalanceDto {
+  walletId: string;
+  ownerId: string;
+  balance: number;
+  currency: string;
+  updatedAt: string;
+}
+
+/** GET storefront/wallet | GET storefront/earnings/summary */
+export interface StorefrontEarningsSummaryDto {
+  currency: string;
+  pending: number;
+  available: number;
+  withdrawn: number;
+  reversed: number;
+  totalEarned: number;
+}
+
+/** GET storefront/earnings | GET storefront/wallet/transactions */
+export interface StorefrontEarningDto {
+  id: string;
+  orderId: string;
+  externalOrderId: string | null;
+  grossAmount: number;
+  superAppAmount: number;
+  fees: number;
+  earnedAmount: number;
+  currency: string;
+  status: string;
+  dateCreated: string;
+}
+
+/** GET storefront/wallet/ledger */
+export interface StorefrontWalletLedgerDto {
+  id: string;
+  orderId: string | null;
+  amount: number;
+  balanceBefore: number;
+  balanceAfter: number;
+  type: string | null;
+  reference: string | null;
+  description: string | null;
+  status: string | null;
+  externalOrderId: string | null;
+  paymentReference: string | null;
+  transactionDate: string;
+}
+
+export type StorefrontPagedEarnings = PaginationResponse<StorefrontEarningDto>;
+export type StorefrontPagedWalletLedger = PaginationResponse<StorefrontWalletLedgerDto>;
 
 export interface StorefrontQuoteLineRequest {
   productId: string;
@@ -86,6 +174,26 @@ export function pickDefaultVariant(product: StorefrontProductDto): StorefrontVar
   return variants.find((v) => v.isDefault) ?? variants[0] ?? null;
 }
 
+/** Prefer a sellable variant over the placeholder default (often price/qty 0). */
+export function pickDisplayVariant(product: StorefrontProductDto): StorefrontVariantDto | null {
+  const variants = product.variants ?? [];
+  return (
+    variants.find((v) => v.isActive && v.isAvailable && v.priceInNaira > 0) ??
+    variants.find((v) => v.isActive && v.priceInNaira > 0) ??
+    variants.find((v) => v.isDefault) ??
+    variants[0] ??
+    null
+  );
+}
+
+export function aggregateStorefrontAvailability(product: StorefrontProductDto) {
+  const variants = (product.variants ?? []).filter((v) => v.isActive);
+  return {
+    totalQty: variants.reduce((sum, v) => sum + v.availableQuantity, 0),
+    isAvailable: variants.some((v) => v.isAvailable),
+  };
+}
+
 /** Markup % implied by storefront vs base NGN price. */
 export function storefrontMarkupPercent(baseNaira: number, storefrontNaira: number): number | null {
   if (baseNaira <= 0) return null;
@@ -94,4 +202,16 @@ export function storefrontMarkupPercent(baseNaira: number, storefrontNaira: numb
 
 export function formatStorefrontNaira(amount: number) {
   return `₦${Math.round(amount).toLocaleString()}`;
+}
+
+export function storefrontPriceFromMargin(baseNaira: number, marginPercent: number) {
+  return baseNaira * (1 + marginPercent / 100);
+}
+
+export function productMarginSource(
+  pricing: Pick<ProductStorefrontPricingDto, "productMargin" | "brandMargin">,
+): ProductMarginSource {
+  if (pricing.productMargin !== pricing.brandMargin) return "override";
+  if (pricing.brandMargin > 0) return "inherited";
+  return "unset";
 }

@@ -19,6 +19,12 @@ import type {
   PaginationResponse,
 } from "@/lib/types";
 import { PaymentMethodId } from "@/lib/paymentMethods";
+import {
+  OrderStatusId,
+  formatPercent,
+  orderStatusColor,
+  paymentSummary,
+} from "@/lib/orderStatus";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { formatCurrency, formatDate, formatNumber } from "@/lib/utils";
 import { OrderDetailModal } from "@/components/orders/OrderDetailModal";
@@ -47,6 +53,16 @@ export default function OrdersPage() {
     },
     staleTime: 5 * 60_000,
   });
+
+  // Resolved from the fetched list rather than used as a literal, so the value
+  // handed to the Select is byte-identical to the option the API supplied.
+  const partiallyPaidStatusId = useMemo(
+    () =>
+      (statuses ?? []).find(
+        (s) => s.id.toLowerCase() === OrderStatusId.PartiallyPaid,
+      )?.id,
+    [statuses],
+  );
 
   const queryParams = useMemo(() => {
     const params = new URLSearchParams();
@@ -127,7 +143,7 @@ export default function OrdersPage() {
       dataIndex: "dateCreated",
       render: (v) => <span className="text-xs text-muted-foreground">{formatDate(v)}</span>,
     },
-    { title: "Payment", dataIndex: ["paymentMethod", "method"], render: (v) => v ?? "—" },
+    { title: "Method", dataIndex: ["paymentMethod", "method"], render: (v) => v ?? "—" },
     { title: "Delivery", dataIndex: ["deliveryMethod", "method"], render: (v) => v ?? "—" },
     {
       title: "POA",
@@ -135,15 +151,42 @@ export default function OrdersPage() {
       render: (v: boolean) => (v ? <Tag color="gold">POA</Tag> : <Tag>—</Tag>),
     },
     {
-      title: "Fully paid",
-      dataIndex: "isFullyPaid",
-      render: (v: boolean) =>
-        v ? <Tag color="success">Yes</Tag> : <Tag color="warning">No</Tag>,
+      // Money, not a word: the Status column already says Unpaid / Partially
+      // Paid / Completed, so a tag here would just restate it in a synonym.
+      // Plain numerals also read as a different kind of column at a glance,
+      // against Status's tag chrome.
+      title: "Payment",
+      key: "payment",
+      render: (_, r) => {
+        const { state, received, percent } = paymentSummary(r);
+        if (state === "paid")
+          return <span className="text-xs text-emerald-600">Paid in full</span>;
+        if (state === "unpaid")
+          return (
+            <span className="text-xs text-muted-foreground">Nothing received</span>
+          );
+        return (
+          <div className="leading-tight">
+            <div className="text-xs font-medium text-amber-600">
+              {formatCurrency(received, "NGN")}
+            </div>
+            <div className="text-xs text-muted-foreground">
+              {percent === null
+                ? "part-paid"
+                : `${formatPercent(percent)} received`}
+            </div>
+          </div>
+        );
+      },
     },
     {
       title: "Status",
-      dataIndex: ["orderStatus", "status"],
-      render: (v: string) => <Tag>{v ?? "—"}</Tag>,
+      key: "status",
+      render: (_, r) => (
+        <Tag color={orderStatusColor(r.orderStatus?.id)}>
+          {r.orderStatus?.status ?? "—"}
+        </Tag>
+      ),
     },
     {
       title: "Qty",
@@ -205,9 +248,12 @@ export default function OrdersPage() {
               setIsPaid(v);
             }}
             options={[
-              { value: ALL, label: "All payment statuses" },
-              { value: "true", label: "Paid" },
-              { value: "false", label: "Unpaid" },
+              // The API applies isPaid to Order.IsFullyPaid, so "not fully paid"
+              // spans both untouched and part-paid orders. Labelled for what it
+              // actually does; isolate partial payments via the status filter.
+              { value: ALL, label: "All payment states" },
+              { value: "true", label: "Fully paid" },
+              { value: "false", label: "Not fully paid" },
             ]}
           />
           <Select
@@ -237,6 +283,23 @@ export default function OrdersPage() {
             ]}
           />
         </div>
+
+        {partiallyPaidStatusId && orderStatusId !== partiallyPaidStatusId && (
+          <div className="mt-3 flex items-center gap-1 text-xs text-muted-foreground">
+            <span>Chasing balances?</span>
+            <Button
+              size="small"
+              type="link"
+              className="!h-auto !px-0 !text-xs"
+              onClick={() => {
+                setPage(1);
+                setOrderStatusId(partiallyPaidStatusId);
+              }}
+            >
+              Show partially paid orders
+            </Button>
+          </div>
+        )}
       </Card>
 
       <div className="flex flex-wrap items-center justify-between gap-2">

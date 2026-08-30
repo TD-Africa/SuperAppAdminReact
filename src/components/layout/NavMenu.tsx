@@ -24,6 +24,7 @@ import {
   AccountBookOutlined,
   UsergroupAddOutlined,
   GiftOutlined,
+  SettingOutlined,
 } from "@ant-design/icons";
 import { useAuthStore } from "@/stores/auth";
 import { Permission } from "@/lib/permissions";
@@ -83,6 +84,7 @@ const NAV_TREE: NavNode[] = [
   { type: "leaf", to: "/request-appeals", label: "Request Appeals", icon: <SolutionOutlined />, permission: Permission.CanViewRequestAppeals },
   { type: "leaf", to: "/admin-users", label: "Admin Users", icon: <UserSwitchOutlined />, permission: Permission.CanViewSubUser },
   { type: "leaf", to: "/roles", label: "Roles", icon: <KeyOutlined />, permission: Permission.CanViewRoles },
+  { type: "leaf", to: "/transaction-settings", label: "Transaction Settings", icon: <SettingOutlined />, permission: Permission.CanChangeSettings },
 ];
 
 const STOREFRONT_PATHS = [

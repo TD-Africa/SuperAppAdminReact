@@ -28,6 +28,7 @@ const RequestAppealsPage = lazy(() => import("@/pages/RequestAppeals"));
 const AdminUsersPage = lazy(() => import("@/pages/AdminUsers"));
 const RolesPage = lazy(() => import("@/pages/Roles"));
 const DebtCollectionPage = lazy(() => import("@/pages/DebtCollection"));
+const TransactionSettingsPage = lazy(() => import("@/pages/TransactionSettings"));
 const ForbiddenPage = lazy(() => import("@/pages/Forbidden"));
 
 const pageLoader = (
@@ -263,6 +264,14 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute permission={Permission.CanViewRoles}>
             {withSuspense(<RolesPage />)}
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "transaction-settings",
+        element: (
+          <ProtectedRoute permission={Permission.CanChangeSettings}>
+            {withSuspense(<TransactionSettingsPage />)}
           </ProtectedRoute>
         ),
       },

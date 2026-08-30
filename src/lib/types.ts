@@ -848,3 +848,11 @@ export interface WorkerSalesOverview {
   unattributedAmount: number;
   workers: WorkerSalesStats[] | null;
 }
+
+// ── Platform settings (Component/Get|SavePlatformSettings) ────────────────────
+// Mirror of PlatformSettingDto. Every field is nullable: null means "not
+// configured", and the backend falls back to its own default.
+export interface PlatformSettingDto {
+  /** Share of an order that may be paid up front, 0–100. */
+  splitTenderPercent: number | null;
+}

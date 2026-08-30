@@ -24,6 +24,7 @@ import {
   AccountBookOutlined,
   UsergroupAddOutlined,
   GiftOutlined,
+  SettingOutlined,
 } from "@ant-design/icons";
 import { useAuthStore } from "@/stores/auth";
 import { Permission } from "@/lib/permissions";
@@ -60,6 +61,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/request-appeals", label: "Request Appeals", icon: <SolutionOutlined />, permission: Permission.CanViewRequestAppeals },
   { to: "/admin-users", label: "Admin Users", icon: <UserSwitchOutlined />, permission: Permission.CanViewSubUser },
   { to: "/roles", label: "Roles", icon: <KeyOutlined />, permission: Permission.CanViewRoles },
+  { to: "/transaction-settings", label: "Transaction Settings", icon: <SettingOutlined />, permission: Permission.CanChangeSettings },
 ];
 
 interface NavMenuProps {

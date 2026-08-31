@@ -849,6 +849,19 @@ export interface WorkerSalesOverview {
   workers: WorkerSalesStats[] | null;
 }
 
+// ── Customer wallet (Wallet/GetUserWalletTransactions) ───────────────────────
+// Mirror of WalletTransactionResponseDTO. `type` and `status` are free-form
+// strings on the wire (not enums), so treat them case-insensitively.
+export interface WalletTransactionResponse {
+  amount: number;
+  type: string | null;
+  reference: string | null;
+  description: string | null;
+  status: string | null;
+  transactionDate: string;
+  balanceAfter: number;
+}
+
 // ── Platform settings (Component/Get|SavePlatformSettings) ────────────────────
 // Mirror of PlatformSettingDto. Every field is nullable: null means "not
 // configured", and the backend falls back to its own default.

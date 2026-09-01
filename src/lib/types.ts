@@ -862,6 +862,24 @@ export interface WalletTransactionResponse {
   balanceAfter: number;
 }
 
+// ── Virtual account provisioning (POST /api/VirtualAccount/provision) ────────
+// Mirror of VirtualAccountController.ProvisionVaRequest. An empty/omitted
+// `userIds` makes the endpoint sweep EVERY user missing a virtual account, so
+// always send an explicit list from the admin UI.
+export interface ProvisionVaRequest {
+  userIds: string[];
+}
+
+// Mirror of VirtualAccountController.ProvisionVaResultItem. The envelope's
+// `status` is always true (the endpoint returns 200 even when every user
+// failed) — the per-user outcome is `success`/`message` on these items.
+export interface ProvisionVaResultItem {
+  userId: string;
+  email: string | null;
+  success: boolean;
+  message: string;
+}
+
 // ── Platform settings (Component/Get|SavePlatformSettings) ────────────────────
 // Mirror of PlatformSettingDto. Every field is nullable: null means "not
 // configured", and the backend falls back to its own default.

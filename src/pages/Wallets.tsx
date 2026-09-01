@@ -16,24 +16,41 @@ import {
   Typography,
 } from "antd";
 import type { TableColumnsType } from "antd";
-import { EyeOutlined, ReloadOutlined, SyncOutlined } from "@ant-design/icons";
+import {
+  BankOutlined,
+  EyeOutlined,
+  ReloadOutlined,
+  SyncOutlined,
+} from "@ant-design/icons";
 import { apiGet, apiPost } from "@/lib/api";
 import type {
   CustomerResponse,
   PaginationResponse,
+  ProvisionVaResultItem,
   UserStatus,
 } from "@/lib/types";
 import { UserStatusValues } from "@/lib/types";
 import { Permission } from "@/lib/permissions";
+import {
+  PROVISION_BATCH_SIZE,
+  PROVISION_VA_URL,
+  vaBlockers,
+} from "@/lib/virtualAccount";
 import { useAuthStore } from "@/stores/auth";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { formatCurrency, formatDate, formatNumber } from "@/lib/utils";
 import { WalletTransactionsModal } from "@/components/wallets/WalletTransactionsModal";
+import {
+  ProvisionResultsModal,
+  type ProvisionOutcome,
+} from "@/components/wallets/ProvisionResultsModal";
 
 const ALL = "__all__";
 const BULK_SYNC_KEY = "wallet-bulk-sync";
+const PROVISION_KEY = "wallet-bulk-provision";
 
 type BalanceFilter = typeof ALL | "funded" | "empty";
+type ReadyFilter = typeof ALL | "ready" | "blocked";
 type SortKey = "walletBalance" | "creditBalance";
 type SortState = { key: SortKey; order: "ascend" | "descend" } | null;
 
@@ -75,11 +92,16 @@ export default function WalletsPage() {
   // Syncing writes a customer's balance, so it is gated behind customer edit
   // rights rather than the read-only transactions permission.
   const canSync = useAuthStore((s) => s.hasPermission(Permission.CanEditUser));
+  // Matches the HasPermission attribute on VirtualAccountController.provision.
+  const canProvision = useAuthStore((s) =>
+    s.hasPermission(Permission.CanEditOrders),
+  );
 
   const [keyword, setKeyword] = useState("");
   const debouncedKeyword = useDebouncedValue(keyword, 350);
   const [status, setStatus] = useState<string>(ALL);
   const [balanceFilter, setBalanceFilter] = useState<BalanceFilter>(ALL);
+  const [readyFilter, setReadyFilter] = useState<ReadyFilter>(ALL);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
 
@@ -90,6 +112,10 @@ export default function WalletsPage() {
   const [selectedIds, setSelectedIds] = useState<React.Key[]>([]);
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [bulkSyncing, setBulkSyncing] = useState(false);
+  const [provisioning, setProvisioning] = useState(false);
+  const [provisionResults, setProvisionResults] = useState<
+    ProvisionOutcome[] | null
+  >(null);
   const [txnRow, setTxnRow] = useState<CustomerResponse | null>(null);
 
   // Wallet balances ride along on the customer record; there is no list endpoint
@@ -134,10 +160,17 @@ export default function WalletsPage() {
   const allRows = useMemo(() => data ?? [], [data]);
 
   const filteredRows = useMemo(() => {
-    if (balanceFilter === ALL) return allRows;
-    const wantFunded = balanceFilter === "funded";
-    return allRows.filter((r) => ((r.walletBalance ?? 0) !== 0) === wantFunded);
-  }, [allRows, balanceFilter]);
+    let out = allRows;
+    if (balanceFilter !== ALL) {
+      const wantFunded = balanceFilter === "funded";
+      out = out.filter((r) => ((r.walletBalance ?? 0) !== 0) === wantFunded);
+    }
+    if (readyFilter !== ALL) {
+      const wantReady = readyFilter === "ready";
+      out = out.filter((r) => (vaBlockers(r).length === 0) === wantReady);
+    }
+    return out;
+  }, [allRows, balanceFilter, readyFilter]);
 
   // Sorting has to happen before the page slice — antd would otherwise only
   // sort the rows already on screen.
@@ -157,14 +190,17 @@ export default function WalletsPage() {
   const stats = useMemo(() => {
     let totalBalance = 0;
     let funded = 0;
+    let blocked = 0;
     for (const r of filteredRows) {
       const balance = r.walletBalance ?? 0;
       totalBalance += balance;
       if (balance !== 0) funded += 1;
+      if (vaBlockers(r).length > 0) blocked += 1;
     }
     return {
       totalBalance,
       funded,
+      blocked,
       empty: filteredRows.length - funded,
       count: filteredRows.length,
     };
@@ -248,10 +284,72 @@ export default function WalletsPage() {
     }
   }
 
+  // One request per batch rather than one per customer: the endpoint already
+  // loops server-side with its own Paystack rate-limit delay, so batching keeps
+  // each request short enough to survive the gateway timeout.
+  async function provisionSelected() {
+    const targets = selectedCustomers;
+    if (targets.length === 0) return;
+    setProvisioning(true);
+    const outcomes: ProvisionOutcome[] = [];
+    try {
+      for (let i = 0; i < targets.length; i += PROVISION_BATCH_SIZE) {
+        const batch = targets.slice(i, i + PROVISION_BATCH_SIZE);
+        message.open({
+          key: PROVISION_KEY,
+          type: "loading",
+          content: `Provisioning virtual accounts… ${i}/${targets.length}`,
+          duration: 0,
+        });
+        // Never send an empty list: that makes the endpoint sweep every user in
+        // the system that is missing a virtual account.
+        const res = await apiPost<ProvisionVaResultItem[]>(PROVISION_VA_URL, {
+          userIds: batch.map((c) => c.id),
+        });
+        if (!res.status) {
+          // The whole batch failed (auth, timeout) — record each one so the
+          // report still accounts for every customer that was selected.
+          outcomes.push(
+            ...batch.map((c) => ({
+              userId: c.id,
+              email: c.email,
+              success: false,
+              message: res.message ?? "Provisioning request failed",
+              label: labelFor(c),
+            })),
+          );
+          continue;
+        }
+        // The envelope is 200/true even when provisioning failed — the real
+        // outcome is on each per-user item.
+        for (const item of res.data ?? []) {
+          const row = batch.find((c) => c.id === item.userId);
+          outcomes.push({ ...item, label: row ? labelFor(row) : item.userId });
+        }
+      }
+
+      const ok = outcomes.filter((r) => r.success).length;
+      message.open({
+        key: PROVISION_KEY,
+        type: ok === outcomes.length ? "success" : "warning",
+        content: `Provisioned ${ok} of ${outcomes.length} virtual account${
+          outcomes.length === 1 ? "" : "s"
+        }.`,
+        duration: 5,
+      });
+      setProvisionResults(outcomes);
+      setSelectedIds([]);
+      await refreshBalances();
+    } finally {
+      setProvisioning(false);
+    }
+  }
+
   function clearFilters() {
     setKeyword("");
     setStatus(ALL);
     setBalanceFilter(ALL);
+    setReadyFilter(ALL);
     setPage(1);
   }
 
@@ -292,6 +390,24 @@ export default function WalletsPage() {
       render: (v: UserStatus) => (
         <Tag color={statusColor[v] ?? "default"}>{v}</Tag>
       ),
+    },
+    {
+      // The user DTO carries no "has virtual account" flag, so this reports
+      // whether the record satisfies Paystack's requirements — i.e. whether
+      // provisioning can succeed at all, not whether it has already run.
+      title: "Paystack details",
+      key: "vaReadiness",
+      width: 190,
+      render: (_, r) => {
+        const blockers = vaBlockers(r);
+        return blockers.length === 0 ? (
+          <Tag color="success">Ready</Tag>
+        ) : (
+          <Tooltip title={`Missing: ${blockers.join(", ")}`}>
+            <Tag color="warning">Missing {blockers.length} field(s)</Tag>
+          </Tooltip>
+        );
+      },
     },
     {
       title: "Wallet balance (₦)",
@@ -372,7 +488,8 @@ export default function WalletsPage() {
             Wallets
           </Typography.Title>
           <Typography.Text type="secondary">
-            Sync customer wallet balances and monitor wallet transactions.
+            Sync customer wallet balances, provision virtual accounts, and
+            monitor wallet transactions.
           </Typography.Text>
         </div>
         <Space>
@@ -383,12 +500,26 @@ export default function WalletsPage() {
           >
             Refresh
           </Button>
+          {canProvision && (
+            <Tooltip title="Creates dedicated Paystack accounts for the selected customers. Safe to re-run — customers that already have one are skipped.">
+              <Button
+                icon={<BankOutlined />}
+                loading={provisioning}
+                disabled={selectedCustomers.length === 0 || bulkSyncing}
+                onClick={provisionSelected}
+              >
+                {selectedCustomers.length > 0
+                  ? `Provision ${selectedCustomers.length} selected`
+                  : "Provision virtual accounts"}
+              </Button>
+            </Tooltip>
+          )}
           {canSync && (
             <Button
               type="primary"
               icon={<SyncOutlined spin={bulkSyncing} />}
               loading={bulkSyncing}
-              disabled={selectedCustomers.length === 0}
+              disabled={selectedCustomers.length === 0 || provisioning}
               onClick={syncSelected}
             >
               {selectedCustomers.length > 0
@@ -419,12 +550,19 @@ export default function WalletsPage() {
             value={formatNumber(stats.empty)}
           />
         </Col>
+        <Col xs={24} sm={12} xl={6}>
+          <StatCard
+            label="Missing Paystack details"
+            value={formatNumber(stats.blocked)}
+            hint="Cannot be provisioned until the record is fixed"
+          />
+        </Col>
       </Row>
 
       <Card styles={{ body: { padding: 16 } }}>
         <Form layout="vertical">
           <div className="grid gap-3 md:grid-cols-12">
-            <Form.Item className="md:col-span-6 !mb-0" label="Search">
+            <Form.Item className="md:col-span-12 !mb-0" label="Search">
               <Input
                 placeholder="Search by company, email, phone, Dynamics ID…"
                 value={keyword}
@@ -435,7 +573,7 @@ export default function WalletsPage() {
                 }}
               />
             </Form.Item>
-            <Form.Item className="md:col-span-3 !mb-0" label="Status">
+            <Form.Item className="md:col-span-4 !mb-0" label="Status">
               <Select
                 value={status}
                 onChange={(v) => {
@@ -448,7 +586,7 @@ export default function WalletsPage() {
                 ]}
               />
             </Form.Item>
-            <Form.Item className="md:col-span-3 !mb-0" label="Wallet balance">
+            <Form.Item className="md:col-span-4 !mb-0" label="Wallet balance">
               <Select
                 value={balanceFilter}
                 onChange={(v: BalanceFilter) => {
@@ -459,6 +597,20 @@ export default function WalletsPage() {
                   { value: ALL, label: "All wallets" },
                   { value: "funded", label: "Has balance" },
                   { value: "empty", label: "Zero balance" },
+                ]}
+              />
+            </Form.Item>
+            <Form.Item className="md:col-span-4 !mb-0" label="Paystack details">
+              <Select
+                value={readyFilter}
+                onChange={(v: ReadyFilter) => {
+                  setPage(1);
+                  setReadyFilter(v);
+                }}
+                options={[
+                  { value: ALL, label: "All customers" },
+                  { value: "ready", label: "Ready to provision" },
+                  { value: "blocked", label: "Missing details" },
                 ]}
               />
             </Form.Item>
@@ -478,7 +630,7 @@ export default function WalletsPage() {
           columns={columns}
           loading={isLoading || isFetching}
           rowSelection={
-            canSync
+            canSync || canProvision
               ? {
                   selectedRowKeys: selectedIds,
                   onChange: setSelectedIds,
@@ -497,7 +649,7 @@ export default function WalletsPage() {
               setPageSize(ps);
             },
           }}
-          scroll={{ x: 1200 }}
+          scroll={{ x: 1400 }}
           locale={{ emptyText: "No wallets match the current filters." }}
           onChange={(_pagination, _filters, sorter) => {
             // Fires for paging too, so only act when the sort really changed —
@@ -518,6 +670,12 @@ export default function WalletsPage() {
           })}
         />
       </Card>
+
+      <ProvisionResultsModal
+        results={provisionResults}
+        open={!!provisionResults}
+        onOpenChange={(v) => !v && setProvisionResults(null)}
+      />
 
       <WalletTransactionsModal
         customer={txnTarget}

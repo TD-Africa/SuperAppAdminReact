@@ -29,6 +29,7 @@ import { apiGet, apiPatch, apiPut } from "@/lib/api";
 import {
   addStorefrontCategoriesToProduct,
   getActiveStorefrontBrands,
+  getActiveStorefrontCategories,
   getPublishedProduct,
   getStorefrontCategories,
   getStorefrontCategoriesByProduct,
@@ -144,8 +145,12 @@ export default function FranchiseProductsPage() {
     queryKey: ["storefront", "categories-admin", { PageSize: 200, PageNumber: 1 }],
     queryFn: async () => {
       const res = await getStorefrontCategories({ PageSize: 200, PageNumber: 1 });
-      if (!res.status) throw new Error(res.message ?? "Failed to load categories");
-      return res.data?.data ?? [];
+      if (res.status && res.data?.data) return res.data.data;
+      const fallback = await getActiveStorefrontCategories();
+      if (!fallback.status) {
+        throw new Error(res.message ?? fallback.message ?? "Failed to load categories");
+      }
+      return fallback.data ?? [];
     },
     enabled: categoriesProduct !== null,
   });

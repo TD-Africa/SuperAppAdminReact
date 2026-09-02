@@ -880,6 +880,85 @@ export interface ProvisionVaResultItem {
   message: string;
 }
 
+// ── Brand restrictions / partner authorization (Brand controller) ─────────────
+// A brand with `requiresPartnerAuthorization` is "restricted": only partners
+// explicitly granted access can see or buy it. Unrestricted brands are open to
+// everyone, and `authorizedPartnerCount` is then informational only — the grants
+// are retained so flipping the brand back on doesn't lose them.
+// Mirror of BrandRestrictionSummaryDto.
+export interface BrandRestrictionSummaryDto {
+  brandId: string;
+  name: string | null;
+  brandImageUrl: string | null;
+  dynamicsId: string | null;
+  isActive: boolean;
+  requiresPartnerAuthorization: boolean;
+  authorizedPartnerCount: number;
+  productCount: number;
+}
+
+// Mirror of BrandPartnerDto. Returned both for partners already authorized on a
+// brand (GetBrandPartners — `authorizedOn`/`authorizedBy` populated) and for
+// candidates that could be granted access (GetEligibleBrandPartners — those
+// fields null).
+export interface BrandPartnerDto {
+  userId: string | null;
+  companyName: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  email: string | null;
+  phoneNumber: string | null;
+  dynamicsId: string | null;
+  isActive: boolean;
+  subUserCount: number;
+  authorizedOn: string | null;
+  authorizedBy: string | null;
+  notes: string | null;
+}
+
+// Mirror of PartnerBrandAccessDto — the partner-side view of the same grants.
+// `inheritedFromMainAccount` marks access a sub-user gets via its parent company
+// rather than a grant of its own, so it can't be revoked on the sub-user.
+export interface PartnerBrandAccessDto {
+  brandId: string;
+  brandName: string | null;
+  brandImageUrl: string | null;
+  authorizedOn: string;
+  authorizedBy: string | null;
+  notes: string | null;
+  inheritedFromMainAccount: boolean;
+}
+
+// Mirror of BrandAuthorizationGrantRequest — body for both the grant and the
+// revoke endpoints. `userIds` must hold at least one id; `notes` caps at 500.
+export interface BrandAuthorizationGrantRequest {
+  brandId: string;
+  userIds: string[];
+  notes?: string | null;
+}
+
+// Mirror of BrandAuthorizationChangeItem. `resolvedUserId` is the account the
+// grant actually landed on — it differs from `userId` when a sub-user id is
+// submitted and the backend rolls it up to the main account.
+export interface BrandAuthorizationChangeItem {
+  userId: string | null;
+  resolvedUserId: string | null;
+  companyName: string | null;
+  succeeded: boolean;
+  message: string | null;
+}
+
+// Mirror of BrandAuthorizationChangeResultDto. The envelope's `status` is true
+// whenever the request was processed at all, so per-user outcomes must be read
+// off `results` — a 200 can still carry failures.
+export interface BrandAuthorizationChangeResultDto {
+  results: BrandAuthorizationChangeItem[] | null;
+  succeededCount: number;
+  failedCount: number;
+  /** How long the storefront may serve cached access before the change shows. */
+  propagationDelaySeconds: number;
+}
+
 // ── Platform settings (Component/Get|SavePlatformSettings) ────────────────────
 // Mirror of PlatformSettingDto. Every field is nullable: null means "not
 // configured", and the backend falls back to its own default.

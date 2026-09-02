@@ -10,6 +10,7 @@ import {
   SectionLabel,
   statusColor,
 } from "@/components/customers/customerUi";
+import { CustomerBrandAccessPanel } from "@/components/customers/CustomerBrandAccessPanel";
 
 interface CustomerDetailModalProps {
   customer: CustomerResponse | null;
@@ -227,6 +228,12 @@ export function CustomerDetailModal({
                   No warehouses assigned.
                 </Typography.Text>
               )}
+            </div>
+
+            {/* Brand access */}
+            <div>
+              <SectionLabel>Brand access</SectionLabel>
+              <CustomerBrandAccessPanel userId={c.id} enabled={open} />
             </div>
 
             {/* Documents */}

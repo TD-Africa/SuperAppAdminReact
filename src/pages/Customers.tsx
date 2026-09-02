@@ -43,6 +43,8 @@ import { CreateCustomerModal } from "@/components/customers/CreateCustomerModal"
 import { EditCustomerModal } from "@/components/customers/EditCustomerModal";
 import { DynamicsLinkModal } from "@/components/customers/DynamicsLinkModal";
 import { CustomerDetailModal } from "@/components/customers/CustomerDetailModal";
+import { WalletBalancesDownload } from "@/components/wallets/WalletExportButtons";
+import { CreditSyncButton } from "@/components/customers/CreditSyncButton";
 
 const { RangePicker } = DatePicker;
 const ALL = "__all__";
@@ -214,6 +216,15 @@ export default function CustomersPage() {
     return allRows.filter((r) => r.isCreditTransactionEnabled === want);
   }, [allRows, creditFilter]);
   const totalItems = filteredRows.length;
+  // Prefer the freshly fetched row so the detail modal's balances update after a
+  // credit sync, falling back to the clicked row if a filter dropped it.
+  const detailCustomer = useMemo(
+    () =>
+      detailTarget
+        ? (allRows.find((r) => r.id === detailTarget.id) ?? detailTarget)
+        : null,
+    [allRows, detailTarget],
+  );
   const rows = useMemo(() => {
     const start = (page - 1) * pageSize;
     return filteredRows.slice(start, start + pageSize);
@@ -268,7 +279,7 @@ export default function CustomersPage() {
     {
       title: "",
       key: "actions",
-      width: 180,
+      width: 220,
       align: "right",
       render: (_, r) => (
         <Space size={4} onClick={(e) => e.stopPropagation()}>
@@ -285,6 +296,13 @@ export default function CustomersPage() {
               setEditId(r.id);
               setEditOpen(true);
             }}
+          />
+          <CreditSyncButton
+            userId={r.id}
+            dynamicsId={r.dynamicsId}
+            size="small"
+            iconOnly
+            onSynced={() => refetch()}
           />
           {canEdit && (
             <Button
@@ -420,6 +438,9 @@ export default function CustomersPage() {
           <Button icon={<DownloadOutlined />} onClick={downloadAll}>
             Download all
           </Button>
+          {/* Wallet balances come from the Wallet controller, not
+              User/DownloadCustomers — a separate workbook keyed by wallet. */}
+          <WalletBalancesDownload />
         </Space>
       </div>
 
@@ -473,9 +494,10 @@ export default function CustomersPage() {
       />
 
       <CustomerDetailModal
-        customer={detailTarget}
+        customer={detailCustomer}
         open={!!detailTarget}
         onOpenChange={(v) => !v && setDetailTarget(null)}
+        onSynced={() => refetch()}
       />
 
       <PromptDialog

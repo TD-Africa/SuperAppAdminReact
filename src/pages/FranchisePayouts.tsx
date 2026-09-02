@@ -15,6 +15,7 @@ import type { TableColumnsType } from "antd";
 import { EyeOutlined, ThunderboltOutlined } from "@ant-design/icons";
 import {
   getAdminPayouts,
+  getStorefrontPayouts,
   queueApprovedAdminPayouts,
 } from "@/lib/storefrontApi";
 import type {
@@ -77,8 +78,17 @@ export default function FranchisePayoutsPage() {
     queryKey: ["admin-payouts", queryParams],
     queryFn: async () => {
       const res = await getAdminPayouts(queryParams);
-      if (!res.status) throw new Error(res.message ?? "Failed to load payouts");
-      return res.data;
+      if (res.status && res.data) return res.data;
+      const fallback = await getStorefrontPayouts({
+        PageSize: queryParams.PageSize,
+        PageNumber: queryParams.PageNumber,
+        SearchString: queryParams.SearchString,
+        status: queryParams.status,
+      });
+      if (!fallback.status) {
+        throw new Error(res.message ?? fallback.message ?? "Failed to load payouts");
+      }
+      return fallback.data;
     },
   });
 

@@ -33,9 +33,11 @@ import {
   getAdminStorefrontWalletOrders,
   getAdminStorefrontWalletStats,
   getAdminStorefrontWalletTransactions,
+  getSettlementWalletBalance,
   getSettlementWalletHistory,
   getStorefrontEarnings,
   getStorefrontEarningsSummary,
+  getStorefrontPayouts,
   requestStorefrontPayout,
 } from "@/lib/storefrontApi";
 import type {
@@ -118,11 +120,15 @@ export default function FranchiseStoreOwnerDetailPage() {
   );
 
   const walletQuery = useQuery({
-    queryKey: ["admin-storefront-wallet", storeOwnerId],
+    queryKey: ["admin-storefront-wallet", storeOwnerId, ownerScope],
     queryFn: async () => {
       const res = await getAdminStorefrontWallet(storeOwnerId!);
-      if (!res.status) throw new Error(res.message ?? "Failed to load wallet");
-      return res.data;
+      if (res.status && res.data) return res.data;
+      const fallback = await getSettlementWalletBalance(ownerScope);
+      if (!fallback.status) {
+        throw new Error(res.message ?? fallback.message ?? "Failed to load wallet");
+      }
+      return fallback.data;
     },
     enabled: !!storeOwnerId,
   });
@@ -223,8 +229,15 @@ export default function FranchiseStoreOwnerDetailPage() {
         PageSize: payoutsPageSize,
         PageNumber: payoutsPage,
       });
-      if (!res.status) throw new Error(res.message ?? "Failed to load payouts");
-      return res.data;
+      if (res.status && res.data) return res.data;
+      const fallback = await getStorefrontPayouts({
+        PageSize: payoutsPageSize,
+        PageNumber: payoutsPage,
+      });
+      if (!fallback.status) {
+        throw new Error(res.message ?? fallback.message ?? "Failed to load payouts");
+      }
+      return fallback.data;
     },
     enabled: !!storeOwnerId,
   });

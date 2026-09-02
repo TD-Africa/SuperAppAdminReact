@@ -28,11 +28,13 @@ import {
   debitSuperAdminWallet,
   deleteSuperAdminWalletTransaction,
   getSettlementWallet,
+  getSettlementWalletBalance,
   getSettlementWalletLedger,
   getSettlementWalletOrders,
   getSettlementWalletStats,
   getSettlementWalletTransactions,
   getSuperAdminWallet,
+  getSuperAdminWalletTransaction,
   getSuperAdminWalletTransactions,
   updateSuperAdminWalletTransaction,
 } from "@/lib/storefrontApi";
@@ -95,8 +97,12 @@ export default function FranchiseSuperAdminWalletPage() {
     queryKey: ["settlement-wallet"],
     queryFn: async () => {
       const res = await getSettlementWallet();
-      if (!res.status) throw new Error(res.message ?? "Failed to load settlement wallet");
-      return res.data;
+      if (res.status && res.data) return res.data;
+      const fallback = await getSettlementWalletBalance();
+      if (!fallback.status) {
+        throw new Error(res.message ?? fallback.message ?? "Failed to load settlement wallet");
+      }
+      return fallback.data;
     },
   });
 
@@ -215,14 +221,16 @@ export default function FranchiseSuperAdminWalletPage() {
             <Button
               size="small"
               icon={<EditOutlined />}
-              onClick={() => {
-                setEditTarget(row);
+              onClick={async () => {
+                const res = await getSuperAdminWalletTransaction(row.id);
+                const tx = res.status && res.data ? res.data : row;
+                setEditTarget(tx);
                 editForm.setFieldsValue({
-                  amount: row.amount,
-                  type: row.type,
-                  reference: row.reference,
-                  description: row.description,
-                  metadataJson: row.metadataJson,
+                  amount: tx.amount,
+                  type: tx.type,
+                  reference: tx.reference,
+                  description: tx.description,
+                  metadataJson: tx.metadataJson,
                 });
               }}
             />

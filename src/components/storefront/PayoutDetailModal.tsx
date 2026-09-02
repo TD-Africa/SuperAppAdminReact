@@ -16,6 +16,8 @@ import {
   approveAdminPayout,
   getAdminPayout,
   getAdminPayoutAudit,
+  getStorefrontPayout,
+  getStorefrontPayoutAudit,
   processAdminPayout,
   rejectAdminPayout,
 } from "@/lib/storefrontApi";
@@ -63,8 +65,12 @@ export function PayoutDetailModal({
     queryFn: async () => {
       if (!payoutId) return null;
       const res = await getAdminPayout(payoutId);
-      if (!res.status) throw new Error(res.message ?? "Failed to load payout");
-      return res.data;
+      if (res.status && res.data) return res.data;
+      const fallback = await getStorefrontPayout(payoutId);
+      if (!fallback.status) {
+        throw new Error(res.message ?? fallback.message ?? "Failed to load payout");
+      }
+      return fallback.data;
     },
     enabled: !!payoutId && open,
   });
@@ -74,8 +80,12 @@ export function PayoutDetailModal({
     queryFn: async () => {
       if (!payoutId) return [];
       const res = await getAdminPayoutAudit(payoutId);
-      if (!res.status) throw new Error(res.message ?? "Failed to load audit trail");
-      return res.data ?? [];
+      if (res.status && res.data) return res.data;
+      const fallback = await getStorefrontPayoutAudit(payoutId);
+      if (!fallback.status) {
+        throw new Error(res.message ?? fallback.message ?? "Failed to load audit trail");
+      }
+      return fallback.data ?? [];
     },
     enabled: !!payoutId && open,
   });

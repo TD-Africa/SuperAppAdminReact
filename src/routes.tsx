@@ -10,6 +10,7 @@ const DashboardPage = lazy(() => import("@/pages/Dashboard"));
 const ProductsPage = lazy(() => import("@/pages/Products"));
 const OrdersPage = lazy(() => import("@/pages/Orders"));
 const BrandsPage = lazy(() => import("@/pages/Brands"));
+const BrandRestrictionsPage = lazy(() => import("@/pages/BrandRestrictions"));
 const WarehousesPage = lazy(() => import("@/pages/Warehouses"));
 const TicketsPage = lazy(() => import("@/pages/Tickets"));
 const CustomersPage = lazy(() => import("@/pages/Customers"));
@@ -201,6 +202,14 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute permission={Permission.CanViewBrands}>
             {withSuspense(<BrandsPage />)}
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "brand-restrictions",
+        element: (
+          <ProtectedRoute permission={Permission.CanViewBrands}>
+            {withSuspense(<BrandRestrictionsPage />)}
           </ProtectedRoute>
         ),
       },

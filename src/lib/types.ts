@@ -289,6 +289,19 @@ export interface CustomerResponse extends BaseUserResponse {
   lastOrderDate: string | null;
 }
 
+// Mirror of TDSuperApp.DTOs.Response.CreditSyncResultDto — returned by the
+// per-user credit re-sync. Only the credit balance carries a "previous" value,
+// so that is the single before/after the UI can report.
+export interface CreditSyncResult {
+  userId: string;
+  dynamicsId: string;
+  previousCreditBalance: number;
+  newCreditBalance: number;
+  newCustomerBalance: number;
+  newCreditLimit: number;
+  newCreditDays: string | null;
+}
+
 // ---- CAC Registration ----
 export interface CacPersonResponse {
   firstName: string;

@@ -12,11 +12,14 @@ import {
 } from "@/components/customers/customerUi";
 import { CustomerBrandAccessPanel } from "@/components/customers/CustomerBrandAccessPanel";
 import { WalletTransactionsDownload } from "@/components/wallets/WalletExportButtons";
+import { CreditSyncButton } from "@/components/customers/CreditSyncButton";
 
 interface CustomerDetailModalProps {
   customer: CustomerResponse | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Fires after a credit sync so the caller can refetch the now-stale record. */
+  onSynced?: () => void;
 }
 
 function Field({ label, value }: { label: string; value: ReactNode }) {
@@ -84,6 +87,7 @@ export function CustomerDetailModal({
   customer,
   open,
   onOpenChange,
+  onSynced,
 }: CustomerDetailModalProps) {
   const [doc, setDoc] = useState<{ title: string; url: string } | null>(null);
 
@@ -108,6 +112,18 @@ export function CustomerDetailModal({
         title={null}
         styles={{ body: { paddingTop: 8 } }}
         footer={[
+          // Only meaningful once a customer is loaded — the footer renders
+          // regardless, so keep it out of the array until then.
+          ...(c
+            ? [
+                <CreditSyncButton
+                  key="credit-sync"
+                  userId={c.id}
+                  dynamicsId={c.dynamicsId}
+                  onSynced={onSynced}
+                />,
+              ]
+            : []),
           <WalletTransactionsDownload
             key="wallet-ledger"
             userId={c?.id}

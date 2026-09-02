@@ -1,31 +1,31 @@
-import { useMemo, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { ProductDetailModal } from "@/components/products/ProductDetailModal";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { API_BASE_URL, API_ORIGIN, apiGet, apiPatch, apiPost, apiPut } from "@/lib/api";
+import { Permission } from "@/lib/permissions";
+import type { PaginationResponse, ProductReturnDto } from "@/lib/types";
+import { formatCurrency, formatNumber } from "@/lib/utils";
+import { useAuthStore } from "@/stores/auth";
 import {
-  Card,
-  Input,
-  Select,
-  Typography,
-  App as AntdApp,
-  Table,
-  Button,
-  Space,
-  Tag,
-  Switch,
-} from "antd";
+    DownloadOutlined,
+    EyeOutlined,
+    FontSizeOutlined,
+    SyncOutlined,
+} from "@ant-design/icons";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { TableColumnsType } from "antd";
 import {
-  DownloadOutlined,
-  EyeOutlined,
-  SyncOutlined,
-  FontSizeOutlined,
-} from "@ant-design/icons";
-import { apiGet, apiPatch, apiPut, apiPost, API_BASE_URL, API_ORIGIN } from "@/lib/api";
-import type { PaginationResponse, ProductReturnDto } from "@/lib/types";
-import { Permission } from "@/lib/permissions";
-import { useAuthStore } from "@/stores/auth";
-import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { formatCurrency, formatNumber } from "@/lib/utils";
-import { ProductDetailModal } from "@/components/products/ProductDetailModal";
+    App as AntdApp,
+    Button,
+    Card,
+    Input,
+    Select,
+    Space,
+    Switch,
+    Table,
+    Tag,
+    Typography,
+} from "antd";
+import { useMemo, useState } from "react";
 
 const ALL = "__all__";
 

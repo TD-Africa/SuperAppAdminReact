@@ -23,6 +23,8 @@ const FranchiseCategoriesPage = lazy(() => import("@/pages/FranchiseCategories")
 const FranchiseCategoryDetailPage = lazy(() => import("@/pages/FranchiseCategoryDetail"));
 const FranchiseStoreOwnersPage = lazy(() => import("@/pages/FranchiseStoreOwners"));
 const FranchiseStoreOwnerDetailPage = lazy(() => import("@/pages/FranchiseStoreOwnerDetail"));
+const FranchisePayoutsPage = lazy(() => import("@/pages/FranchisePayouts"));
+const FranchiseSuperAdminWalletPage = lazy(() => import("@/pages/FranchiseSuperAdminWallet"));
 const WarehousesPage = lazy(() => import("@/pages/Warehouses"));
 const TicketsPage = lazy(() => import("@/pages/Tickets"));
 const CustomersPage = lazy(() => import("@/pages/Customers"));
@@ -269,6 +271,22 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute permission={Permission.CanViewUser}>
             {withSuspense(<FranchiseStoreOwnerDetailPage />)}
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "franchise-payouts",
+        element: (
+          <ProtectedRoute permission={Permission.CanViewUser}>
+            {withSuspense(<FranchisePayoutsPage />)}
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "franchise-superadmin-wallet",
+        element: (
+          <ProtectedRoute permission={Permission.CanViewUser}>
+            {withSuspense(<FranchiseSuperAdminWalletPage />)}
           </ProtectedRoute>
         ),
       },

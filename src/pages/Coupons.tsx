@@ -1,53 +1,53 @@
-import { useEffect, useMemo, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  Card,
-  Input,
-  Typography,
-  App as AntdApp,
-  Table,
-  Button,
-  Space,
-  Tag,
-  Switch,
-  Modal,
-  Form,
-  InputNumber,
-  DatePicker,
-  Skeleton,
-  Descriptions,
-  Empty,
-  Select,
-  Spin,
-  Tooltip,
-} from "antd";
-import type { TableColumnsType } from "antd";
-import type { Dayjs } from "dayjs";
-import dayjs from "dayjs";
-import {
-  DeleteOutlined,
-  EditOutlined,
-  EyeOutlined,
-  PlusOutlined,
-} from "@ant-design/icons";
-import { apiDelete, apiGet, apiPost, apiPut, API_ORIGIN } from "@/lib/api";
-import type {
-  CouponProductInput,
-  CouponResponse,
-  CreateCouponRequest,
-  MiniProductResponse,
-  PaginationResponse,
-  UpdateCouponRequest,
-} from "@/lib/types";
-import { Permission } from "@/lib/permissions";
-import { useAuthStore } from "@/stores/auth";
-import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { formatCurrency, formatDate } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import {
-  CustomerSearchMultiSelect,
-  type CustomerOption,
+    CustomerSearchMultiSelect,
+    type CustomerOption,
 } from "@/components/CustomerSearchMultiSelect";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { API_ORIGIN, apiDelete, apiGet, apiPost, apiPut } from "@/lib/api";
+import { Permission } from "@/lib/permissions";
+import type {
+    CouponProductInput,
+    CouponResponse,
+    CreateCouponRequest,
+    MiniProductResponse,
+    PaginationResponse,
+    UpdateCouponRequest,
+} from "@/lib/types";
+import { formatCurrency, formatDate } from "@/lib/utils";
+import { useAuthStore } from "@/stores/auth";
+import {
+    DeleteOutlined,
+    EditOutlined,
+    EyeOutlined,
+    PlusOutlined,
+} from "@ant-design/icons";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { TableColumnsType } from "antd";
+import {
+    App as AntdApp,
+    Button,
+    Card,
+    DatePicker,
+    Descriptions,
+    Empty,
+    Form,
+    Input,
+    InputNumber,
+    Modal,
+    Select,
+    Skeleton,
+    Space,
+    Spin,
+    Switch,
+    Table,
+    Tag,
+    Tooltip,
+    Typography,
+} from "antd";
+import type { Dayjs } from "dayjs";
+import dayjs from "dayjs";
+import { useEffect, useMemo, useState } from "react";
 
 // Coupons live under the bare `/api/...` route, not the versioned `/api/v1/` base.
 const COUPON_BASE = `${API_ORIGIN}/api/Coupon`;

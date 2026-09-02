@@ -40,6 +40,7 @@ import { useAuthStore } from "@/stores/auth";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { formatCurrency, formatDate, formatNumber } from "@/lib/utils";
 import { WalletTransactionsModal } from "@/components/wallets/WalletTransactionsModal";
+import { WalletBalancesDownload } from "@/components/wallets/WalletExportButtons";
 import {
   ProvisionResultsModal,
   type ProvisionOutcome,
@@ -500,6 +501,7 @@ export default function WalletsPage() {
           >
             Refresh
           </Button>
+          <WalletBalancesDownload />
           {canProvision && (
             <Tooltip title="Creates dedicated Paystack accounts for the selected customers. Safe to re-run — customers that already have one are skipped.">
               <Button

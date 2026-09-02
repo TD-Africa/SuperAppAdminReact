@@ -43,6 +43,7 @@ import { CreateCustomerModal } from "@/components/customers/CreateCustomerModal"
 import { EditCustomerModal } from "@/components/customers/EditCustomerModal";
 import { DynamicsLinkModal } from "@/components/customers/DynamicsLinkModal";
 import { CustomerDetailModal } from "@/components/customers/CustomerDetailModal";
+import { WalletBalancesDownload } from "@/components/wallets/WalletExportButtons";
 
 const { RangePicker } = DatePicker;
 const ALL = "__all__";
@@ -420,6 +421,9 @@ export default function CustomersPage() {
           <Button icon={<DownloadOutlined />} onClick={downloadAll}>
             Download all
           </Button>
+          {/* Wallet balances come from the Wallet controller, not
+              User/DownloadCustomers — a separate workbook keyed by wallet. */}
+          <WalletBalancesDownload />
         </Space>
       </div>
 

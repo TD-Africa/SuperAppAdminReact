@@ -22,6 +22,7 @@ import type {
 import { formatCurrency, formatDateTime } from "@/lib/utils";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { directionOf, StatusTag, TypeTag } from "./WalletTransactionTags";
+import { WalletTransactionsDownload } from "./WalletExportButtons";
 
 interface WalletTransactionsModalProps {
   customer: CustomerResponse | null;
@@ -256,6 +257,7 @@ export function WalletTransactionsModal({
             >
               Refresh
             </Button>
+            <WalletTransactionsDownload userId={userId} />
             {canSync && onSync && customer && (
               <Button
                 type="primary"

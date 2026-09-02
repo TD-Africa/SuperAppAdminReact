@@ -11,6 +11,7 @@ import {
   statusColor,
 } from "@/components/customers/customerUi";
 import { CustomerBrandAccessPanel } from "@/components/customers/CustomerBrandAccessPanel";
+import { WalletTransactionsDownload } from "@/components/wallets/WalletExportButtons";
 
 interface CustomerDetailModalProps {
   customer: CustomerResponse | null;
@@ -107,6 +108,11 @@ export function CustomerDetailModal({
         title={null}
         styles={{ body: { paddingTop: 8 } }}
         footer={[
+          <WalletTransactionsDownload
+            key="wallet-ledger"
+            userId={c?.id}
+            label="Wallet ledger"
+          />,
           <Button key="close" type="primary" onClick={() => onOpenChange(false)}>
             Close
           </Button>,

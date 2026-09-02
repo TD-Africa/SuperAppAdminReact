@@ -28,6 +28,9 @@ export interface UpdateStorefrontBrandRequest {
   isActive: boolean;
 }
 
+/** POST AddStorefrontBrand — same fields as update (no storefront brand id yet). */
+export type AddStorefrontBrandRequest = UpdateStorefrontBrandRequest;
+
 /** GET GetProductStorefrontPricing | PUT SetProductStorefrontMargin */
 export interface ProductStorefrontPricingDto {
   productId: string;
@@ -39,17 +42,60 @@ export interface ProductStorefrontPricingDto {
   storefrontPrice: number;
 }
 
+/** GET GetVariantStorefrontPricing | PUT SetVariantStorefrontMargin response */
+export interface VariantStorefrontPricingDto {
+  variantId: string;
+  productId: string;
+  priceInNaira: number;
+  productMargin: number;
+  brandMargin: number;
+  effectiveMargin: number;
+  storefrontPrice: number;
+}
+
+export interface SetVariantStorefrontMarginRequest {
+  variantId: string;
+  storefrontPriceMargin: number;
+}
+
+export interface SetProductVisibilityRequest {
+  productId: string;
+  isVisible: boolean;
+}
+
 export type StorefrontPagedBrands = PaginationResponse<StorefrontBrandAdminDto>;
 
 export type ProductMarginSource = "override" | "inherited" | "unset";
 
-/** GET Storefront/GetActiveStorefrontCategories */
+/** GET Storefront/GetActiveStorefrontCategories | GetStorefrontCategoriesByProduct */
 export interface StorefrontCategoryDto {
   id: string;
   name: string;
   isActive: boolean;
   dateCreated: string;
   productCount: number;
+}
+
+export type StorefrontPagedCategories = PaginationResponse<StorefrontCategoryDto>;
+
+export interface AddStorefrontCategoryRequest {
+  name: string;
+  isActive: boolean;
+}
+
+export interface UpdateStorefrontCategoryRequest {
+  name: string;
+  isActive: boolean;
+}
+
+export interface StorefrontCategoryProductsRequest {
+  storefrontCategoryId: string;
+  productIds: string[];
+}
+
+export interface StorefrontProductCategoriesRequest {
+  productId: string;
+  storefrontCategoryIds: string[];
 }
 
 export interface StorefrontVariantDto {
@@ -67,7 +113,7 @@ export interface StorefrontVariantDto {
   isAvailable: boolean;
 }
 
-/** Shared product shape from GetProducts / GetProductsByStorefrontCategory */
+/** Shared product shape from GetProducts / GetPublishedProduct */
 export interface StorefrontProductDto {
   productId: string;
   productName: string;
@@ -78,6 +124,17 @@ export interface StorefrontProductDto {
   images: string[] | null;
   isStorefrontPublished: boolean;
   variants: StorefrontVariantDto[] | null;
+}
+
+/** GET GetProductsByStorefrontCategory/{storefrontCategoryId} */
+export interface StorefrontCategoryProductDto {
+  productId: string;
+  productName: string;
+  dynamicsId: string;
+  isActive: boolean;
+  priceInNaira: number;
+  storefrontPriceMargin: number;
+  storefrontPrice: number;
 }
 
 /** GET Storefront/GetStoreOwners */
@@ -92,6 +149,7 @@ export interface StorefrontStoreOwnerDto {
 }
 
 export type StorefrontPagedProducts = PaginationResponse<StorefrontProductDto>;
+export type StorefrontPagedCategoryProducts = PaginationResponse<StorefrontCategoryProductDto>;
 export type StorefrontPagedStoreOwners = PaginationResponse<StorefrontStoreOwnerDto>;
 
 /** GET storefront/wallet/balance */
@@ -214,4 +272,231 @@ export function productMarginSource(
   if (pricing.productMargin !== pricing.brandMargin) return "override";
   if (pricing.brandMargin > 0) return "inherited";
   return "unset";
+}
+
+// —— Payouts ——
+
+export type StorefrontPayoutStatus =
+  | "Requested"
+  | "Approved"
+  | "Processing"
+  | "Paid"
+  | "Rejected"
+  | "Failed"
+  | "Cancelled";
+
+export interface StorefrontPayoutDto {
+  id: string;
+  ownerId: string | null;
+  walletId: string;
+  amount: number;
+  fee: number;
+  netAmount: number;
+  currency: string | null;
+  status: StorefrontPayoutStatus;
+  requestReference: string | null;
+  bankCode: string | null;
+  bankName: string | null;
+  accountName: string | null;
+  accountNumberLast4: string | null;
+  paystackRecipientCode: string | null;
+  paystackTransferCode: string | null;
+  paystackReference: string | null;
+  reason: string | null;
+  failureReason: string | null;
+  requestedAt: string;
+  approvedAt: string | null;
+  processingAt: string | null;
+  paidAt: string | null;
+  rejectedAt: string | null;
+}
+
+export interface StorefrontPayoutAuditDto {
+  id: string;
+  payoutId: string;
+  action: string | null;
+  fromStatus: StorefrontPayoutStatus;
+  toStatus: StorefrontPayoutStatus;
+  actorUserId: string | null;
+  note: string | null;
+  dateCreated: string;
+}
+
+export interface StorefrontPayoutDecisionRequest {
+  reason?: string | null;
+}
+
+export interface StorefrontPayoutRequest {
+  amount: number;
+  bankCode: string;
+  accountNumber: string;
+  accountName?: string | null;
+  idempotencyKey?: string | null;
+  reason?: string | null;
+  currency: string;
+}
+
+export interface StorefrontPayoutJobDto {
+  queuedCount: number;
+  payoutIds: string[] | null;
+}
+
+export type StorefrontPagedPayouts = PaginationResponse<StorefrontPayoutDto>;
+
+// —— Admin / settlement wallet ——
+
+export interface StorefrontWalletAdjustmentRequest {
+  amount: number;
+  reference: string;
+  description: string;
+}
+
+export interface StorefrontWalletTransactionDto {
+  id: string;
+  orderId: string | null;
+  amount: number;
+  balanceBefore: number;
+  balanceAfter: number;
+  type: string | null;
+  reference: string | null;
+  description: string | null;
+  status: string | null;
+  externalOrderId: string | null;
+  paymentReference: string | null;
+  transactionKind: string | null;
+  payoutId: string | null;
+  providerReference: string | null;
+  createdByUserId: string | null;
+  transactionDate: string;
+}
+
+export interface StorefrontWalletStatsDto {
+  ownerId: string | null;
+  walletId: string | null;
+  currency: string | null;
+  walletBalance: number;
+  totalOrders: number;
+  paidOrders: number;
+  revenue: number;
+  totalCommission: number;
+  currentCommission: number;
+  commissionPaid: number;
+  pendingCommission: number;
+  ordersWaitingForCommission: number;
+  reservedForPayout: number;
+  totalPayoutsPaid: number;
+}
+
+export interface StorefrontWalletOrderDto {
+  orderId: string;
+  orderReference: string | null;
+  externalOrderId: string | null;
+  amount: number;
+  commission: number;
+  commissionStatus: string;
+  isPaid: boolean;
+  isDynamicsPosted: boolean;
+  orderStatus: string | null;
+  customerName: string | null;
+  dateCreated: string;
+}
+
+export type StorefrontPagedWalletTransactions =
+  PaginationResponse<StorefrontWalletTransactionDto>;
+export type StorefrontPagedWalletOrders = PaginationResponse<StorefrontWalletOrderDto>;
+
+// —— Super admin wallet ——
+
+export interface SuperAdminWalletDto {
+  walletId: string | null;
+  walletKey: string | null;
+  balance: number;
+  currency: string | null;
+  updatedAt: string | null;
+}
+
+export interface SuperAdminWalletAdjustmentRequest {
+  amount: number;
+  reference: string;
+  description: string;
+}
+
+export interface SuperAdminWalletTransactionDto {
+  id: string;
+  isDeleted: boolean;
+  orderId: string | null;
+  storefrontOwnerId: string | null;
+  amount: number;
+  balanceBefore: number;
+  balanceAfter: number;
+  type: string | null;
+  transactionKind: string | null;
+  reference: string | null;
+  description: string | null;
+  status: string | null;
+  externalOrderId: string | null;
+  paymentReference: string | null;
+  createdByUserId: string | null;
+  metadataJson: string | null;
+  transactionDate: string;
+}
+
+export interface SuperAdminWalletTransactionUpdateRequest {
+  amount: number;
+  type: string;
+  reference: string;
+  description: string;
+  metadataJson?: string | null;
+}
+
+export interface SuperAdminWalletTransactionDeleteRequest {
+  reason: string;
+}
+
+export type SuperAdminPagedTransactions =
+  PaginationResponse<SuperAdminWalletTransactionDto>;
+
+// —— Storefront orders ——
+
+export interface StorefrontProductQuantity {
+  productId: string;
+  variantId?: string;
+  locationId?: string | null;
+  quantity: number;
+}
+
+export interface StorefrontPaidOrderRequest {
+  storefrontOwnerId: string;
+  externalOrderId: string;
+  paymentReference: string;
+  amountPaid?: number;
+  fees?: number;
+  currency: string;
+  products?: StorefrontProductQuantity[] | null;
+  deliveryMethodId: string;
+  deliveryAddress?: string | null;
+  locationId?: string | null;
+  name: string;
+  phoneNumber: string;
+  email?: string | null;
+  referralId?: string | null;
+}
+
+export interface StorefrontPaidOrderResponse {
+  orderId: string;
+  externalOrderId: string | null;
+  storefrontOwnerId: string | null;
+  superAppAmount: number;
+  storefrontAmountPaid: number;
+  currency: string | null;
+  isPaid: boolean;
+  isDynamicsPosted: boolean;
+  walletCreditAmount: number;
+  walletDebitAmount: number;
+  walletFeeAmount: number;
+  storefrontEarningAmount: number;
+  storefrontWalletBalanceAfter: number | null;
+  superAdminWalletCreditAmount: number;
+  superAdminWalletBalance: number | null;
+  earning: StorefrontEarningDto | null;
 }

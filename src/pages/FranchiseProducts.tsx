@@ -8,6 +8,7 @@ import {
   Card,
   Empty,
   Input,
+  Modal,
   Select,
   Space,
   Switch,
@@ -22,15 +23,26 @@ import {
   FontSizeOutlined,
   PercentageOutlined,
   SyncOutlined,
+  TagsOutlined,
 } from "@ant-design/icons";
 import { apiGet, apiPatch, apiPut } from "@/lib/api";
-import { getActiveStorefrontBrands, getStorefrontProducts } from "@/lib/storefrontApi";
+import {
+  addStorefrontCategoriesToProduct,
+  getActiveStorefrontBrands,
+  getPublishedProduct,
+  getStorefrontCategories,
+  getStorefrontCategoriesByProduct,
+  getStorefrontProducts,
+  removeStorefrontCategoriesFromProduct,
+  setProductVisibility,
+} from "@/lib/storefrontApi";
 import { effectiveProductPrice, productThumbnail } from "@/lib/productHelpers";
 import {
   aggregateStorefrontAvailability,
   formatStorefrontNaira,
   pickDisplayVariant,
   storefrontMarkupPercent,
+  type StorefrontCategoryDto,
   type StorefrontProductDto,
 } from "@/lib/storefrontTypes";
 import type { ProductReturnDto } from "@/lib/types";
@@ -64,6 +76,14 @@ export default function FranchiseProductsPage() {
   const [pageSize, setPageSize] = useState(20);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [visibilityBusyId, setVisibilityBusyId] = useState<string | null>(null);
+
+  const [categoriesProduct, setCategoriesProduct] = useState<StorefrontProductDto | null>(null);
+  const [assignedCategoryIds, setAssignedCategoryIds] = useState<string[]>([]);
+  const [initialCategoryIds, setInitialCategoryIds] = useState<string[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(false);
+  const [categoriesSaving, setCategoriesSaving] = useState(false);
+  const [publishedSnapshot, setPublishedSnapshot] = useState<StorefrontProductDto | null>(null);
 
   useEffect(() => {
     if (brandIdFromUrl) setBrandId(brandIdFromUrl);
@@ -120,6 +140,16 @@ export default function FranchiseProductsPage() {
     enabled: productIds.length > 0,
   });
 
+  const allCategoriesQuery = useQuery({
+    queryKey: ["storefront", "categories-admin", { PageSize: 200, PageNumber: 1 }],
+    queryFn: async () => {
+      const res = await getStorefrontCategories({ PageSize: 200, PageNumber: 1 });
+      if (!res.status) throw new Error(res.message ?? "Failed to load categories");
+      return res.data?.data ?? [];
+    },
+    enabled: categoriesProduct !== null,
+  });
+
   useEffect(() => {
     if (productsQuery.isError) {
       message.error(
@@ -154,9 +184,108 @@ export default function FranchiseProductsPage() {
       ? (brandsQuery.data?.find((b) => b.id === brandId)?.name ?? brandNameFromUrl)
       : null;
 
+  const categoryOptions = useMemo(
+    () =>
+      (allCategoriesQuery.data ?? []).map((c: StorefrontCategoryDto) => ({
+        value: c.id,
+        label: c.name,
+      })),
+    [allCategoriesQuery.data],
+  );
+
   function openDetail(id: string) {
     setSelectedId(id);
     setDetailOpen(true);
+  }
+
+  async function openCategories(product: StorefrontProductDto) {
+    setCategoriesProduct(product);
+    setCategoriesLoading(true);
+    setPublishedSnapshot(null);
+    try {
+      const [catsRes, publishedRes] = await Promise.all([
+        getStorefrontCategoriesByProduct(product.productId),
+        getPublishedProduct(product.productId),
+      ]);
+      if (!catsRes.status) {
+        message.error(catsRes.message ?? "Failed to load product categories");
+        setCategoriesProduct(null);
+        return;
+      }
+      const ids = (catsRes.data ?? []).map((c) => c.id);
+      setAssignedCategoryIds(ids);
+      setInitialCategoryIds(ids);
+      if (publishedRes.status) setPublishedSnapshot(publishedRes.data);
+    } finally {
+      setCategoriesLoading(false);
+    }
+  }
+
+  async function saveCategories() {
+    if (!categoriesProduct) return;
+    const toAdd = assignedCategoryIds.filter((id) => !initialCategoryIds.includes(id));
+    const toRemove = initialCategoryIds.filter((id) => !assignedCategoryIds.includes(id));
+    if (toAdd.length === 0 && toRemove.length === 0) {
+      setCategoriesProduct(null);
+      return;
+    }
+    setCategoriesSaving(true);
+    try {
+      if (toAdd.length > 0) {
+        const res = await addStorefrontCategoriesToProduct({
+          productId: categoriesProduct.productId,
+          storefrontCategoryIds: toAdd,
+        });
+        if (!res.status) {
+          message.error(res.message ?? "Failed to add categories");
+          return;
+        }
+      }
+      if (toRemove.length > 0) {
+        const res = await removeStorefrontCategoriesFromProduct({
+          productId: categoriesProduct.productId,
+          storefrontCategoryIds: toRemove,
+        });
+        if (!res.status) {
+          message.error(res.message ?? "Failed to remove categories");
+          return;
+        }
+      }
+      message.success("Storefront categories updated");
+      setCategoriesProduct(null);
+      void productsQuery.refetch();
+    } finally {
+      setCategoriesSaving(false);
+    }
+  }
+
+  async function toggleStorefrontVisibility(productId: string, isVisible: boolean) {
+    setVisibilityBusyId(productId);
+    const prev = queryClient.getQueryData<typeof productsQuery.data>([
+      "storefront",
+      "products",
+      queryParams,
+    ]);
+    if (prev?.data) {
+      queryClient.setQueryData(["storefront", "products", queryParams], {
+        ...prev,
+        data: prev.data.map((p) =>
+          p.productId === productId ? { ...p, isStorefrontPublished: isVisible } : p,
+        ),
+      });
+    }
+    try {
+      const res = await setProductVisibility({ productId, isVisible });
+      if (!res.status) {
+        message.error(res.message ?? "Failed to update visibility");
+        queryClient.setQueryData(["storefront", "products", queryParams], prev);
+        return;
+      }
+      message.success(res.message ?? "Visibility updated");
+      void productsQuery.refetch();
+    } finally {
+      setVisibilityBusyId(null);
+    }
   }
 
   async function toggleField(
@@ -340,11 +469,14 @@ export default function FranchiseProductsPage() {
     {
       title: "Published",
       key: "published",
-      width: 100,
+      width: 110,
       render: (_, { storefront }) => (
-        <Tag color={storefront.isStorefrontPublished ? "success" : "default"}>
-          {storefront.isStorefrontPublished ? "Yes" : "No"}
-        </Tag>
+        <Switch
+          checked={storefront.isStorefrontPublished}
+          disabled={!canEdit}
+          loading={visibilityBusyId === storefront.productId}
+          onChange={(val) => void toggleStorefrontVisibility(storefront.productId, val)}
+        />
       ),
     },
     {
@@ -382,7 +514,7 @@ export default function FranchiseProductsPage() {
     {
       title: "",
       key: "actions",
-      width: 120,
+      width: 160,
       fixed: "right",
       align: "right",
       render: (_, { storefront }) => (
@@ -393,6 +525,14 @@ export default function FranchiseProductsPage() {
             onClick={() => openDetail(storefront.productId)}
             title="View product"
           />
+          {canEdit && (
+            <Button
+              size="small"
+              icon={<TagsOutlined />}
+              onClick={() => void openCategories(storefront)}
+              title="Storefront categories"
+            />
+          )}
           {canEdit && (
             <Button
               size="small"
@@ -503,6 +643,44 @@ export default function FranchiseProductsPage() {
           if (!v) setSelectedId(null);
         }}
       />
+
+      <Modal
+        open={categoriesProduct !== null}
+        title={`Storefront categories — ${categoriesProduct?.productName ?? ""}`}
+        onCancel={() => setCategoriesProduct(null)}
+        onOk={() => void saveCategories()}
+        confirmLoading={categoriesSaving}
+        okButtonProps={{ disabled: categoriesLoading || !canEdit }}
+        destroyOnClose
+        width={560}
+      >
+        {categoriesLoading ? (
+          <div className="py-8 text-center text-muted-foreground">Loading…</div>
+        ) : (
+          <div className="space-y-4 pt-2">
+            {publishedSnapshot && (
+              <div className="rounded border border-border px-3 py-2 text-sm">
+                <div className="font-medium">Published snapshot</div>
+                <div className="text-muted-foreground">
+                  {publishedSnapshot.productName}
+                  {publishedSnapshot.isStorefrontPublished ? " · published" : " · not published"}
+                </div>
+              </div>
+            )}
+            <Select
+              mode="multiple"
+              className="w-full"
+              placeholder="Assign storefront categories"
+              value={assignedCategoryIds}
+              onChange={setAssignedCategoryIds}
+              options={categoryOptions}
+              loading={allCategoriesQuery.isFetching}
+              optionFilterProp="label"
+              showSearch
+            />
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

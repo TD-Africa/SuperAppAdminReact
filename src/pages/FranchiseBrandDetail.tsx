@@ -7,10 +7,12 @@ import {
   Button,
   Card,
   Descriptions,
+  Divider,
   Drawer,
   Empty,
   Form,
   InputNumber,
+  Popconfirm,
   Select,
   Space,
   Spin,
@@ -20,12 +22,15 @@ import {
   Typography,
 } from "antd";
 import type { TableColumnsType } from "antd";
-import { ArrowLeftOutlined, EditOutlined } from "@ant-design/icons";
+import { ArrowLeftOutlined, DeleteOutlined, EditOutlined } from "@ant-design/icons";
 import {
+  deleteStorefrontBrand,
   getProductStorefrontPricing,
   getStorefrontBrandById,
   getStorefrontProducts,
+  getVariantStorefrontPricing,
   setProductStorefrontMargin,
+  setVariantStorefrontMargin,
   updateStorefrontBrand,
 } from "@/lib/storefrontApi";
 import {
@@ -38,7 +43,9 @@ import {
   type ProductStorefrontPricingDto,
   type StorefrontBrandAdminDto,
   type StorefrontProductDto,
+  type StorefrontVariantDto,
   type UpdateStorefrontBrandRequest,
+  type VariantStorefrontPricingDto,
 } from "@/lib/storefrontTypes";
 import { Permission } from "@/lib/permissions";
 import { useAuthStore } from "@/stores/auth";
@@ -48,6 +55,15 @@ const sourceTag = (source: ProductMarginSource, rate: number | null) => {
   if (source === "inherited") return <Tag color="success">Inherited · {rate?.toFixed(2)}%</Tag>;
   return <Tag color="warning">Not configured</Tag>;
 };
+
+function variantLabel(variant: StorefrontVariantDto, index: number) {
+  const parts = [
+    variant.isDefault ? "Default" : null,
+    variant.sizeId ? `Size ${variant.sizeId.slice(0, 6)}` : null,
+    variant.colorId ? `Color ${variant.colorId.slice(0, 6)}` : null,
+  ].filter(Boolean);
+  return parts.length ? parts.join(" · ") : `Variant ${index + 1}`;
+}
 
 function toUpdateBody(brand: StorefrontBrandAdminDto): UpdateStorefrontBrandRequest {
   return {
@@ -73,16 +89,23 @@ export default function FranchiseBrandDetailPage() {
   const [draftMargin, setDraftMargin] = useState<number | null>(null);
   const [draftActive, setDraftActive] = useState(true);
   const [savingBrand, setSavingBrand] = useState(false);
+  const [deletingBrand, setDeletingBrand] = useState(false);
   const [sourceFilter, setSourceFilter] = useState<ProductMarginSource | "all">("all");
   const [productPage, setProductPage] = useState(1);
   const [productPageSize, setProductPageSize] = useState(20);
 
-  const [editingProductId, setEditingProductId] = useState<string | null>(null);
+  const [editingProduct, setEditingProduct] = useState<StorefrontProductDto | null>(null);
   const [pricing, setPricing] = useState<ProductStorefrontPricingDto | null>(null);
   const [pricingLoading, setPricingLoading] = useState(false);
   const [draftStorefront, setDraftStorefront] = useState<number | null>(null);
   const [revertToBrand, setRevertToBrand] = useState(false);
   const [savingProduct, setSavingProduct] = useState(false);
+
+  const [variantPricing, setVariantPricing] = useState<
+    Record<string, VariantStorefrontPricingDto | null>
+  >({});
+  const [variantDrafts, setVariantDrafts] = useState<Record<string, number | null>>({});
+  const [savingVariantId, setSavingVariantId] = useState<string | null>(null);
 
   const brandQuery = useQuery({
     queryKey: ["storefront", "brand", storefrontBrandId],
@@ -121,6 +144,13 @@ export default function FranchiseBrandDetailPage() {
 
   const products = productsQuery.data?.data ?? [];
   const productTotal = Number(productsQuery.data?.count ?? 0);
+
+  const editableVariants = useMemo(() => {
+    const variants = (editingProduct?.variants ?? []).filter(
+      (v) => v.isActive && v.priceInNaira > 0,
+    );
+    return variants.length > 1 ? variants : [];
+  }, [editingProduct]);
 
   const visibleProducts = useMemo(() => {
     if (!brand || sourceFilter === "all") return products;
@@ -162,27 +192,65 @@ export default function FranchiseBrandDetailPage() {
     }
   }
 
+  async function removeBrand() {
+    if (!storefrontBrandId) return;
+    setDeletingBrand(true);
+    try {
+      const res = await deleteStorefrontBrand(storefrontBrandId);
+      if (!res.status) {
+        message.error(res.message ?? "Failed to delete brand");
+        return;
+      }
+      message.success(res.message ?? "Brand deleted");
+      void queryClient.invalidateQueries({ queryKey: ["storefront", "brands-admin"] });
+      void queryClient.invalidateQueries({ queryKey: ["storefront", "brands"] });
+      navigate("/franchise-brands");
+    } finally {
+      setDeletingBrand(false);
+    }
+  }
+
   async function openProductEditor(product: StorefrontProductDto) {
-    setEditingProductId(product.productId);
+    setEditingProduct(product);
     setRevertToBrand(false);
     setPricing(null);
+    setVariantPricing({});
+    setVariantDrafts({});
     setPricingLoading(true);
     try {
       const res = await getProductStorefrontPricing(product.productId);
       if (!res.status || !res.data) {
         message.error(res.message ?? "Failed to load product pricing");
-        setEditingProductId(null);
+        setEditingProduct(null);
         return;
       }
       setPricing(res.data);
       setDraftStorefront(res.data.storefrontPrice);
+
+      const variants = (product.variants ?? []).filter((v) => v.isActive && v.priceInNaira > 0);
+      if (variants.length > 1) {
+        const entries = await Promise.all(
+          variants.map(async (variant) => {
+            const vRes = await getVariantStorefrontPricing(variant.id);
+            return [variant.id, vRes.status ? vRes.data : null] as const;
+          }),
+        );
+        const nextPricing: Record<string, VariantStorefrontPricingDto | null> = {};
+        const nextDrafts: Record<string, number | null> = {};
+        for (const [id, data] of entries) {
+          nextPricing[id] = data;
+          nextDrafts[id] = data?.storefrontPrice ?? null;
+        }
+        setVariantPricing(nextPricing);
+        setVariantDrafts(nextDrafts);
+      }
     } finally {
       setPricingLoading(false);
     }
   }
 
   async function saveProductPricing() {
-    if (!editingProductId || !pricing) return;
+    if (!editingProduct || !pricing) return;
     setSavingProduct(true);
     try {
       let margin = pricing.brandMargin;
@@ -202,7 +270,7 @@ export default function FranchiseBrandDetailPage() {
       }
 
       const res = await setProductStorefrontMargin({
-        productId: editingProductId,
+        productId: editingProduct.productId,
         storefrontPriceMargin: margin,
       });
       if (!res.status || !res.data) {
@@ -210,10 +278,41 @@ export default function FranchiseBrandDetailPage() {
         return;
       }
       message.success(res.message ?? "Storefront price saved");
-      setEditingProductId(null);
+      setEditingProduct(null);
       void productsQuery.refetch();
     } finally {
       setSavingProduct(false);
+    }
+  }
+
+  async function saveVariantPricing(variant: StorefrontVariantDto) {
+    const draft = variantDrafts[variant.id];
+    if (draft === null || draft === undefined) return;
+    if (draft < variant.priceInNaira) {
+      message.error("Storefront price must be at least the variant price.");
+      return;
+    }
+    const derived = storefrontMarkupPercent(variant.priceInNaira, draft);
+    if (derived === null) {
+      message.error("Unable to derive margin from storefront price.");
+      return;
+    }
+    setSavingVariantId(variant.id);
+    try {
+      const res = await setVariantStorefrontMargin({
+        variantId: variant.id,
+        storefrontPriceMargin: Number(derived.toFixed(2)),
+      });
+      if (!res.status || !res.data) {
+        message.error(res.message ?? "Failed to save variant pricing");
+        return;
+      }
+      message.success(res.message ?? "Variant storefront price saved");
+      setVariantPricing((prev) => ({ ...prev, [variant.id]: res.data }));
+      setVariantDrafts((prev) => ({ ...prev, [variant.id]: res.data!.storefrontPrice }));
+      void productsQuery.refetch();
+    } finally {
+      setSavingVariantId(null);
     }
   }
 
@@ -322,11 +421,23 @@ export default function FranchiseBrandDetailPage() {
 
   return (
     <div className="space-y-6">
-      <Space>
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/franchise-brands")}>
           All brands
         </Button>
-      </Space>
+        {canEdit && (
+          <Popconfirm
+            title="Delete this storefront brand?"
+            okText="Delete"
+            okButtonProps={{ danger: true }}
+            onConfirm={() => void removeBrand()}
+          >
+            <Button danger icon={<DeleteOutlined />} loading={deletingBrand}>
+              Delete brand
+            </Button>
+          </Popconfirm>
+        )}
+      </div>
 
       <div>
         <Typography.Title level={3} className="!m-0">
@@ -420,9 +531,10 @@ export default function FranchiseBrandDetailPage() {
       </Card>
 
       <Drawer
-        open={editingProductId !== null}
-        title={`Edit storefront price — ${pricing?.productName ?? ""}`}
-        onClose={() => setEditingProductId(null)}
+        open={editingProduct !== null}
+        width={480}
+        title={`Edit storefront price — ${pricing?.productName ?? editingProduct?.productName ?? ""}`}
+        onClose={() => setEditingProduct(null)}
         extra={
           <Button
             type="primary"
@@ -430,7 +542,7 @@ export default function FranchiseBrandDetailPage() {
             disabled={!canEdit || pricingLoading}
             onClick={() => void saveProductPricing()}
           >
-            Save
+            Save product
           </Button>
         }
       >
@@ -510,6 +622,61 @@ export default function FranchiseBrandDetailPage() {
             >
               Revert to brand margin
             </Button>
+
+            {editableVariants.length > 0 && (
+              <>
+                <Divider />
+                <Typography.Title level={5}>Variant margins</Typography.Title>
+                <Typography.Text type="secondary" className="mb-3 block">
+                  Override storefront price per variant when needed.
+                </Typography.Text>
+                <div className="space-y-4">
+                  {editableVariants.map((variant, index) => {
+                    const draft = variantDrafts[variant.id];
+                    const derived =
+                      draft !== null && draft !== undefined
+                        ? storefrontMarkupPercent(variant.priceInNaira, draft)
+                        : null;
+                    return (
+                      <Card key={variant.id} size="small" title={variantLabel(variant, index)}>
+                        <div className="mb-2 text-xs text-muted-foreground">
+                          Base {formatStorefrontNaira(variant.priceInNaira)}
+                          {variantPricing[variant.id]
+                            ? ` · effective ${variantPricing[variant.id]!.effectiveMargin.toFixed(2)}%`
+                            : ""}
+                        </div>
+                        <Space.Compact className="w-full">
+                          <InputNumber
+                            min={variant.priceInNaira}
+                            precision={0}
+                            addonBefore="₦"
+                            className="w-full"
+                            disabled={!canEdit}
+                            value={draft}
+                            onChange={(value) =>
+                              setVariantDrafts((prev) => ({ ...prev, [variant.id]: value }))
+                            }
+                          />
+                          <Button
+                            type="primary"
+                            disabled={!canEdit || draft === null || draft === undefined}
+                            loading={savingVariantId === variant.id}
+                            onClick={() => void saveVariantPricing(variant)}
+                          >
+                            Save
+                          </Button>
+                        </Space.Compact>
+                        {derived !== null && (
+                          <div className="mt-2 text-xs text-muted-foreground">
+                            Derived margin {derived.toFixed(2)}%
+                          </div>
+                        )}
+                      </Card>
+                    );
+                  })}
+                </div>
+              </>
+            )}
           </>
         ) : null}
       </Drawer>

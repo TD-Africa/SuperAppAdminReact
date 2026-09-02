@@ -19,8 +19,12 @@ const FranchiseOrdersPage = lazy(() => import("@/pages/FranchiseOrders"));
 const BrandsPage = lazy(() => import("@/pages/Brands"));
 const FranchiseBrandsPage = lazy(() => import("@/pages/FranchiseBrands"));
 const FranchiseBrandDetailPage = lazy(() => import("@/pages/FranchiseBrandDetail"));
+const FranchiseCategoriesPage = lazy(() => import("@/pages/FranchiseCategories"));
+const FranchiseCategoryDetailPage = lazy(() => import("@/pages/FranchiseCategoryDetail"));
 const FranchiseStoreOwnersPage = lazy(() => import("@/pages/FranchiseStoreOwners"));
 const FranchiseStoreOwnerDetailPage = lazy(() => import("@/pages/FranchiseStoreOwnerDetail"));
+const FranchisePayoutsPage = lazy(() => import("@/pages/FranchisePayouts"));
+const FranchiseSuperAdminWalletPage = lazy(() => import("@/pages/FranchiseSuperAdminWallet"));
 const WarehousesPage = lazy(() => import("@/pages/Warehouses"));
 const TicketsPage = lazy(() => import("@/pages/Tickets"));
 const CustomersPage = lazy(() => import("@/pages/Customers"));
@@ -239,6 +243,22 @@ export const router = createBrowserRouter([
         ),
       },
       {
+        path: "franchise-categories",
+        element: (
+          <ProtectedRoute permission={Permission.CanViewBrands}>
+            {withSuspense(<FranchiseCategoriesPage />)}
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "franchise-categories/:storefrontCategoryId",
+        element: (
+          <ProtectedRoute permission={Permission.CanViewBrands}>
+            {withSuspense(<FranchiseCategoryDetailPage />)}
+          </ProtectedRoute>
+        ),
+      },
+      {
         path: "franchise-store-owners",
         element: (
           <ProtectedRoute permission={Permission.CanViewUser}>
@@ -251,6 +271,22 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute permission={Permission.CanViewUser}>
             {withSuspense(<FranchiseStoreOwnerDetailPage />)}
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "franchise-payouts",
+        element: (
+          <ProtectedRoute permission={Permission.CanViewUser}>
+            {withSuspense(<FranchisePayoutsPage />)}
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "franchise-superadmin-wallet",
+        element: (
+          <ProtectedRoute permission={Permission.CanViewUser}>
+            {withSuspense(<FranchiseSuperAdminWalletPage />)}
           </ProtectedRoute>
         ),
       },

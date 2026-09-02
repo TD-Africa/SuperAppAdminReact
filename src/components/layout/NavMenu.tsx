@@ -1,33 +1,34 @@
-import { useEffect, useMemo, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
-import { Menu } from "antd";
-import type { MenuProps } from "antd";
+import { Permission } from "@/lib/permissions";
+import { useAuthStore } from "@/stores/auth";
 import {
-  DashboardOutlined,
+  AccountBookOutlined,
   AppstoreOutlined,
-  ShoppingCartOutlined,
-  TeamOutlined,
-  IdcardOutlined,
-  SafetyCertificateOutlined,
-  TagsOutlined,
-  GroupOutlined,
-  ShopOutlined,
   ContainerOutlined,
   CustomerServiceOutlined,
-  StarOutlined,
-  MailOutlined,
-  SolutionOutlined,
-  UserSwitchOutlined,
-  KeyOutlined,
-  PercentageOutlined,
-  HistoryOutlined,
-  AccountBookOutlined,
-  UsergroupAddOutlined,
+  DashboardOutlined,
+  DollarOutlined,
   GiftOutlined,
+  GroupOutlined,
+  HistoryOutlined,
+  IdcardOutlined,
+  KeyOutlined,
+  MailOutlined,
+  PercentageOutlined,
+  SafetyCertificateOutlined,
   SettingOutlined,
+  ShopOutlined,
+  ShoppingCartOutlined,
+  SolutionOutlined,
+  StarOutlined,
+  TagsOutlined,
+  TeamOutlined,
+  UsergroupAddOutlined,
+  UserSwitchOutlined,
 } from "@ant-design/icons";
-import { useAuthStore } from "@/stores/auth";
-import { Permission } from "@/lib/permissions";
+import type { MenuProps } from "antd";
+import { Menu } from "antd";
+import { useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 
 interface NavLeaf {
   type: "leaf";
@@ -72,7 +73,10 @@ const NAV_TREE: NavNode[] = [
       { type: "leaf", to: "/franchise-products", label: "Products", icon: <AppstoreOutlined />, permission: Permission.CanViewProducts },
       { type: "leaf", to: "/franchise-orders", label: "Orders", icon: <ShoppingCartOutlined />, permission: Permission.CanViewOrders },
       { type: "leaf", to: "/franchise-brands", label: "Brands", icon: <ShopOutlined />, permission: Permission.CanViewBrands },
+      { type: "leaf", to: "/franchise-categories", label: "Categories", icon: <TagsOutlined />, permission: Permission.CanViewBrands },
       { type: "leaf", to: "/franchise-store-owners", label: "Store Owners", icon: <TeamOutlined />, permission: Permission.CanViewUser },
+      { type: "leaf", to: "/franchise-payouts", label: "Payouts", icon: <DollarOutlined />, permission: Permission.CanViewUser },
+      { type: "leaf", to: "/franchise-superadmin-wallet", label: "Settlement Wallet", icon: <AccountBookOutlined />, permission: Permission.CanViewUser },
     ],
   },
   { type: "leaf", to: "/deals", label: "Deals", icon: <TagsOutlined />, permission: Permission.CanViewBrands },
@@ -91,7 +95,10 @@ const STOREFRONT_PATHS = [
   "/franchise-products",
   "/franchise-orders",
   "/franchise-brands",
+  "/franchise-categories",
   "/franchise-store-owners",
+  "/franchise-payouts",
+  "/franchise-superadmin-wallet",
 ];
 
 function collectLeaves(nodes: NavNode[]): NavLeaf[] {

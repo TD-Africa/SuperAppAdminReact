@@ -972,6 +972,67 @@ export interface BrandAuthorizationChangeResultDto {
   propagationDelaySeconds: number;
 }
 
+// ── Partner allocations (Brand controller) ───────────────────────────────────
+// A per-product unit cap for one authorized partner on one brand. Allocations
+// hang off the same authorization row as the brand grant, so a partner must be
+// authorized on the brand before they can be capped, and sub-user ids roll up to
+// their main account. An empty list means "authorized but uncapped" — not
+// "blocked". Mirror of PartnerAllocationDto.
+export interface PartnerAllocationDto {
+  allocationId: string;
+  productId: string;
+  productName: string;
+  productDynamicsId: string | null;
+  brandId: string;
+  brandName: string;
+  /** Ceiling in units for the current window. */
+  allocatedQuantity: number;
+  /** Units ordered since the window opened, derived live from order lines. */
+  consumedQuantity: number;
+  /** Clamped at zero — read `isOverAllocated` for the overshoot case. */
+  remainingQuantity: number;
+  /** Consumption already exceeds the cap, normally after an admin lowered it. */
+  isOverAllocated: boolean;
+  /** False lifts the cap without discarding the configured number. */
+  isActive: boolean;
+  /**
+   * Start of the current counting window; null counts from the beginning. Shared
+   * across every product of this brand for this partner, so it belongs in the
+   * header rather than on a row.
+   */
+  allocationResetAt: string | null;
+  allocatedBy: string | null;
+  notes: string | null;
+  lastUpdated: string | null;
+}
+
+// Mirror of PartnerAllocationItem.
+export interface PartnerAllocationItem {
+  productId: string;
+  /** Units. Zero blocks the product while leaving the rest of the brand open. */
+  allocatedQuantity: number;
+  isActive: boolean;
+}
+
+// Mirror of SetPartnerAllocationsRequest. This is a REPLACE, not a merge: any
+// product left out of `allocations` has its cap removed and becomes uncapped, so
+// the client must always send the full grid. `notes` caps at 500.
+export interface SetPartnerAllocationsRequest {
+  brandId: string;
+  userId: string;
+  allocations: PartnerAllocationItem[];
+  notes?: string | null;
+}
+
+// Mirror of ResetPartnerAllocationRequest. Opens a fresh window so every product
+// under this authorization returns to zero consumed; the caps are unchanged.
+// `resetAt` defaults to now and is rejected if in the future.
+export interface ResetPartnerAllocationRequest {
+  brandId: string;
+  userId: string;
+  resetAt?: string | null;
+}
+
 // ── Platform settings (Component/Get|SavePlatformSettings) ────────────────────
 // Mirror of PlatformSettingDto. Every field is nullable: null means "not
 // configured", and the backend falls back to its own default.

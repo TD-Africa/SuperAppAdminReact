@@ -10,12 +10,18 @@ import {
   Empty,
   Alert,
   Space,
+  Tooltip,
   Typography,
   App as AntdApp,
 } from "antd";
 import type { TableColumnsType } from "antd";
-import { UserAddOutlined, StopOutlined } from "@ant-design/icons";
+import {
+  UserAddOutlined,
+  StopOutlined,
+  SlidersOutlined,
+} from "@ant-design/icons";
 import { apiGet, apiPost } from "@/lib/api";
+import { PartnerAllocationsModal } from "@/components/brands/PartnerAllocationsModal";
 import type {
   BrandAuthorizationChangeResultDto,
   BrandPartnerDto,
@@ -62,6 +68,8 @@ interface PanelProps {
   canEdit: boolean;
   pending: boolean;
   onAction: (userIds: string[], notes: string) => Promise<boolean>;
+  /** Authorized tab only — allocations hang off an existing authorization. */
+  onManageAllocations?: (partner: BrandPartnerDto) => void;
 }
 
 function PartnerPanel({
@@ -71,6 +79,7 @@ function PartnerPanel({
   canEdit,
   pending,
   onAction,
+  onManageAllocations,
 }: PanelProps) {
   const [keyword, setKeyword] = useState("");
   const debouncedKeyword = useDebouncedValue(keyword, 350);
@@ -188,6 +197,29 @@ function PartnerPanel({
                 <span className="text-xs text-muted-foreground">—</span>
               ),
           },
+          {
+            title: "Allocations",
+            key: "allocations",
+            width: 130,
+            render: (_, r) => (
+              <Tooltip
+                title={
+                  r.userId
+                    ? "Set per-product unit caps for this partner"
+                    : "This partner has no user account to cap"
+                }
+              >
+                <Button
+                  size="small"
+                  icon={<SlidersOutlined />}
+                  disabled={!r.userId}
+                  onClick={() => onManageAllocations?.(r)}
+                >
+                  Manage
+                </Button>
+              </Tooltip>
+            ),
+          },
         ] as TableColumnsType<BrandPartnerDto>)),
   ];
 
@@ -246,7 +278,7 @@ function PartnerPanel({
         columns={columns}
         loading={isLoading || isFetching}
         size="middle"
-        scroll={{ x: 720 }}
+        scroll={{ x: isGrant ? 720 : 980 }}
         rowSelection={
           canEdit
             ? {
@@ -301,6 +333,9 @@ export function BrandPartnersModal({
   const { message, modal } = AntdApp.useApp();
   const [tab, setTab] = useState<Mode>("authorized");
   const [pending, setPending] = useState(false);
+  const [allocationPartner, setAllocationPartner] =
+    useState<BrandPartnerDto | null>(null);
+  const [allocationOpen, setAllocationOpen] = useState(false);
 
   const brandId = brand?.brandId ?? null;
 
@@ -432,6 +467,10 @@ export function BrandPartnersModal({
                 canEdit={canEdit}
                 pending={pending}
                 onAction={(ids, notes) => change("revoke", ids, notes)}
+                onManageAllocations={(p) => {
+                  setAllocationPartner(p);
+                  setAllocationOpen(true);
+                }}
               />
             ),
           },
@@ -450,6 +489,17 @@ export function BrandPartnersModal({
             ),
           },
         ]}
+      />
+
+      <PartnerAllocationsModal
+        brand={brand}
+        partner={allocationPartner}
+        open={allocationOpen}
+        canEdit={canEdit}
+        onOpenChange={(v) => {
+          setAllocationOpen(v);
+          if (!v) setAllocationPartner(null);
+        }}
       />
     </Modal>
   );

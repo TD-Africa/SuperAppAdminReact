@@ -20,6 +20,10 @@ import type { BrandReturnDTO, PaginationResponse } from "@/lib/types";
 import { Permission } from "@/lib/permissions";
 import { useAuthStore } from "@/stores/auth";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import {
+  useEffectiveRates,
+  useSetBrandDollarPurchasable,
+} from "@/hooks/useBrandDollarPurchasable";
 import { BrandProductsModal } from "@/components/brands/BrandProductsModal";
 
 const ALL = "__all__";
@@ -60,6 +64,20 @@ export default function BrandsPage() {
       return res.data;
     },
   });
+
+  // `brand/getAllBrands` doesn't carry the dollar-purchasable flag, so it comes
+  // from the effective-rates endpoint and is joined on brandId. Shared cache
+  // with the Exchange Rates page, so a toggle on either is reflected on both.
+  const ratesQuery = useEffectiveRates();
+  const setDollarPurchasable = useSetBrandDollarPurchasable();
+
+  const dollarByBrand = useMemo(() => {
+    const map = new Map<string, boolean>();
+    for (const r of ratesQuery.data ?? []) {
+      map.set(r.brandId, r.isDollarPurchasable);
+    }
+    return map;
+  }, [ratesQuery.data]);
 
   async function toggleActive(id: string, value: boolean) {
     const prev =
@@ -125,6 +143,54 @@ export default function BrandsPage() {
       render: (v: boolean, r) => (
         <Switch checked={v} disabled={!canEdit} onChange={(val) => toggleActive(r.id, val)} />
       ),
+    },
+    {
+      // Deliberately not filterable: this table is paginated server-side, so a
+      // client-side filter would only sift the page in front of you and read
+      // as though the rest of the catalog didn't match.
+      title: (
+        <Tooltip title="Master switch for buying this brand's products in dollars. Off blocks every product under the brand; on just enables the brand — each product still opts in on the Products page.">
+          <span>Dollar purchasable</span>
+        </Tooltip>
+      ),
+      key: "isDollarPurchasable",
+      width: 180,
+      render: (_, r) => {
+        const flag = dollarByBrand.get(r.id);
+
+        // Absent is unknown, not off — the source covers active brands only,
+        // and 404s wholesale when no base rate is configured. Showing a
+        // confident "Disabled" here would be a guess presented as a fact.
+        if (flag === undefined) {
+          return (
+            <Tooltip
+              title={
+                ratesQuery.isLoading
+                  ? "Loading dollar settings…"
+                  : ratesQuery.isError
+                    ? "Dollar settings are unavailable — the platform base exchange rate isn't configured yet. Set it on the Exchange Rates page."
+                    : "Only active brands report this setting. Reactivate the brand to manage dollar purchasing."
+              }
+            >
+              <span className="text-xs text-muted-foreground">—</span>
+            </Tooltip>
+          );
+        }
+
+        return (
+          <Space size={8}>
+            <Switch
+              size="small"
+              checked={flag}
+              disabled={!canEdit}
+              onChange={(val) => setDollarPurchasable(r.id, r.name, val)}
+            />
+            <span className="text-xs text-muted-foreground">
+              {flag ? "Enabled" : "Disabled"}
+            </span>
+          </Space>
+        );
+      },
     },
     {
       title: "",

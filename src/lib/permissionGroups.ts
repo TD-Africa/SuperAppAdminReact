@@ -1,7 +1,9 @@
 import type { Permission } from "./permissions";
 
-// Human-friendly grouping for the 57 PermissionEnum values.
+// Human-friendly grouping for the 68 PermissionEnum values.
 // Used on the Roles edit form to turn a flat list into a matrix.
+// NOTE: PermissionMatrix only renders permissions that appear in a group here, so any
+// permission the backend adds must be slotted in or it is invisible in the role editor.
 export interface PermissionGroupDef {
   key: string;
   label: string;
@@ -55,16 +57,35 @@ export const PERMISSION_GROUPS: PermissionGroupDef[] = [
     ],
   },
   {
+    key: "coupons",
+    label: "Coupons",
+    permissions: ["CanManageCoupons"],
+  },
+  {
     key: "orders",
     label: "Orders & carts",
     permissions: [
       "CanPlaceOrder",
       "CanViewOrders",
       "CanEditOrders",
+      "CanApproveOrder",
+      "CanDecideApproval",
       "CanViewCarts",
       "CanAddToCart",
       "CanEditCart",
       "CanClearCart",
+    ],
+  },
+  {
+    key: "fulfillment",
+    label: "Fulfillment & logistics",
+    permissions: [
+      "CanViewFulfillment",
+      "CanAssignFulfillment",
+      "CanUpdateFulfillmentStatus",
+      "CanUpdateShippingInfo",
+      "CanManageLogisticsPartners",
+      "CanUpdateOrderLogisticsStatus",
     ],
   },
   {
@@ -75,6 +96,11 @@ export const PERMISSION_GROUPS: PermissionGroupDef[] = [
       "CanEditPaymentMethods",
       "CanViewTransactions",
     ],
+  },
+  {
+    key: "debt-collection",
+    label: "Debt collection",
+    permissions: ["CanViewDebtCollection"],
   },
   {
     key: "delivery",
@@ -148,9 +174,14 @@ export const PERMISSION_GROUPS: PermissionGroupDef[] = [
     permissions: ["CanViewRequestAppeals", "CanEditRequestAppeals"],
   },
   {
+    key: "audit",
+    label: "Audit trail",
+    permissions: ["CanViewAuditTrail"],
+  },
+  {
     key: "settings",
     label: "Settings",
-    permissions: ["CanChangeSettings"],
+    permissions: ["CanChangeSettings", "ManageExchangeRate"],
   },
 ];
 

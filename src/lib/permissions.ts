@@ -58,6 +58,18 @@ export const Permission = {
   CanViewDashboard: "CanViewDashboard",
   CanViewFeaturedProducts: "CanViewFeaturedProducts",
   CanEditFeaturedProducts: "CanEditFeaturedProducts",
+  CanApproveOrder: "CanApproveOrder",
+  CanDecideApproval: "CanDecideApproval",
+  CanViewFulfillment: "CanViewFulfillment",
+  CanAssignFulfillment: "CanAssignFulfillment",
+  CanUpdateFulfillmentStatus: "CanUpdateFulfillmentStatus",
+  CanUpdateShippingInfo: "CanUpdateShippingInfo",
+  CanManageLogisticsPartners: "CanManageLogisticsPartners",
+  CanUpdateOrderLogisticsStatus: "CanUpdateOrderLogisticsStatus",
+  CanManageCoupons: "CanManageCoupons",
+  CanViewDebtCollection: "CanViewDebtCollection",
+  CanViewAuditTrail: "CanViewAuditTrail",
+  ManageExchangeRate: "ManageExchangeRate",
 } as const;
 
 export type Permission = (typeof Permission)[keyof typeof Permission];

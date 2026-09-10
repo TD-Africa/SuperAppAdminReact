@@ -1073,3 +1073,40 @@ export interface PlatformSettingDto {
   /** Share of an order that may be paid up front, 0–100. */
   splitTenderPercent: number | null;
 }
+
+// ── Exchange rates (ExchangeRate controller) ──────────────────────────────────
+// Rates are naira-per-dollar and versioned rather than overwritten: setting a new
+// rate closes the current row (`effectiveTo`) and opens a new one. A brand row
+// overrides the platform base for that brand only; with no override the brand
+// inherits the base.
+
+// Mirror of ExchangeRateResponse — one row in the rate ledger. `brandId` is null
+// on base-rate rows; `effectiveTo` is null on the row currently in force.
+export interface ExchangeRateResponse {
+  id: string;
+  brandId: string | null;
+  rate: number;
+  effectiveFrom: string;
+  effectiveTo: string | null;
+  createdBy: string | null;
+  reason: string | null;
+}
+
+// Mirror of ExchangeRateSummaryDto — the rate in force for one brand right now.
+// `isOverride` distinguishes a brand-specific rate from an inherited base rate,
+// which is what decides whether the override can be removed.
+export interface ExchangeRateSummaryDto {
+  brandId: string;
+  brandName: string | null;
+  isDollarPurchasable: boolean;
+  effectiveRate: number;
+  isOverride: boolean;
+  effectiveFrom: string;
+}
+
+// Mirror of SetExchangeRateRequest. Serves both SetBaseRate and SetBrandRate —
+// the brand is a path segment, not a body field.
+export interface SetExchangeRateRequest {
+  rate: number;
+  reason?: string | null;
+}

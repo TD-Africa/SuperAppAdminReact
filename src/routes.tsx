@@ -28,6 +28,7 @@ const FranchiseSuperAdminWalletPage = lazy(() => import("@/pages/FranchiseSuperA
 const SettlementRecoveryPage = lazy(() => import("@/pages/SettlementRecovery"));
 const StorefrontCouponRequestsPage = lazy(() => import("@/pages/StorefrontCouponRequests"));
 const StorefrontTicketsPage = lazy(() => import("@/pages/StorefrontTickets"));
+const BrandRestrictionsPage = lazy(() => import("@/pages/BrandRestrictions"));
 const WarehousesPage = lazy(() => import("@/pages/Warehouses"));
 const TicketsPage = lazy(() => import("@/pages/Tickets"));
 const CustomersPage = lazy(() => import("@/pages/Customers"));
@@ -46,7 +47,9 @@ const RequestAppealsPage = lazy(() => import("@/pages/RequestAppeals"));
 const AdminUsersPage = lazy(() => import("@/pages/AdminUsers"));
 const RolesPage = lazy(() => import("@/pages/Roles"));
 const DebtCollectionPage = lazy(() => import("@/pages/DebtCollection"));
+const WalletsPage = lazy(() => import("@/pages/Wallets"));
 const TransactionSettingsPage = lazy(() => import("@/pages/TransactionSettings"));
+const ExchangeRatesPage = lazy(() => import("@/pages/ExchangeRates"));
 const ForbiddenPage = lazy(() => import("@/pages/Forbidden"));
 
 const pageLoader = (
@@ -158,6 +161,14 @@ export const router = createBrowserRouter([
         ),
       },
       {
+        path: "wallets",
+        element: (
+          <ProtectedRoute permission={Permission.CanViewTransactions}>
+            {withSuspense(<WalletsPage />)}
+          </ProtectedRoute>
+        ),
+      },
+      {
         path: "customers",
         element: (
           <ProtectedRoute permission={Permission.CanViewUser}>
@@ -234,6 +245,14 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute permission={Permission.CanViewBrands}>
             {withSuspense(<FranchiseBrandsPage />)}
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "brand-restrictions",
+        element: (
+          <ProtectedRoute permission={Permission.CanViewBrands}>
+            {withSuspense(<BrandRestrictionsPage />)}
           </ProtectedRoute>
         ),
       },
@@ -402,6 +421,14 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute permission={Permission.CanChangeSettings}>
             {withSuspense(<TransactionSettingsPage />)}
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "exchange-rates",
+        element: (
+          <ProtectedRoute permission={Permission.ManageExchangeRate}>
+            {withSuspense(<ExchangeRatesPage />)}
           </ProtectedRoute>
         ),
       },

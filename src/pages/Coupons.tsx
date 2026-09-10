@@ -1,53 +1,60 @@
-import { ConfirmDialog } from "@/components/ConfirmDialog";
-import {
-    CustomerSearchMultiSelect,
-    type CustomerOption,
-} from "@/components/CustomerSearchMultiSelect";
-import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { API_ORIGIN, apiDelete, apiGet, apiPost, apiPut } from "@/lib/api";
-import { Permission } from "@/lib/permissions";
-import type {
-    CouponProductInput,
-    CouponResponse,
-    CreateCouponRequest,
-    MiniProductResponse,
-    PaginationResponse,
-    UpdateCouponRequest,
-} from "@/lib/types";
-import { formatCurrency, formatDate } from "@/lib/utils";
-import { useAuthStore } from "@/stores/auth";
-import {
-    DeleteOutlined,
-    EditOutlined,
-    EyeOutlined,
-    PlusOutlined,
-} from "@ant-design/icons";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { TableColumnsType } from "antd";
 import {
-    App as AntdApp,
-    Button,
-    Card,
-    DatePicker,
-    Descriptions,
-    Empty,
-    Form,
-    Input,
-    InputNumber,
-    Modal,
-    Select,
-    Skeleton,
-    Space,
-    Spin,
-    Switch,
-    Table,
-    Tag,
-    Tooltip,
-    Typography,
+  Card,
+  Input,
+  Typography,
+  App as AntdApp,
+  Table,
+  Button,
+  Space,
+  Tag,
+  Switch,
+  Modal,
+  Form,
+  InputNumber,
+  DatePicker,
+  Skeleton,
+  Descriptions,
+  Empty,
+  Select,
+  Spin,
+  Tooltip,
+  Upload,
+  Alert,
 } from "antd";
+import type { TableColumnsType } from "antd";
 import type { Dayjs } from "dayjs";
 import dayjs from "dayjs";
-import { useEffect, useMemo, useState } from "react";
+import {
+  DeleteOutlined,
+  DownloadOutlined,
+  EditOutlined,
+  EyeOutlined,
+  PlusOutlined,
+  UploadOutlined,
+} from "@ant-design/icons";
+import { apiDelete, apiGet, apiPost, apiPut, downloadFile, API_ORIGIN } from "@/lib/api";
+import type {
+  CouponProductInput,
+  CouponProductUploadIssue,
+  CouponProductUploadResponse,
+  CouponProductUploadRow,
+  CouponResponse,
+  CreateCouponRequest,
+  MiniProductResponse,
+  PaginationResponse,
+  UpdateCouponRequest,
+} from "@/lib/types";
+import { Permission } from "@/lib/permissions";
+import { useAuthStore } from "@/stores/auth";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { formatCurrency, formatDate } from "@/lib/utils";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
+import {
+  CustomerSearchMultiSelect,
+  type CustomerOption,
+} from "@/components/CustomerSearchMultiSelect";
 
 // Coupons live under the bare `/api/...` route, not the versioned `/api/v1/` base.
 const COUPON_BASE = `${API_ORIGIN}/api/Coupon`;
@@ -309,6 +316,116 @@ interface CouponProductRow {
   overridePriceInDollar: number | null;
 }
 
+// Bulk upload lives on the bare Coupon routes alongside the CRUD ones. Both require a
+// Bearer token (they 401 without one), so the template has to stream through
+// downloadFile rather than a plain link or window.open.
+const UPLOAD_URL = `${COUPON_BASE}/products/upload`;
+const TEMPLATE_URL = `${COUPON_BASE}/products/upload/template`;
+
+// Swagger declares the upload's request body (multipart, field `file`) but not its
+// response, so accept either the documented envelope or a bare array of rows, and
+// tolerate issues arriving as plain strings.
+function normalizeUploadResult(payload: unknown): {
+  products: CouponProductUploadRow[];
+  errors: CouponProductUploadIssue[];
+  warnings: CouponProductUploadIssue[];
+} {
+  const asIssues = (value: unknown): CouponProductUploadIssue[] =>
+    Array.isArray(value)
+      ? value.map((i) => (typeof i === "string" ? { message: i } : (i ?? {})))
+      : [];
+
+  if (Array.isArray(payload)) {
+    return { products: payload as CouponProductUploadRow[], errors: [], warnings: [] };
+  }
+
+  const body = (payload ?? {}) as CouponProductUploadResponse & Record<string, unknown>;
+  const rows = [body.products, body.rows, body.items].find(Array.isArray);
+  return {
+    products: (rows ?? []) as CouponProductUploadRow[],
+    errors: asIssues(body.errors),
+    warnings: asIssues(body.warnings),
+  };
+}
+
+// Uploaded rows replace the override prices of products already in the table and append
+// the rest, so re-uploading a corrected sheet doesn't duplicate lines.
+function mergeUploadedRows(
+  current: CouponProductRow[],
+  uploaded: CouponProductUploadRow[],
+): { rows: CouponProductRow[]; added: number; updated: number } {
+  const rows = [...current];
+  const indexById = new Map(rows.map((r, i) => [r.productId, i]));
+  let added = 0;
+  let updated = 0;
+
+  for (const u of uploaded) {
+    if (!u?.productId) continue;
+    const row: CouponProductRow = {
+      productId: u.productId,
+      productName: u.productName ?? u.dynamicsId ?? u.productId,
+      dynamicsId: u.dynamicsId ?? null,
+      overridePriceInNaira: u.overridePriceInNaira ?? null,
+      overridePriceInDollar: u.overridePriceInDollar ?? null,
+    };
+    const at = indexById.get(u.productId);
+    if (at === undefined) {
+      indexById.set(u.productId, rows.length);
+      rows.push(row);
+      added++;
+    } else {
+      rows[at] = row;
+      updated++;
+    }
+  }
+
+  return { rows, added, updated };
+}
+
+function issueLabel(issue: CouponProductUploadIssue): string {
+  const where = [
+    issue.rowNumber != null ? `Row ${issue.rowNumber}` : null,
+    issue.identifier || null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  return where ? `${where}: ${issue.message ?? "Rejected"}` : (issue.message ?? "Rejected");
+}
+
+// Errors/warnings are per-row, so a long sheet can produce hundreds. Show the first few
+// and count the rest rather than growing the modal past the viewport.
+function IssueList({
+  title,
+  issues,
+  type,
+  onClose,
+}: {
+  title: string;
+  issues: CouponProductUploadIssue[];
+  type: "error" | "warning";
+  onClose: () => void;
+}) {
+  const shown = issues.slice(0, 8);
+  return (
+    <Alert
+      type={type}
+      closable
+      onClose={onClose}
+      message={`${title} (${issues.length})`}
+      description={
+        <ul className="m-0 list-disc space-y-0.5 pl-4 text-xs">
+          {shown.map((issue, i) => (
+            <li key={i}>{issueLabel(issue)}</li>
+          ))}
+          {issues.length > shown.length && (
+            <li>…and {issues.length - shown.length} more</li>
+          )}
+        </ul>
+      }
+    />
+  );
+}
+
 function CouponProductEditor({
   value,
   onChange,
@@ -316,8 +433,59 @@ function CouponProductEditor({
   value: CouponProductRow[];
   onChange: (rows: CouponProductRow[]) => void;
 }) {
+  const { message } = AntdApp.useApp();
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebouncedValue(search, 300);
+  const [uploading, setUploading] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [errors, setErrors] = useState<CouponProductUploadIssue[]>([]);
+  const [warnings, setWarnings] = useState<CouponProductUploadIssue[]>([]);
+
+  async function downloadTemplate() {
+    setDownloading(true);
+    const err = await downloadFile(TEMPLATE_URL, "CouponProductsTemplate.xlsx");
+    setDownloading(false);
+    if (err) message.error(err);
+  }
+
+  async function uploadSheet(file: File) {
+    setUploading(true);
+    setErrors([]);
+    setWarnings([]);
+    try {
+      const form = new FormData();
+      form.append("file", file, file.name);
+      const res = await apiPost<CouponProductUploadResponse>(UPLOAD_URL, form);
+      if (!res.status) {
+        message.error(res.message ?? "Upload failed");
+        return;
+      }
+
+      const parsed = normalizeUploadResult(res.data);
+      setErrors(parsed.errors);
+      setWarnings(parsed.warnings);
+
+      if (parsed.products.length === 0) {
+        // A sheet where every row failed still returns 200 with the reasons attached.
+        message.warning(
+          parsed.errors.length > 0
+            ? "No rows could be matched — see the errors below."
+            : (res.message ?? "The file contained no product rows"),
+        );
+        return;
+      }
+
+      const { rows, added, updated } = mergeUploadedRows(value, parsed.products);
+      onChange(rows);
+      message.success(
+        `${added} product${added === 1 ? "" : "s"} added` +
+          (updated > 0 ? `, ${updated} updated` : "") +
+          ". Save the coupon to apply.",
+      );
+    } finally {
+      setUploading(false);
+    }
+  }
 
   const { data: results, isFetching } = useQuery({
     queryKey: ["product-options", "coupon", debouncedSearch],
@@ -426,6 +594,50 @@ function CouponProductEditor({
 
   return (
     <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <Upload
+          accept=".xlsx,.xls,.csv"
+          showUploadList={false}
+          maxCount={1}
+          beforeUpload={(file) => {
+            uploadSheet(file as unknown as File);
+            return false; // upload by hand so the Bearer token and envelope handling apply
+          }}
+        >
+          <Button icon={<UploadOutlined />} loading={uploading}>
+            Upload spreadsheet
+          </Button>
+        </Upload>
+        <Button
+          icon={<DownloadOutlined />}
+          loading={downloading}
+          onClick={downloadTemplate}
+        >
+          Template
+        </Button>
+        <span className="text-xs text-muted-foreground">
+          Bulk-add products with override prices. Uploaded rows land in the table below and
+          are saved with the coupon.
+        </span>
+      </div>
+
+      {errors.length > 0 && (
+        <IssueList
+          title="Rows skipped"
+          issues={errors}
+          type="error"
+          onClose={() => setErrors([])}
+        />
+      )}
+      {warnings.length > 0 && (
+        <IssueList
+          title="Rows needing attention"
+          issues={warnings}
+          type="warning"
+          onClose={() => setWarnings([])}
+        />
+      )}
+
       <Select<string>
         value={null as unknown as string}
         onSelect={(v) => addProduct(v)}

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
+  Alert,
   Modal,
   Button,
   Skeleton,
@@ -13,14 +14,23 @@ import {
   InputNumber,
   Table,
 } from "antd";
-import type { TableColumnsType } from "antd";
-import { apiGet, apiPatch } from "@/lib/api";
+import type { DescriptionsProps, TableColumnsType } from "antd";
+import { CloudUploadOutlined } from "@ant-design/icons";
+import { apiGet, apiPatch, apiPost } from "@/lib/api";
 import type { OrderProductReturnDto, OrderReturnDto } from "@/lib/types";
 import { PaymentMethodId } from "@/lib/paymentMethods";
+import {
+  chargedTotal,
+  formatPercent,
+  hasSettlementDiscrepancy,
+  orderStatusColor,
+  paymentSummary,
+} from "@/lib/orderStatus";
 import { useAuthStore } from "@/stores/auth";
 import { Permission } from "@/lib/permissions";
 import { formatCurrency, formatDate, formatNumber } from "@/lib/utils";
 import { ProductDetailModal } from "@/components/products/ProductDetailModal";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 
 interface Props {
   orderId: string | null;
@@ -46,6 +56,8 @@ export function OrderDetailModal({ orderId, open, onOpenChange, onUpdated }: Pro
   const [isFullyPaid, setIsFullyPaid] = useState(false);
   const [invoiceEdits, setInvoiceEdits] = useState<Record<string, number>>({});
   const [saving, setSaving] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+  const [retryOpen, setRetryOpen] = useState(false);
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [productOpen, setProductOpen] = useState(false);
 
@@ -106,6 +118,83 @@ export function OrderDetailModal({ orderId, open, onOpenChange, onUpdated }: Pro
     [data],
   );
 
+  // A sales ID on any line is what "posted to Dynamics" means server-side — it
+  // is the same check RetrySalesOrder uses as its idempotency guard, so an order
+  // that has one would be a no-op retry (the API still answers 200/true).
+  const salesIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const op of data?.orderedProducts ?? []) {
+      const id = op.salesID?.trim();
+      if (id) ids.add(id);
+    }
+    return Array.from(ids);
+  }, [data]);
+  const postedToDynamics = salesIds.length > 0;
+
+  const summary = data ? paymentSummary(data) : null;
+  // Dollar lines are the exception, so the USD row only earns its space when the
+  // order actually has one.
+  const hasDollarLines = !!data && chargedTotal(data, "USD") !== 0;
+  const discrepancy = !!data && hasSettlementDiscrepancy(data);
+
+  const paymentItems: DescriptionsProps["items"] = useMemo(() => {
+    if (!data) return [];
+    const money = (v: number, currency: "NGN" | "USD") => formatCurrency(v, currency);
+
+    // A fully-paid order owes nothing by definition. Where the journal split says
+    // otherwise it is misread, not a real balance, so show the truth and let the
+    // alert below explain the disagreement.
+    const settledFor = (raw: number, currency: "NGN" | "USD") =>
+      money(discrepancy ? chargedTotal(data, currency) : raw, currency);
+    const dueFor = (raw: number, currency: "NGN" | "USD") => {
+      const value = discrepancy ? 0 : raw;
+      return (
+        <span className={value > 0 ? "font-medium text-amber-600" : undefined}>
+          {money(value, currency)}
+        </span>
+      );
+    };
+
+    const items: DescriptionsProps["items"] = [
+      { key: "received", label: "Received", children: money(data.amountPaid, "NGN") },
+      {
+        key: "invoiced-ngn",
+        label: "Invoiced (NGN)",
+        children: money(chargedTotal(data, "NGN"), "NGN"),
+      },
+      {
+        key: "settled-ngn",
+        label: "Settled (NGN)",
+        children: settledFor(data.amountSettledInNaira, "NGN"),
+      },
+      {
+        key: "due-ngn",
+        label: "Outstanding (NGN)",
+        children: dueFor(data.amountDueInNaira, "NGN"),
+      },
+    ];
+    if (hasDollarLines) {
+      items.push(
+        {
+          key: "invoiced-usd",
+          label: "Invoiced (USD)",
+          children: money(chargedTotal(data, "USD"), "USD"),
+        },
+        {
+          key: "settled-usd",
+          label: "Settled (USD)",
+          children: settledFor(data.amountSettledInDollar, "USD"),
+        },
+        {
+          key: "due-usd",
+          label: "Outstanding (USD)",
+          children: dueFor(data.amountDueInDollar, "USD"),
+        },
+      );
+    }
+    return items;
+  }, [data, hasDollarLines, discrepancy]);
+
   function openProduct(id: string) {
     setSelectedProductId(id);
     setProductOpen(true);
@@ -129,6 +218,27 @@ export function OrderDetailModal({ orderId, open, onOpenChange, onUpdated }: Pro
       refetch();
     } else {
       message.error(res.message ?? "Update failed");
+    }
+  }
+
+  // Re-runs the whole Dynamics posting for this order: sales order, payment
+  // journal, then auto-settle. Only offered while the order is unposted, since
+  // the endpoint short-circuits once any line has a sales ID.
+  async function handleRetry() {
+    if (!data) return;
+    setRetrying(true);
+    try {
+      const res = await apiPost<boolean>(`Order/RetrySalesOrder/${data.id}`);
+      if (!res.status) {
+        message.error(res.message ?? "Posting to Dynamics failed");
+        return;
+      }
+      message.success(res.message ?? "Order posted to Dynamics");
+      onUpdated?.();
+      // The sales/voucher IDs only appear on a fresh read.
+      await refetch();
+    } finally {
+      setRetrying(false);
     }
   }
 
@@ -213,6 +323,16 @@ export function OrderDetailModal({ orderId, open, onOpenChange, onUpdated }: Pro
         title="Order details"
         width={1100}
         footer={[
+          canEdit && !!data && !postedToDynamics && (
+            <Button
+              key="retry"
+              icon={<CloudUploadOutlined />}
+              loading={retrying}
+              onClick={() => setRetryOpen(true)}
+            >
+              Post to Dynamics
+            </Button>
+          ),
           <Button key="close" onClick={() => onOpenChange(false)}>
             Close
           </Button>,
@@ -270,7 +390,21 @@ export function OrderDetailModal({ orderId, open, onOpenChange, onUpdated }: Pro
                 {data.deliveryAddress ?? data.location?.name ?? "—"}
               </Descriptions.Item>
               <Descriptions.Item label="Status">
-                <Tag>{data.orderStatus?.status ?? "—"}</Tag>
+                <Tag color={orderStatusColor(data.orderStatus?.id)}>
+                  {data.orderStatus?.status ?? "—"}
+                </Tag>
+              </Descriptions.Item>
+              <Descriptions.Item label="Dynamics" span={2}>
+                {postedToDynamics ? (
+                  <span className="text-xs">
+                    <Tag color="success">Posted</Tag>
+                    <span className="font-mono text-muted-foreground">
+                      {salesIds.join(", ")}
+                    </span>
+                  </span>
+                ) : (
+                  <Tag color="warning">Not posted</Tag>
+                )}
               </Descriptions.Item>
             </Descriptions>
 
@@ -292,6 +426,57 @@ export function OrderDetailModal({ orderId, open, onOpenChange, onUpdated }: Pro
                 Fully paid
               </Checkbox>
               {data.isPoaTransaction && <Tag color="gold">POA transaction</Tag>}
+            </div>
+
+            <div>
+              <div className="mb-2 flex flex-wrap items-baseline gap-x-2">
+                <Typography.Text strong>Payment</Typography.Text>
+                {summary &&
+                  (summary.state === "paid" ? (
+                    <span className="text-xs text-emerald-600">Paid in full</span>
+                  ) : summary.state === "unpaid" ? (
+                    <span className="text-xs text-muted-foreground">
+                      Nothing received
+                    </span>
+                  ) : (
+                    <span className="text-xs text-amber-600">
+                      {formatCurrency(summary.received, "NGN")} of{" "}
+                      {formatCurrency(summary.charged, "NGN")}
+                      {summary.percent !== null &&
+                        ` · ${formatPercent(summary.percent)} received`}
+                    </span>
+                  ))}
+              </div>
+              <Descriptions
+                column={{ xs: 1, sm: 2, md: 4 }}
+                size="small"
+                bordered
+                items={paymentItems}
+              />
+              <Typography.Paragraph type="secondary" className="!mb-0 !mt-2 text-xs">
+                "Received" is the total banked against the order; invoiced/settled
+                figures come from the Dynamics payment journal, so the two move
+                independently until an invoice is settled.
+              </Typography.Paragraph>
+
+              {discrepancy && (
+                <Alert
+                  className="mt-3"
+                  type="info"
+                  showIcon
+                  message="Journal split misreports this order"
+                  description={
+                    <span className="text-xs">
+                      The order is fully paid, but the Dynamics journal reports{" "}
+                      {formatCurrency(data.amountDueInNaira, "NGN")} still due. Its
+                      lines carry per-line payments rather than the group total the
+                      settlement reader expects, so the other lines' payments get
+                      counted as debt. Shown as settled above — no balance to chase.
+                    </span>
+                  }
+                />
+              )}
+
             </div>
 
             {showInvoiceTable && (
@@ -329,6 +514,15 @@ export function OrderDetailModal({ orderId, open, onOpenChange, onUpdated }: Pro
           </div>
         )}
       </Modal>
+
+      <ConfirmDialog
+        open={retryOpen}
+        onOpenChange={setRetryOpen}
+        title="Post this order to Dynamics?"
+        description="Creates the sales order, posts the payment journal, and attempts auto-settlement in D365. Records created there cannot be undone from this console."
+        confirmLabel="Post to Dynamics"
+        onConfirm={handleRetry}
+      />
 
       <ProductDetailModal
         productId={selectedProductId}

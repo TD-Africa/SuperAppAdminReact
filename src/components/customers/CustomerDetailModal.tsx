@@ -2,36 +2,24 @@ import { useState } from "react";
 import type { ReactNode } from "react";
 import { Modal, Tag, Button, Typography } from "antd";
 import { FileTextOutlined, ShopOutlined } from "@ant-design/icons";
-import type { CustomerResponse, UserStatus } from "@/lib/types";
+import type { CustomerResponse } from "@/lib/types";
 import { formatDate, formatNumber } from "@/lib/utils";
 import { ImageViewerModal } from "@/components/ImageViewerModal";
+import {
+  CustomerIdentity,
+  SectionLabel,
+  statusColor,
+} from "@/components/customers/customerUi";
+import { CustomerBrandAccessPanel } from "@/components/customers/CustomerBrandAccessPanel";
+import { WalletTransactionsDownload } from "@/components/wallets/WalletExportButtons";
+import { CreditSyncButton } from "@/components/customers/CreditSyncButton";
 
 interface CustomerDetailModalProps {
   customer: CustomerResponse | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-}
-
-const statusColor: Record<UserStatus, "success" | "warning" | "error" | "default"> = {
-  Active: "success",
-  Pending: "warning",
-  Suspended: "error",
-  Rejected: "error",
-  Incomplete: "default",
-};
-
-function initials(name: string) {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "?";
-  return (parts[0][0] + (parts[1]?.[0] ?? "")).toUpperCase();
-}
-
-function SectionLabel({ children }: { children: ReactNode }) {
-  return (
-    <div className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-      {children}
-    </div>
-  );
+  /** Fires after a credit sync so the caller can refetch the now-stale record. */
+  onSynced?: () => void;
 }
 
 function Field({ label, value }: { label: string; value: ReactNode }) {
@@ -99,6 +87,7 @@ export function CustomerDetailModal({
   customer,
   open,
   onOpenChange,
+  onSynced,
 }: CustomerDetailModalProps) {
   const [doc, setDoc] = useState<{ title: string; url: string } | null>(null);
 
@@ -123,6 +112,23 @@ export function CustomerDetailModal({
         title={null}
         styles={{ body: { paddingTop: 8 } }}
         footer={[
+          // Only meaningful once a customer is loaded — the footer renders
+          // regardless, so keep it out of the array until then.
+          ...(c
+            ? [
+                <CreditSyncButton
+                  key="credit-sync"
+                  userId={c.id}
+                  dynamicsId={c.dynamicsId}
+                  onSynced={onSynced}
+                />,
+              ]
+            : []),
+          <WalletTransactionsDownload
+            key="wallet-ledger"
+            userId={c?.id}
+            label="Wallet ledger"
+          />,
           <Button key="close" type="primary" onClick={() => onOpenChange(false)}>
             Close
           </Button>,
@@ -131,28 +137,25 @@ export function CustomerDetailModal({
         {c && (
           <div className="space-y-6">
             {/* Header */}
-            <div className="flex items-start gap-4">
-              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-primary/10 text-lg font-semibold text-primary">
-                {initials(displayName)}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-lg font-semibold leading-tight">
-                  {displayName}
-                </div>
-                {c.email && (
-                  <div className="truncate text-sm text-muted-foreground">
-                    {c.email}
+            <CustomerIdentity
+              name={displayName}
+              subtitle={
+                <>
+                  {c.email && (
+                    <div className="truncate text-sm text-muted-foreground">
+                      {c.email}
+                    </div>
+                  )}
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    <Tag color={statusColor[c.userStatus] ?? "default"}>
+                      {c.userStatus}
+                    </Tag>
+                    {c.userType && <Tag>{c.userType}</Tag>}
+                    {c.isSuspended && <Tag color="error">Suspended</Tag>}
                   </div>
-                )}
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  <Tag color={statusColor[c.userStatus] ?? "default"}>
-                    {c.userStatus}
-                  </Tag>
-                  {c.userType && <Tag>{c.userType}</Tag>}
-                  {c.isSuspended && <Tag color="error">Suspended</Tag>}
-                </div>
-              </div>
-            </div>
+                </>
+              }
+            />
 
             {/* Balances */}
             <div>
@@ -247,6 +250,12 @@ export function CustomerDetailModal({
                   No warehouses assigned.
                 </Typography.Text>
               )}
+            </div>
+
+            {/* Brand access */}
+            <div>
+              <SectionLabel>Brand access</SectionLabel>
+              <CustomerBrandAccessPanel userId={c.id} enabled={open} />
             </div>
 
             {/* Documents */}

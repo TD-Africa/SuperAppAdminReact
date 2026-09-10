@@ -36,6 +36,23 @@ interface Props {
   onOpenChange: (open: boolean) => void;
 }
 
+/**
+ * Stock for one variant, taken as the larger of its rolled-up `quantity` and
+ * the sum of its per-warehouse rows.
+ *
+ * Those two should agree — the backend derives `quantity` by summing
+ * `warehouses` — so taking the max only matters when they don't. Erring toward
+ * "has stock" means a backend disagreement shows a suspicious row rather than
+ * silently hiding real inventory.
+ */
+function variantStock(v: ProductVariantReturnDto): number {
+  const fromWarehouses = (v.warehouses ?? []).reduce(
+    (sum, w) => sum + (w.quantity ?? 0),
+    0,
+  );
+  return Math.max(v.quantity ?? 0, fromWarehouses);
+}
+
 export function ProductDetailModal({ productId, open, onOpenChange }: Props) {
   const { message } = AntdApp.useApp();
   const canEdit = useAuthStore((s) => s.hasPermission(Permission.CanEditProducts));
@@ -79,7 +96,14 @@ export function ProductDetailModal({ productId, open, onOpenChange }: Props) {
     }
   }
 
-  const variants = data?.variants ?? [];
+  // Variants with no stock at any warehouse are noise here — products
+  // routinely carry inactive or superseded variants sitting at zero (an APC UPS
+  // ships three, only one of them stocked), and they crowd out the row that
+  // actually holds the inventory. Hide them and report the count instead.
+  const allVariants = data?.variants ?? [];
+  const variants = allVariants.filter((v) => variantStock(v) > 0);
+  const hiddenVariantCount = allVariants.length - variants.length;
+
   // Variant attribute columns vary per product (a phone has color+config, a
   // shirt has size+style). Only surface the attributes that at least one
   // variant actually populates so the table doesn't fill with empty columns.
@@ -112,11 +136,28 @@ export function ProductDetailModal({ productId, open, onOpenChange }: Props) {
       render: (v: number) => formatCurrency(v, "USD"),
     },
     {
+      // One entry per warehouse stocking this variant. Rendered with each
+      // warehouse's own quantity rather than comma-joining the names — a joined
+      // list can't say where the variant's stock actually sits, which is the
+      // whole point now that stock comes from every warehouse.
       title: "Warehouse",
       key: "warehouse",
       render: (_: unknown, v: ProductVariantReturnDto) => {
-        const names = (v.warehouses ?? []).map((w) => w.name).filter(Boolean);
-        return names.length ? names.join(", ") : "—";
+        const rows = (v.warehouses ?? []).filter((w) => w.name);
+        if (rows.length === 0) return "—";
+        return (
+          <div className="space-y-0.5">
+            {rows.map((w) => (
+              <div key={`${w.id}-${w.dynamicsId ?? ""}`} className="text-xs">
+                {w.name}
+                <span className="text-muted-foreground">
+                  {" "}
+                  · {formatNumber(w.quantity)}
+                </span>
+              </div>
+            ))}
+          </div>
+        );
       },
     },
     {
@@ -271,7 +312,9 @@ export function ProductDetailModal({ productId, open, onOpenChange }: Props) {
                 <Descriptions.Item label="Price (NGN)">
                   {formatCurrency(data.priceInNaira, "NGN")}
                 </Descriptions.Item>
-                <Descriptions.Item label="Quantity">
+                {/* Cross-warehouse total, matching the catalogue grid — the
+                    detail endpoint was migrated off default-warehouse scoping. */}
+                <Descriptions.Item label="Quantity (all warehouses)">
                   {formatNumber(data.quantity)}
                 </Descriptions.Item>
                 <Descriptions.Item label="Brand">
@@ -293,6 +336,27 @@ export function ProductDetailModal({ productId, open, onOpenChange }: Props) {
                   {data.isVisible ? "Visible" : "Hidden"}
                 </Tag>
                 {data.isFeaturedProduct && <Tag color="gold">Featured</Tag>}
+                {/* Only rendered once the API actually reports the flag — it is
+                    write-only today, and a "Naira only" tag derived from an
+                    absent field would state the opposite of the truth as often
+                    as not. The brand is the master switch, so both sides have
+                    to be on for dollars to be accepted. */}
+                {data.isDollarPurchasable !== undefined && (
+                  <Tag
+                    color={
+                      data.isDollarPurchasable &&
+                      data.brand?.isDollarPurchasable !== false
+                        ? "green"
+                        : "default"
+                    }
+                  >
+                    {!data.isDollarPurchasable
+                      ? "Naira only"
+                      : data.brand?.isDollarPurchasable === false
+                        ? "Dollar off (brand)"
+                        : "Dollar purchasable"}
+                  </Tag>
+                )}
               </div>
             </div>
           </div>
@@ -312,6 +376,16 @@ export function ProductDetailModal({ productId, open, onOpenChange }: Props) {
                 bordered
                 scroll={{ x: "max-content" }}
               />
+              {hiddenVariantCount > 0 && (
+                <Typography.Text
+                  type="secondary"
+                  className="!mt-2 block !text-xs"
+                >
+                  {hiddenVariantCount === 1
+                    ? "1 variant with no stock at any warehouse is hidden."
+                    : `${hiddenVariantCount} variants with no stock at any warehouse are hidden.`}
+                </Typography.Text>
+              )}
             </div>
           ) : (
             <div className="mx-auto max-w-3xl">
@@ -334,6 +408,19 @@ export function ProductDetailModal({ productId, open, onOpenChange }: Props) {
                   ),
                 }}
               />
+              {/* Every variant filtered out, so this fell back to the
+                  product-level rollup. Say so — an unexplained switch between
+                  two differently-shaped tables reads as a glitch. */}
+              {hiddenVariantCount > 0 && (
+                <Typography.Text
+                  type="secondary"
+                  className="!mt-2 block !text-xs"
+                >
+                  {hiddenVariantCount === 1
+                    ? "This product's only variant has no stock at any warehouse, so the per-warehouse totals are shown instead."
+                    : `None of this product's ${hiddenVariantCount} variants have stock at any warehouse, so the per-warehouse totals are shown instead.`}
+                </Typography.Text>
+              )}
             </div>
           )}
         </div>

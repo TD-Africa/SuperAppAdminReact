@@ -1,33 +1,129 @@
-import { ProductDetailModal } from "@/components/products/ProductDetailModal";
-import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { API_BASE_URL, API_ORIGIN, apiGet, apiPatch, apiPost, apiPut } from "@/lib/api";
-import { Permission } from "@/lib/permissions";
-import type { PaginationResponse, ProductReturnDto } from "@/lib/types";
-import { formatCurrency, formatNumber } from "@/lib/utils";
-import { useAuthStore } from "@/stores/auth";
-import {
-    DownloadOutlined,
-    EyeOutlined,
-    FontSizeOutlined,
-    SyncOutlined,
-} from "@ant-design/icons";
+import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  Card,
+  Input,
+  Select,
+  Typography,
+  App as AntdApp,
+  Table,
+  Button,
+  Space,
+  Tag,
+  Switch,
+  Tooltip,
+} from "antd";
 import type { TableColumnsType } from "antd";
 import {
-    App as AntdApp,
-    Button,
-    Card,
-    Input,
-    Select,
-    Space,
-    Switch,
-    Table,
-    Tag,
-    Typography,
-} from "antd";
-import { useMemo, useState } from "react";
+  DownloadOutlined,
+  EyeOutlined,
+  SyncOutlined,
+  FontSizeOutlined,
+  RightOutlined,
+} from "@ant-design/icons";
+import { apiGet, apiPatch, apiPut, apiPost, API_BASE_URL, API_ORIGIN } from "@/lib/api";
+import type {
+  LocationWithQuantityResponse,
+  PaginationResponse,
+  ProductReturnDto,
+} from "@/lib/types";
+import { Permission } from "@/lib/permissions";
+import { useAuthStore } from "@/stores/auth";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { formatCurrency, formatNumber } from "@/lib/utils";
+import { ProductDetailModal } from "@/components/products/ProductDetailModal";
 
 const ALL = "__all__";
+
+// The flags EditProduct can patch, mapped from the PascalCase name the request
+// body uses to the camelCase key the same flag arrives under in the list
+// response. EditProductRequest is deserialized case-insensitively, so the
+// PascalCase keys are what the existing calls already send.
+const TOGGLE_FIELDS = {
+  IsActive: "isActive",
+  IsFeaturedProduct: "isFeaturedProduct",
+  IsDollarPurchasable: "isDollarPurchasable",
+} as const;
+
+type ToggleField = keyof typeof TOGGLE_FIELDS;
+
+const warehouseBreakdownColumns: TableColumnsType<LocationWithQuantityResponse> = [
+  {
+    title: "Warehouse",
+    dataIndex: "name",
+    render: (v: string) => <span className="font-medium">{v || "—"}</span>,
+  },
+  {
+    title: "Dynamics ID",
+    dataIndex: "dynamicsId",
+    render: (v: string | null) => (
+      <span className="text-xs text-muted-foreground">{v ?? "—"}</span>
+    ),
+  },
+  {
+    title: "Status",
+    dataIndex: "isActive",
+    width: 110,
+    render: (v: boolean) => (
+      <Tag color={v ? "success" : "default"}>{v ? "Active" : "Inactive"}</Tag>
+    ),
+  },
+  {
+    title: "Quantity",
+    dataIndex: "quantity",
+    align: "right",
+    width: 120,
+    render: (v: number) => <span className="font-medium">{formatNumber(v)}</span>,
+  },
+];
+
+/**
+ * Per-warehouse stock for one product row.
+ *
+ * `warehouse[]` carries one entry per warehouse since the all-warehouses
+ * migration, so the grid's headline quantity is a sum that no longer maps to
+ * anywhere you can go and count. This is the breakdown behind that number.
+ *
+ * The rendered total is summed from the rows rather than reusing the product's
+ * own `quantity`, so the two showing different figures is itself the signal
+ * that the row's stock data is stale or incomplete.
+ */
+function WarehouseBreakdown({ product }: { product: ProductReturnDto }) {
+  const rows = product.warehouse ?? [];
+
+  if (rows.length === 0) {
+    return (
+      <Typography.Text type="secondary" className="!text-xs">
+        No per-warehouse stock reported for this product. Out-of-stock rows and
+        products with no active variants come back without a breakdown.
+      </Typography.Text>
+    );
+  }
+
+  const total = rows.reduce((sum, w) => sum + (w.quantity ?? 0), 0);
+
+  return (
+    <Table<LocationWithQuantityResponse>
+      rowKey={(r) => `${r.id}-${r.dynamicsId ?? ""}`}
+      dataSource={rows}
+      columns={warehouseBreakdownColumns}
+      pagination={false}
+      size="small"
+      summary={() => (
+        <Table.Summary.Row>
+          <Table.Summary.Cell index={0} colSpan={3}>
+            <span className="text-xs text-muted-foreground">
+              {rows.length === 1 ? "1 warehouse" : `${rows.length} warehouses`}
+            </span>
+          </Table.Summary.Cell>
+          <Table.Summary.Cell index={3} align="right">
+            <span className="font-semibold">{formatNumber(total)}</span>
+          </Table.Summary.Cell>
+        </Table.Summary.Row>
+      )}
+    />
+  );
+}
 
 export default function ProductsPage() {
   const queryClient = useQueryClient();
@@ -70,25 +166,13 @@ export default function ProductsPage() {
     },
   });
 
-  async function toggleField(
-    id: string,
-    field: "IsActive" | "IsFeaturedProduct",
-    value: boolean,
-  ) {
+  async function toggleField(id: string, field: ToggleField, value: boolean) {
+    const key = TOGGLE_FIELDS[field];
     const prev = queryClient.getQueryData<PaginationResponse<ProductReturnDto>>(queryKey);
     if (prev?.data) {
       queryClient.setQueryData<PaginationResponse<ProductReturnDto>>(queryKey, {
         ...prev,
-        data: prev.data.map((p) =>
-          p.id === id
-            ? {
-                ...p,
-                isActive: field === "IsActive" ? value : p.isActive,
-                isFeaturedProduct:
-                  field === "IsFeaturedProduct" ? value : p.isFeaturedProduct,
-              }
-            : p,
-        ),
+        data: prev.data.map((p) => (p.id === id ? { ...p, [key]: value } : p)),
       });
     }
     const res = await apiPatch<boolean>(`product/editProduct/${id}`, {
@@ -160,17 +244,12 @@ export default function ProductsPage() {
     }
   }
 
-  async function syncAllImages() {
-    const hide = message.loading("Syncing all product images…", 0);
-    const res = await apiPost<boolean>("Product/SyncAllProductImages/sync-all-images", null);
-    hide();
-    if (!res.status) {
-      message.error(res.message ?? "Sync failed");
-    } else {
-      message.success(res.message ?? "Sync started");
-      refetch();
-    }
-  }
+  // NOTE: the bulk "sync all images" action is gone. Product/SyncAllProductImages
+  // is [Obsolete(error: true)] on the backend and throws NotSupportedException
+  // (an unhandled 500) — image sync is handled by
+  // InventoryStockUpdateBackgroundService now. The per-product "Sync images" in
+  // ProductDetailModal still works; it calls SyncSpecificProductImages, which is
+  // one of the sync entrypoints that survived.
 
   async function runInventorySync() {
     setInventorySyncing(true);
@@ -225,7 +304,14 @@ export default function ProductsPage() {
       ),
     },
     { title: "Brand", dataIndex: ["brand", "name"], render: (v) => v ?? "—" },
-    { title: "Qty", dataIndex: "quantity", align: "right", render: (v) => formatNumber(v) },
+    {
+      // Backend sums this across every warehouse now, not just TD MW — say so,
+      // otherwise the figure reads as one location's stock.
+      title: "Qty (all warehouses)",
+      dataIndex: "quantity",
+      align: "right",
+      render: (v) => formatNumber(v),
+    },
     {
       title: "Price (NGN)",
       dataIndex: "priceInNaira",
@@ -261,6 +347,41 @@ export default function ProductsPage() {
       render: (v: boolean, r) => (
         <Switch checked={v} disabled={!canEdit} onChange={(val) => toggleField(r.id, "IsFeaturedProduct", val)} />
       ),
+    },
+    {
+      title: (
+        <Tooltip title="Whether this product can be bought in dollars. The brand is the master switch — set that on the Exchange Rates page.">
+          <span>Dollar Purchasable</span>
+        </Tooltip>
+      ),
+      dataIndex: "isDollarPurchasable",
+      width: 100,
+      render: (v: boolean | undefined, r) => {
+        // The catalog response doesn't carry this flag yet, so on a freshly
+        // loaded page every row is `undefined` — unknown, not off. Say that
+        // rather than letting an off-looking switch pass for the real value.
+        // Toggling still saves, and the optimistic write makes the row known
+        // from then on. Once the API returns the field this branch stops
+        // firing on its own.
+        const unknown = v === undefined;
+        return (
+          <Tooltip
+            title={
+              unknown
+                ? "Current value isn't returned by the catalog API yet. Toggling saves the new value."
+                : undefined
+            }
+          >
+            <span className={unknown ? "opacity-50" : undefined}>
+              <Switch
+                checked={v ?? false}
+                disabled={!canEdit}
+                onChange={(val) => toggleField(r.id, "IsDollarPurchasable", val)}
+              />
+            </span>
+          </Tooltip>
+        );
+      },
     },
     {
       title: "",
@@ -355,11 +476,6 @@ export default function ProductsPage() {
             Download all
           </Button>
           {canEdit && (
-            <Button type="default" icon={<SyncOutlined />} onClick={syncAllImages}>
-              Sync all images
-            </Button>
-          )}
-          {canEdit && (
             <Button
               type="default"
               icon={<SyncOutlined spin={pricesSyncing} />}
@@ -380,14 +496,16 @@ export default function ProductsPage() {
             </Button>
           )}
           {canEdit && (
-            <Button
-              type="primary"
-              icon={<SyncOutlined spin={inventorySyncing} />}
-              loading={inventorySyncing}
-              onClick={runInventorySync}
-            >
-              Run inventory sync
-            </Button>
+            <Tooltip title="Pulls stock for every warehouse from Dynamics. This also runs automatically each hour — trigger it manually only to pick up a change early.">
+              <Button
+                type="primary"
+                icon={<SyncOutlined spin={inventorySyncing} />}
+                loading={inventorySyncing}
+                onClick={runInventorySync}
+              >
+                Run inventory sync
+              </Button>
+            </Tooltip>
           )}
         </Space>
       </div>
@@ -407,6 +525,36 @@ export default function ProductsPage() {
             onChange: (p, ps) => {
               setPage(p);
               setPageSize(ps);
+            },
+          }}
+          expandable={{
+            expandedRowRender: (r) => <WarehouseBreakdown product={r} />,
+            // The default +/- square reads like "add a row" rather than
+            // "reveal what's underneath". A chevron that turns to point down
+            // when open is the usual disclosure affordance, and it also shows
+            // which rows are currently expanded at a glance.
+            expandIcon: ({ expanded, onExpand, record }) => {
+              const label = expanded
+                ? "Hide warehouse breakdown"
+                : "Show warehouse breakdown";
+              return (
+                <Tooltip title={label}>
+                  <Button
+                    type="text"
+                    size="small"
+                    aria-label={label}
+                    aria-expanded={expanded}
+                    onClick={(e) => onExpand(record, e)}
+                    icon={
+                      <RightOutlined
+                        className={`!text-xs text-muted-foreground transition-transform duration-200 ${
+                          expanded ? "rotate-90" : ""
+                        }`}
+                      />
+                    }
+                  />
+                </Tooltip>
+              );
             },
           }}
           scroll={{ x: 1200 }}

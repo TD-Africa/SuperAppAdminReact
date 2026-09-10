@@ -25,8 +25,9 @@ export default defineConfig({
     ],
   },
   server: {
-    port: 5173,
-    strictPort: false,
+    port: 5176,
+    strictPort: true,
+    open: true,
     allowedHosts: ["nonepithelial-pura-nonremediable.ngrok-free.dev"],
   },
 });

@@ -5,15 +5,12 @@ import {
   Input,
   Select,
   Switch,
-  Button,
   Typography,
   App as AntdApp,
   Table,
-  Tooltip,
 } from "antd";
 import type { TableColumnsType } from "antd";
-import { SyncOutlined } from "@ant-design/icons";
-import { apiGet, apiPatch, apiPost } from "@/lib/api";
+import { apiGet, apiPatch } from "@/lib/api";
 import type { LocationReturnDTO, PaginationResponse } from "@/lib/types";
 import { Permission } from "@/lib/permissions";
 import { useAuthStore } from "@/stores/auth";
@@ -27,16 +24,12 @@ export default function WarehousesPage() {
   const canEditWarehouses = useAuthStore((s) =>
     s.hasPermission(Permission.CanEditWarehouses),
   );
-  const canSyncProducts = useAuthStore((s) =>
-    s.hasPermission(Permission.CanEditProducts),
-  );
 
   const [keyword, setKeyword] = useState("");
   const debouncedKeyword = useDebouncedValue(keyword, 350);
   const [isActive, setIsActive] = useState<string>(ALL);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
-  const [syncingId, setSyncingId] = useState<string | null>(null);
 
   const queryParams = useMemo(() => {
     const params = new URLSearchParams();
@@ -82,16 +75,12 @@ export default function WarehousesPage() {
     }
   }
 
-  async function syncProducts(id: string) {
-    setSyncingId(id);
-    const res = await apiPost<boolean>(`Product/SyncProductDetails/${id}`);
-    setSyncingId(null);
-    if (res.status) {
-      message.success(res.message ?? "Products synced");
-    } else {
-      message.error(res.message ?? "Sync failed");
-    }
-  }
+  // NOTE: the per-warehouse "sync products" action is gone.
+  // Product/SyncProductDetails/{locationId} is [Obsolete(error: true)] on the
+  // backend and throws NotSupportedException (an unhandled 500). It is obsolete
+  // by design: InventoryStockUpdateBackgroundService now walks every location
+  // hourly, so there is no longer a single warehouse to sync in isolation.
+  // Products → "Run inventory sync" triggers that all-warehouse pass on demand.
 
   const rows = data?.data ?? [];
   const totalItems = Number(data?.count ?? 0);
@@ -118,22 +107,6 @@ export default function WarehousesPage() {
         <Switch checked={v} disabled={!canEditWarehouses} onChange={(val) => toggleActive(r.id, val)} />
       ),
     },
-    {
-      title: "Sync",
-      key: "sync",
-      width: 80,
-      align: "right",
-      render: (_, r) => (
-        <Tooltip title="Sync products from this warehouse">
-          <Button
-            size="small"
-            icon={<SyncOutlined spin={syncingId === r.id} />}
-            disabled={!canSyncProducts || syncingId === r.id}
-            onClick={() => syncProducts(r.id)}
-          />
-        </Tooltip>
-      ),
-    },
   ];
 
   return (
@@ -143,7 +116,8 @@ export default function WarehousesPage() {
           Warehouses
         </Typography.Title>
         <Typography.Text type="secondary">
-          Manage warehouse locations and sync product inventory.
+          Manage warehouse locations. Product stock is pulled from every active
+          warehouse automatically each hour — no per-warehouse sync needed.
         </Typography.Text>
       </div>
 

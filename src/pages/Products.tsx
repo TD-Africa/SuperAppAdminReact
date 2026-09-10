@@ -11,6 +11,7 @@ import {
   Space,
   Tag,
   Switch,
+  Tooltip,
 } from "antd";
 import type { TableColumnsType } from "antd";
 import {
@@ -20,7 +21,11 @@ import {
   FontSizeOutlined,
 } from "@ant-design/icons";
 import { apiGet, apiPatch, apiPut, apiPost, API_BASE_URL, API_ORIGIN } from "@/lib/api";
-import type { PaginationResponse, ProductReturnDto } from "@/lib/types";
+import type {
+  LocationWithQuantityResponse,
+  PaginationResponse,
+  ProductReturnDto,
+} from "@/lib/types";
 import { Permission } from "@/lib/permissions";
 import { useAuthStore } from "@/stores/auth";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
@@ -28,6 +33,84 @@ import { formatCurrency, formatNumber } from "@/lib/utils";
 import { ProductDetailModal } from "@/components/products/ProductDetailModal";
 
 const ALL = "__all__";
+
+const warehouseBreakdownColumns: TableColumnsType<LocationWithQuantityResponse> = [
+  {
+    title: "Warehouse",
+    dataIndex: "name",
+    render: (v: string) => <span className="font-medium">{v || "—"}</span>,
+  },
+  {
+    title: "Dynamics ID",
+    dataIndex: "dynamicsId",
+    render: (v: string | null) => (
+      <span className="text-xs text-muted-foreground">{v ?? "—"}</span>
+    ),
+  },
+  {
+    title: "Status",
+    dataIndex: "isActive",
+    width: 110,
+    render: (v: boolean) => (
+      <Tag color={v ? "success" : "default"}>{v ? "Active" : "Inactive"}</Tag>
+    ),
+  },
+  {
+    title: "Quantity",
+    dataIndex: "quantity",
+    align: "right",
+    width: 120,
+    render: (v: number) => <span className="font-medium">{formatNumber(v)}</span>,
+  },
+];
+
+/**
+ * Per-warehouse stock for one product row.
+ *
+ * `warehouse[]` carries one entry per warehouse since the all-warehouses
+ * migration, so the grid's headline quantity is a sum that no longer maps to
+ * anywhere you can go and count. This is the breakdown behind that number.
+ *
+ * The rendered total is summed from the rows rather than reusing the product's
+ * own `quantity`, so the two showing different figures is itself the signal
+ * that the row's stock data is stale or incomplete.
+ */
+function WarehouseBreakdown({ product }: { product: ProductReturnDto }) {
+  const rows = product.warehouse ?? [];
+
+  if (rows.length === 0) {
+    return (
+      <Typography.Text type="secondary" className="!text-xs">
+        No per-warehouse stock reported for this product. Out-of-stock rows and
+        products with no active variants come back without a breakdown.
+      </Typography.Text>
+    );
+  }
+
+  const total = rows.reduce((sum, w) => sum + (w.quantity ?? 0), 0);
+
+  return (
+    <Table<LocationWithQuantityResponse>
+      rowKey={(r) => `${r.id}-${r.dynamicsId ?? ""}`}
+      dataSource={rows}
+      columns={warehouseBreakdownColumns}
+      pagination={false}
+      size="small"
+      summary={() => (
+        <Table.Summary.Row>
+          <Table.Summary.Cell index={0} colSpan={3}>
+            <span className="text-xs text-muted-foreground">
+              {rows.length === 1 ? "1 warehouse" : `${rows.length} warehouses`}
+            </span>
+          </Table.Summary.Cell>
+          <Table.Summary.Cell index={3} align="right">
+            <span className="font-semibold">{formatNumber(total)}</span>
+          </Table.Summary.Cell>
+        </Table.Summary.Row>
+      )}
+    />
+  );
+}
 
 export default function ProductsPage() {
   const queryClient = useQueryClient();
@@ -160,17 +243,12 @@ export default function ProductsPage() {
     }
   }
 
-  async function syncAllImages() {
-    const hide = message.loading("Syncing all product images…", 0);
-    const res = await apiPost<boolean>("Product/SyncAllProductImages/sync-all-images", null);
-    hide();
-    if (!res.status) {
-      message.error(res.message ?? "Sync failed");
-    } else {
-      message.success(res.message ?? "Sync started");
-      refetch();
-    }
-  }
+  // NOTE: the bulk "sync all images" action is gone. Product/SyncAllProductImages
+  // is [Obsolete(error: true)] on the backend and throws NotSupportedException
+  // (an unhandled 500) — image sync is handled by
+  // InventoryStockUpdateBackgroundService now. The per-product "Sync images" in
+  // ProductDetailModal still works; it calls SyncSpecificProductImages, which is
+  // one of the sync entrypoints that survived.
 
   async function runInventorySync() {
     setInventorySyncing(true);
@@ -225,7 +303,14 @@ export default function ProductsPage() {
       ),
     },
     { title: "Brand", dataIndex: ["brand", "name"], render: (v) => v ?? "—" },
-    { title: "Qty", dataIndex: "quantity", align: "right", render: (v) => formatNumber(v) },
+    {
+      // Backend sums this across every warehouse now, not just TD MW — say so,
+      // otherwise the figure reads as one location's stock.
+      title: "Qty (all warehouses)",
+      dataIndex: "quantity",
+      align: "right",
+      render: (v) => formatNumber(v),
+    },
     {
       title: "Price (NGN)",
       dataIndex: "priceInNaira",
@@ -355,11 +440,6 @@ export default function ProductsPage() {
             Download all
           </Button>
           {canEdit && (
-            <Button type="default" icon={<SyncOutlined />} onClick={syncAllImages}>
-              Sync all images
-            </Button>
-          )}
-          {canEdit && (
             <Button
               type="default"
               icon={<SyncOutlined spin={pricesSyncing} />}
@@ -380,14 +460,16 @@ export default function ProductsPage() {
             </Button>
           )}
           {canEdit && (
-            <Button
-              type="primary"
-              icon={<SyncOutlined spin={inventorySyncing} />}
-              loading={inventorySyncing}
-              onClick={runInventorySync}
-            >
-              Run inventory sync
-            </Button>
+            <Tooltip title="Pulls stock for every warehouse from Dynamics. This also runs automatically each hour — trigger it manually only to pick up a change early.">
+              <Button
+                type="primary"
+                icon={<SyncOutlined spin={inventorySyncing} />}
+                loading={inventorySyncing}
+                onClick={runInventorySync}
+              >
+                Run inventory sync
+              </Button>
+            </Tooltip>
           )}
         </Space>
       </div>
@@ -408,6 +490,9 @@ export default function ProductsPage() {
               setPage(p);
               setPageSize(ps);
             },
+          }}
+          expandable={{
+            expandedRowRender: (r) => <WarehouseBreakdown product={r} />,
           }}
           scroll={{ x: 1200 }}
           locale={{ emptyText: "No products match the current filters." }}

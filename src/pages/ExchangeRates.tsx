@@ -10,6 +10,7 @@ import {
   Skeleton,
   Space,
   Statistic,
+  Switch,
   Table,
   Tag,
   Tooltip,
@@ -22,7 +23,7 @@ import {
   EditOutlined,
   HistoryOutlined,
 } from "@ant-design/icons";
-import { apiDelete, apiGet } from "@/lib/api";
+import { apiDelete, apiGet, apiPatch } from "@/lib/api";
 import type { ExchangeRateResponse, ExchangeRateSummaryDto } from "@/lib/types";
 import { Permission } from "@/lib/permissions";
 import { useAuthStore } from "@/stores/auth";
@@ -47,6 +48,12 @@ export default function ExchangeRatesPage() {
   const { message } = AntdApp.useApp();
   const canManage = useAuthStore((s) =>
     s.hasPermission(Permission.ManageExchangeRate),
+  );
+  // The dollar-purchasable switch is a brand edit, not a rate edit — the
+  // backend gates it on CanEditBrands, so mirror that rather than reusing
+  // `canManage`. The two permissions are granted independently.
+  const canEditBrands = useAuthStore((s) =>
+    s.hasPermission(Permission.CanEditBrands),
   );
 
   const [keyword, setKeyword] = useState("");
@@ -87,6 +94,44 @@ export default function ExchangeRatesPage() {
     queryClient.invalidateQueries({ queryKey: ["exchange-rate-base"] });
     queryClient.invalidateQueries({ queryKey: ["exchange-rates-effective"] });
     queryClient.invalidateQueries({ queryKey: ["exchange-rate-history"] });
+  }
+
+  // Flips the brand's master switch for dollar purchasing. Optimistic, because
+  // the effective-rates list is the only place this value is readable and a
+  // refetch would make the switch lag behind the click; the previous list is
+  // restored verbatim if the PATCH fails.
+  async function setDollarPurchasable(
+    brand: ExchangeRateSummaryDto,
+    value: boolean,
+  ) {
+    const prev = queryClient.getQueryData<ExchangeRateSummaryDto[]>([
+      "exchange-rates-effective",
+    ]);
+    if (prev) {
+      queryClient.setQueryData<ExchangeRateSummaryDto[]>(
+        ["exchange-rates-effective"],
+        prev.map((r) =>
+          r.brandId === brand.brandId ? { ...r, isDollarPurchasable: value } : r,
+        ),
+      );
+    }
+
+    const res = await apiPatch<boolean>(
+      `Brand/SetBrandDollarPurchasable/${brand.brandId}/dollar-purchasable`,
+      { isDollarPurchasable: value },
+    );
+
+    if (!res.status) {
+      message.error(res.message ?? "Could not update dollar purchasing");
+      queryClient.setQueryData(["exchange-rates-effective"], prev);
+      return;
+    }
+    message.success(
+      res.message ??
+        `Dollar purchasing ${value ? "enabled" : "disabled"} for ${
+          brand.brandName ?? "this brand"
+        }`,
+    );
   }
 
   async function removeOverride(brand: ExchangeRateSummaryDto) {
@@ -150,20 +195,29 @@ export default function ExchangeRatesPage() {
         ),
     },
     {
-      title: "Dollar purchasable",
+      title: (
+        <Tooltip title="Master switch. Off blocks dollar purchasing for every product under the brand; on just enables the brand — each product still opts in on the Products page.">
+          <span>Dollar purchasable</span>
+        </Tooltip>
+      ),
       dataIndex: "isDollarPurchasable",
       width: 170,
-      render: (v: boolean) =>
-        v ? (
-          <Tag color="green" className="!m-0">
-            Yes
-          </Tag>
-        ) : (
-          <Tag className="!m-0">No</Tag>
-        ),
+      render: (v: boolean, r) => (
+        <Space size={8}>
+          <Switch
+            size="small"
+            checked={v}
+            disabled={!canEditBrands}
+            onChange={(val) => setDollarPurchasable(r, val)}
+          />
+          <span className="text-xs text-muted-foreground">
+            {v ? "Enabled" : "Disabled"}
+          </span>
+        </Space>
+      ),
       filters: [
-        { text: "Yes", value: true },
-        { text: "No", value: false },
+        { text: "Enabled", value: true },
+        { text: "Disabled", value: false },
       ],
       onFilter: (value, record) => record.isDollarPurchasable === value,
     },
@@ -231,7 +285,8 @@ export default function ExchangeRatesPage() {
         </Typography.Title>
         <Typography.Text type="secondary">
           The naira-per-dollar rate used to price products. Brands follow the base
-          rate unless given an override.
+          rate unless given an override, and each brand carries the master switch
+          for whether its products can be bought in dollars at all.
         </Typography.Text>
       </div>
 

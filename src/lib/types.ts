@@ -87,6 +87,13 @@ export interface BrandReturnDTO {
   name: string;
   dynamicsId: string | null;
   isActive: boolean;
+  // Master switch for dollar purchasing across every product under the brand.
+  // Optional because BrandReturnDTO does not carry it yet — verified against
+  // both the prod and test swagger on 2026-09-10, where the only response DTO
+  // exposing the flag is ExchangeRateSummaryDto. Read it from there (the
+  // Exchange Rates page) until the catalog DTOs catch up; this field then
+  // starts populating with no further change here.
+  isDollarPurchasable?: boolean;
 }
 
 export interface LocationReturnDTO {
@@ -162,6 +169,18 @@ export interface BaseProductReturnDto {
   isFeaturedProduct: boolean;
   isVisible: boolean;
   hasProductGroup: boolean;
+  // Whether this product opts in to dollar purchasing. The brand is the master
+  // switch, so the effective answer is this AND `brand.isDollarPurchasable` —
+  // never read this alone to decide whether dollars are accepted.
+  //
+  // Optional because the flag is currently write-only on the API: PATCH
+  // Product/EditProduct/{id} accepts it, but no response DTO returns it
+  // (checked exhaustively against prod and test swagger, 2026-09-10 — the only
+  // schemas mentioning it are EditProductRequest, SetBrandDollarPurchasableRequest
+  // and ExchangeRateSummaryDto). So expect `undefined` on every row until the
+  // backend adds it to BaseProductReturnDto; treat that as "unknown", not
+  // "off", and the UI lights up on its own once the field starts arriving.
+  isDollarPurchasable?: boolean;
 }
 
 export interface ProductVariantReturnDto {
@@ -1122,6 +1141,17 @@ export interface ExchangeRateSummaryDto {
   effectiveRate: number;
   isOverride: boolean;
   effectiveFrom: string;
+}
+
+// Mirror of SetBrandDollarPurchasableRequest — the body for
+// PATCH Brand/SetBrandDollarPurchasable/{brandId}/dollar-purchasable.
+//
+// This is the master switch: false makes every product under the brand
+// non-dollar-purchasable regardless of its own flag, and true only enables the
+// brand — each product still opts in individually via its own
+// `isDollarPurchasable`. Requires the CanEditBrands permission.
+export interface SetBrandDollarPurchasableRequest {
+  isDollarPurchasable: boolean;
 }
 
 // Mirror of SetExchangeRateRequest. Serves both SetBaseRate and SetBrandRate —

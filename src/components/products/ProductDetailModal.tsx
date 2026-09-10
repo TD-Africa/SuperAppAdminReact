@@ -336,6 +336,27 @@ export function ProductDetailModal({ productId, open, onOpenChange }: Props) {
                   {data.isVisible ? "Visible" : "Hidden"}
                 </Tag>
                 {data.isFeaturedProduct && <Tag color="gold">Featured</Tag>}
+                {/* Only rendered once the API actually reports the flag — it is
+                    write-only today, and a "Naira only" tag derived from an
+                    absent field would state the opposite of the truth as often
+                    as not. The brand is the master switch, so both sides have
+                    to be on for dollars to be accepted. */}
+                {data.isDollarPurchasable !== undefined && (
+                  <Tag
+                    color={
+                      data.isDollarPurchasable &&
+                      data.brand?.isDollarPurchasable !== false
+                        ? "green"
+                        : "default"
+                    }
+                  >
+                    {!data.isDollarPurchasable
+                      ? "Naira only"
+                      : data.brand?.isDollarPurchasable === false
+                        ? "Dollar off (brand)"
+                        : "Dollar purchasable"}
+                  </Tag>
+                )}
               </div>
             </div>
           </div>

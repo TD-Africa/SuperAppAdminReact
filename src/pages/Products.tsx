@@ -34,6 +34,18 @@ import { ProductDetailModal } from "@/components/products/ProductDetailModal";
 
 const ALL = "__all__";
 
+// The flags EditProduct can patch, mapped from the PascalCase name the request
+// body uses to the camelCase key the same flag arrives under in the list
+// response. EditProductRequest is deserialized case-insensitively, so the
+// PascalCase keys are what the existing calls already send.
+const TOGGLE_FIELDS = {
+  IsActive: "isActive",
+  IsFeaturedProduct: "isFeaturedProduct",
+  IsDollarPurchasable: "isDollarPurchasable",
+} as const;
+
+type ToggleField = keyof typeof TOGGLE_FIELDS;
+
 const warehouseBreakdownColumns: TableColumnsType<LocationWithQuantityResponse> = [
   {
     title: "Warehouse",
@@ -153,25 +165,13 @@ export default function ProductsPage() {
     },
   });
 
-  async function toggleField(
-    id: string,
-    field: "IsActive" | "IsFeaturedProduct",
-    value: boolean,
-  ) {
+  async function toggleField(id: string, field: ToggleField, value: boolean) {
+    const key = TOGGLE_FIELDS[field];
     const prev = queryClient.getQueryData<PaginationResponse<ProductReturnDto>>(queryKey);
     if (prev?.data) {
       queryClient.setQueryData<PaginationResponse<ProductReturnDto>>(queryKey, {
         ...prev,
-        data: prev.data.map((p) =>
-          p.id === id
-            ? {
-                ...p,
-                isActive: field === "IsActive" ? value : p.isActive,
-                isFeaturedProduct:
-                  field === "IsFeaturedProduct" ? value : p.isFeaturedProduct,
-              }
-            : p,
-        ),
+        data: prev.data.map((p) => (p.id === id ? { ...p, [key]: value } : p)),
       });
     }
     const res = await apiPatch<boolean>(`product/editProduct/${id}`, {
@@ -346,6 +346,41 @@ export default function ProductsPage() {
       render: (v: boolean, r) => (
         <Switch checked={v} disabled={!canEdit} onChange={(val) => toggleField(r.id, "IsFeaturedProduct", val)} />
       ),
+    },
+    {
+      title: (
+        <Tooltip title="Whether this product can be bought in dollars. The brand is the master switch — set that on the Exchange Rates page.">
+          <span>Dollar Purchasable</span>
+        </Tooltip>
+      ),
+      dataIndex: "isDollarPurchasable",
+      width: 100,
+      render: (v: boolean | undefined, r) => {
+        // The catalog response doesn't carry this flag yet, so on a freshly
+        // loaded page every row is `undefined` — unknown, not off. Say that
+        // rather than letting an off-looking switch pass for the real value.
+        // Toggling still saves, and the optimistic write makes the row known
+        // from then on. Once the API returns the field this branch stops
+        // firing on its own.
+        const unknown = v === undefined;
+        return (
+          <Tooltip
+            title={
+              unknown
+                ? "Current value isn't returned by the catalog API yet. Toggling saves the new value."
+                : undefined
+            }
+          >
+            <span className={unknown ? "opacity-50" : undefined}>
+              <Switch
+                checked={v ?? false}
+                disabled={!canEdit}
+                onChange={(val) => toggleField(r.id, "IsDollarPurchasable", val)}
+              />
+            </span>
+          </Tooltip>
+        );
+      },
     },
     {
       title: "",

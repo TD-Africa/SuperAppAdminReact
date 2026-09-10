@@ -31,6 +31,7 @@ const RolesPage = lazy(() => import("@/pages/Roles"));
 const DebtCollectionPage = lazy(() => import("@/pages/DebtCollection"));
 const WalletsPage = lazy(() => import("@/pages/Wallets"));
 const TransactionSettingsPage = lazy(() => import("@/pages/TransactionSettings"));
+const ExchangeRatesPage = lazy(() => import("@/pages/ExchangeRates"));
 const ForbiddenPage = lazy(() => import("@/pages/Forbidden"));
 
 const pageLoader = (
@@ -290,6 +291,14 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute permission={Permission.CanChangeSettings}>
             {withSuspense(<TransactionSettingsPage />)}
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "exchange-rates",
+        element: (
+          <ProtectedRoute permission={Permission.ManageExchangeRate}>
+            {withSuspense(<ExchangeRatesPage />)}
           </ProtectedRoute>
         ),
       },

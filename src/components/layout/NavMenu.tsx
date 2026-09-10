@@ -27,6 +27,7 @@ import {
   SettingOutlined,
   WalletOutlined,
   LockOutlined,
+  DollarOutlined,
 } from "@ant-design/icons";
 import { useAuthStore } from "@/stores/auth";
 import { Permission } from "@/lib/permissions";
@@ -101,6 +102,7 @@ const NAV_TREE: NavNode[] = [
   { type: "leaf", to: "/admin-users", label: "Admin Users", icon: <UserSwitchOutlined />, permission: Permission.CanViewSubUser },
   { type: "leaf", to: "/roles", label: "Roles", icon: <KeyOutlined />, permission: Permission.CanViewRoles },
   { type: "leaf", to: "/transaction-settings", label: "Transaction Settings", icon: <SettingOutlined />, permission: Permission.CanChangeSettings },
+  { type: "leaf", to: "/exchange-rates", label: "Exchange Rates", icon: <DollarOutlined />, permission: Permission.ManageExchangeRate },
 ];
 
 function collectLeaves(nodes: NavNode[]): NavLeaf[] {

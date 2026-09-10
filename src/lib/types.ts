@@ -123,6 +123,11 @@ export interface BaseProductReturnDto {
   dateModified: string | null;
   brand: BrandReturnDTO;
   mass: number;
+  // Cross-warehouse TOTAL — the sum of `warehouse[]`. The backend used to scope
+  // every product read to the default warehouse (TD MW); since the
+  // all-warehouses migration this is stock everywhere rather than one
+  // warehouse's figure. Verified against the deployed API 2026-09-10: both
+  // product/getProducts and Product/GetProduct/{id} now agree on this.
   quantity: number;
   productName: string;
   shortDescription: string | null;
@@ -140,6 +145,18 @@ export interface BaseProductReturnDto {
   // Backend serializes Warehouses as the singular "warehouse" via
   // [JsonPropertyName("warehouse")] on the C# DTO — the property is plural but
   // the wire name is singular. Match the wire name here.
+  //
+  // One entry per warehouse holding stock, each carrying its own `quantity`
+  // (summed over that warehouse's variant rows). This was always length 1
+  // before the all-warehouses migration, so `warehouse[0]` used to be "the"
+  // warehouse — it is now an arbitrary one. Never index into this to label
+  // stock; sum it or render the whole breakdown.
+  //
+  // Empty on rows returned by `isOutOfStock=true`, which bypasses the variant
+  // includes entirely.
+  //
+  // Only ~5 of the 33 locations are active (TD MW, TD ABUJA, TD PORTHARCOURT,
+  // Raw Material, Synix-Shopify), so expect a handful of entries, not dozens.
   warehouse: LocationWithQuantityResponse[] | null;
   exchangeRate: number;
   isFeaturedProduct: boolean;
@@ -159,7 +176,10 @@ export interface ProductVariantReturnDto {
   priceInNaira: number;
   priceInDollar: number;
   specialPrice: number;
+  // This variant's total across all warehouses (backend sums `warehouses`).
   quantity: number;
+  // Note the wire name is plural here, unlike the product-level `warehouse`.
+  // One entry per warehouse stocking this variant.
   warehouses: LocationWithQuantityResponse[] | null;
 }
 

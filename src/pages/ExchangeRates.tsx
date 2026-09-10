@@ -23,11 +23,16 @@ import {
   EditOutlined,
   HistoryOutlined,
 } from "@ant-design/icons";
-import { apiDelete, apiGet, apiPatch } from "@/lib/api";
+import { apiDelete, apiGet } from "@/lib/api";
 import type { ExchangeRateResponse, ExchangeRateSummaryDto } from "@/lib/types";
 import { Permission } from "@/lib/permissions";
 import { useAuthStore } from "@/stores/auth";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import {
+  EFFECTIVE_RATES_KEY,
+  useEffectiveRates,
+  useSetBrandDollarPurchasable,
+} from "@/hooks/useBrandDollarPurchasable";
 import { formatDateTime, formatNumber } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { SetRateModal } from "@/components/exchangeRates/SetRateModal";
@@ -77,61 +82,15 @@ export default function ExchangeRatesPage() {
     },
   });
 
-  const ratesQuery = useQuery({
-    queryKey: ["exchange-rates-effective"],
-    queryFn: async () => {
-      const res = await apiGet<ExchangeRateSummaryDto[]>(
-        "ExchangeRate/GetAllEffectiveRates",
-      );
-      if (!res.status) throw new Error(res.message ?? "Failed to load rates");
-      return res.data ?? [];
-    },
-  });
+  const ratesQuery = useEffectiveRates();
+  const setDollarPurchasable = useSetBrandDollarPurchasable();
 
   // A rate change moves both the base card and every brand inheriting it, so
   // refresh the pair together — and drop cached history for the edited target.
   function refreshRates() {
     queryClient.invalidateQueries({ queryKey: ["exchange-rate-base"] });
-    queryClient.invalidateQueries({ queryKey: ["exchange-rates-effective"] });
+    queryClient.invalidateQueries({ queryKey: EFFECTIVE_RATES_KEY });
     queryClient.invalidateQueries({ queryKey: ["exchange-rate-history"] });
-  }
-
-  // Flips the brand's master switch for dollar purchasing. Optimistic, because
-  // the effective-rates list is the only place this value is readable and a
-  // refetch would make the switch lag behind the click; the previous list is
-  // restored verbatim if the PATCH fails.
-  async function setDollarPurchasable(
-    brand: ExchangeRateSummaryDto,
-    value: boolean,
-  ) {
-    const prev = queryClient.getQueryData<ExchangeRateSummaryDto[]>([
-      "exchange-rates-effective",
-    ]);
-    if (prev) {
-      queryClient.setQueryData<ExchangeRateSummaryDto[]>(
-        ["exchange-rates-effective"],
-        prev.map((r) =>
-          r.brandId === brand.brandId ? { ...r, isDollarPurchasable: value } : r,
-        ),
-      );
-    }
-
-    const res = await apiPatch<boolean>(
-      `Brand/SetBrandDollarPurchasable/${brand.brandId}/dollar-purchasable`,
-      { isDollarPurchasable: value },
-    );
-
-    if (!res.status) {
-      message.error(res.message ?? "Could not update dollar purchasing");
-      queryClient.setQueryData(["exchange-rates-effective"], prev);
-      return;
-    }
-    message.success(
-      res.message ??
-        `Dollar purchasing ${value ? "enabled" : "disabled"} for ${
-          brand.brandName ?? "this brand"
-        }`,
-    );
   }
 
   async function removeOverride(brand: ExchangeRateSummaryDto) {
@@ -208,7 +167,7 @@ export default function ExchangeRatesPage() {
             size="small"
             checked={v}
             disabled={!canEditBrands}
-            onChange={(val) => setDollarPurchasable(r, val)}
+            onChange={(val) => setDollarPurchasable(r.brandId, r.brandName, val)}
           />
           <span className="text-xs text-muted-foreground">
             {v ? "Enabled" : "Disabled"}

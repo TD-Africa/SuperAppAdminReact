@@ -19,6 +19,7 @@ import {
   EyeOutlined,
   SyncOutlined,
   FontSizeOutlined,
+  RightOutlined,
 } from "@ant-design/icons";
 import { apiGet, apiPatch, apiPut, apiPost, API_BASE_URL, API_ORIGIN } from "@/lib/api";
 import type {
@@ -528,6 +529,33 @@ export default function ProductsPage() {
           }}
           expandable={{
             expandedRowRender: (r) => <WarehouseBreakdown product={r} />,
+            // The default +/- square reads like "add a row" rather than
+            // "reveal what's underneath". A chevron that turns to point down
+            // when open is the usual disclosure affordance, and it also shows
+            // which rows are currently expanded at a glance.
+            expandIcon: ({ expanded, onExpand, record }) => {
+              const label = expanded
+                ? "Hide warehouse breakdown"
+                : "Show warehouse breakdown";
+              return (
+                <Tooltip title={label}>
+                  <Button
+                    type="text"
+                    size="small"
+                    aria-label={label}
+                    aria-expanded={expanded}
+                    onClick={(e) => onExpand(record, e)}
+                    icon={
+                      <RightOutlined
+                        className={`!text-xs text-muted-foreground transition-transform duration-200 ${
+                          expanded ? "rotate-90" : ""
+                        }`}
+                      />
+                    }
+                  />
+                </Tooltip>
+              );
+            },
           }}
           scroll={{ x: 1200 }}
           locale={{ emptyText: "No products match the current filters." }}

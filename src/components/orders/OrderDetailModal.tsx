@@ -13,15 +13,18 @@ import {
   Checkbox,
   InputNumber,
   Table,
+  Tooltip,
 } from "antd";
 import type { DescriptionsProps, TableColumnsType } from "antd";
-import { CloudUploadOutlined } from "@ant-design/icons";
+import { CloudUploadOutlined, FilePdfOutlined } from "@ant-design/icons";
 import { apiGet, apiPatch, apiPost } from "@/lib/api";
+import { downloadOrderInvoice } from "@/lib/orderExports";
 import type { OrderProductReturnDto, OrderReturnDto } from "@/lib/types";
 import { PaymentMethodId } from "@/lib/paymentMethods";
 import {
   chargedTotal,
   formatPercent,
+  hasInvoice,
   hasSettlementDiscrepancy,
   orderStatusColor,
   paymentSummary,
@@ -57,6 +60,7 @@ export function OrderDetailModal({ orderId, open, onOpenChange, onUpdated }: Pro
   const [invoiceEdits, setInvoiceEdits] = useState<Record<string, number>>({});
   const [saving, setSaving] = useState(false);
   const [retrying, setRetrying] = useState(false);
+  const [downloadingInvoice, setDownloadingInvoice] = useState(false);
   const [retryOpen, setRetryOpen] = useState(false);
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [productOpen, setProductOpen] = useState(false);
@@ -242,6 +246,19 @@ export function OrderDetailModal({ orderId, open, onOpenChange, onUpdated }: Pro
     }
   }
 
+  async function handleDownloadInvoice() {
+    if (!data) return;
+    setDownloadingInvoice(true);
+    try {
+      const err = await downloadOrderInvoice(data.id);
+      if (err) message.error(err);
+    } finally {
+      setDownloadingInvoice(false);
+    }
+  }
+
+  const invoiceAvailable = !!data && hasInvoice(data);
+
   const hasDirtyEdits =
     !!data &&
     (isPDCCollected !== data.isPDCCollected ||
@@ -323,6 +340,29 @@ export function OrderDetailModal({ orderId, open, onOpenChange, onUpdated }: Pro
         title="Order details"
         width={1100}
         footer={[
+          // antd suppresses pointer events on a disabled button, so the tooltip
+          // that explains why it is disabled needs the wrapper to hover over.
+          !!data && (
+            <Tooltip
+              key="invoice"
+              title={
+                invoiceAvailable
+                  ? "Customer invoice PDF"
+                  : "No invoice yet — Dynamics has not invoiced this order."
+              }
+            >
+              <span className="inline-block">
+                <Button
+                  icon={<FilePdfOutlined />}
+                  loading={downloadingInvoice}
+                  disabled={!invoiceAvailable}
+                  onClick={handleDownloadInvoice}
+                >
+                  Download invoice
+                </Button>
+              </span>
+            </Tooltip>
+          ),
           canEdit && !!data && !postedToDynamics && (
             <Button
               key="retry"

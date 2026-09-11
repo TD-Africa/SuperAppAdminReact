@@ -9,10 +9,17 @@ import {
   Button,
   Space,
   Tag,
+  Tooltip,
+  App as AntdApp,
 } from "antd";
 import type { TableColumnsType } from "antd";
-import { DownloadOutlined, EyeOutlined } from "@ant-design/icons";
+import {
+  DownloadOutlined,
+  EyeOutlined,
+  FilePdfOutlined,
+} from "@ant-design/icons";
 import { apiGet, API_BASE_URL } from "@/lib/api";
+import { downloadOrderInvoice } from "@/lib/orderExports";
 import type {
   OrderReturnDto,
   OrderStatusReturnDTO,
@@ -22,6 +29,7 @@ import { PaymentMethodId } from "@/lib/paymentMethods";
 import {
   OrderStatusId,
   formatPercent,
+  hasInvoice,
   orderStatusColor,
   paymentSummary,
 } from "@/lib/orderStatus";
@@ -32,6 +40,7 @@ import { OrderDetailModal } from "@/components/orders/OrderDetailModal";
 const ALL = "__all__";
 
 export default function OrdersPage() {
+  const { message } = AntdApp.useApp();
   const [keyword, setKeyword] = useState("");
   const debouncedKeyword = useDebouncedValue(keyword, 350);
   const [orderStatusId, setOrderStatusId] = useState<string>(ALL);
@@ -43,6 +52,7 @@ export default function OrdersPage() {
 
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [invoiceBusyId, setInvoiceBusyId] = useState<string | null>(null);
 
   const { data: statuses } = useQuery({
     queryKey: ["order-statuses"],
@@ -101,6 +111,16 @@ export default function OrdersPage() {
 
   function downloadFiltered() {
     window.open(`${API_BASE_URL}Order/DownloadOrders?${queryParams}`, "_blank");
+  }
+
+  async function downloadInvoice(orderId: string) {
+    setInvoiceBusyId(orderId);
+    try {
+      const err = await downloadOrderInvoice(orderId);
+      if (err) message.error(err);
+    } finally {
+      setInvoiceBusyId(null);
+    }
   }
 
   function totalFor(order: OrderReturnDto, currency: "NGN" | "USD") {
@@ -197,10 +217,31 @@ export default function OrdersPage() {
     {
       title: "",
       key: "actions",
-      width: 60,
+      width: 96,
       align: "right",
       render: (_, r) => (
-        <Button size="small" icon={<EyeOutlined />} onClick={() => openDetail(r.id)} />
+        <Space size={4}>
+          {/* Rendered only where the PDF exists — the endpoint refuses an
+              un-invoiced order, so a permanently dead button would just be
+              noise on the many orders Dynamics has not invoiced yet. */}
+          {hasInvoice(r) && (
+            <Tooltip title="Download invoice">
+              <Button
+                size="small"
+                icon={<FilePdfOutlined />}
+                loading={invoiceBusyId === r.id}
+                onClick={() => downloadInvoice(r.id)}
+              />
+            </Tooltip>
+          )}
+          <Tooltip title="View details">
+            <Button
+              size="small"
+              icon={<EyeOutlined />}
+              onClick={() => openDetail(r.id)}
+            />
+          </Tooltip>
+        </Space>
       ),
     },
   ];

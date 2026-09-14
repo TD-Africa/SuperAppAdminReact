@@ -181,6 +181,23 @@ export async function apiDelete<T>(
   }
 }
 
+// `responseType: "blob"` applies to error responses too, so a failed download
+// hands `fail()` a Blob rather than the Result envelope and every failure reads
+// as "Request failed with status code 400". Read the body back as text to
+// recover the server's own message (e.g. "This order has not been invoiced yet").
+async function blobErrorMessage(err: unknown): Promise<string | null> {
+  const data = (err as AxiosError).response?.data;
+  if (!(data instanceof Blob)) return null;
+  try {
+    const parsed = JSON.parse(await data.text()) as { message?: unknown };
+    return typeof parsed.message === "string" && parsed.message.trim()
+      ? parsed.message
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 // Authenticated file download. Unlike `window.open(...)`, this routes through the
 // axios instance so the Bearer token is attached (required by endpoints like
 // Order/DownloadWorkerSales that return 401 without it). Streams the response as a
@@ -211,7 +228,9 @@ export async function downloadFile(
     URL.revokeObjectURL(blobUrl);
     return null;
   } catch (err) {
-    return fail<never>(err).message ?? "Download failed";
+    return (
+      (await blobErrorMessage(err)) ?? fail<never>(err).message ?? "Download failed"
+    );
   }
 }
 

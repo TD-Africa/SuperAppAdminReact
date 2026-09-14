@@ -120,6 +120,20 @@ export function formatPercent(percent: number) {
 }
 
 /**
+ * Whether an invoice PDF exists to download for this order.
+ *
+ * Mirrors InvoiceService.HasInvoice, the guard Order/DownloadInvoice applies
+ * before rendering: the order-level flag OR any line carrying an invoice number.
+ * The pair matters — multi-warehouse orders get their invoice numbers per line
+ * as each warehouse's sales order is invoiced, so lines can be numbered while
+ * `isInvoiced` still lags.
+ */
+export function hasInvoice(order: OrderReturnDto) {
+  if (order.isInvoiced) return true;
+  return (order.orderedProducts ?? []).some((op) => !!op.invoiceID?.trim());
+}
+
+/**
  * Whether the per-invoice settlement split contradicts the order-level flags.
  *
  * OrderService.ApplySettlementTotals reads `group.First().AmountPaid` as the

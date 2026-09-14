@@ -19,6 +19,7 @@ import {
   EyeOutlined,
   SyncOutlined,
   FontSizeOutlined,
+  FieldNumberOutlined,
   RightOutlined,
 } from "@ant-design/icons";
 import { apiGet, apiPatch, apiPut, apiPost, API_BASE_URL, API_ORIGIN } from "@/lib/api";
@@ -142,6 +143,7 @@ export default function ProductsPage() {
   const [inventorySyncing, setInventorySyncing] = useState(false);
   const [pricesSyncing, setPricesSyncing] = useState(false);
   const [namesSyncing, setNamesSyncing] = useState(false);
+  const [quantitiesSyncing, setQuantitiesSyncing] = useState(false);
 
   const queryParams = useMemo(() => {
     const params = new URLSearchParams();
@@ -241,6 +243,46 @@ export default function ProductsPage() {
     } finally {
       hide();
       setNamesSyncing(false);
+    }
+  }
+
+  async function syncQuantity(id: string) {
+    const res = await apiPut<boolean>(
+      `Product/SyncProductQuantity/${id}/sync-quantity`,
+    );
+    if (res.status) {
+      // Runs inline (BooleanResult comes back after the work), unlike the bulk
+      // action below — so the refetched row already reflects the new stock.
+      message.success(res.message ?? "Quantity synced");
+      refetch();
+    } else {
+      message.error(res.message ?? "Sync failed");
+    }
+  }
+
+  async function syncAllQuantities() {
+    setQuantitiesSyncing(true);
+    const hide = message.loading("Starting quantity sync…", 0);
+    try {
+      const res = await apiPut<string>(
+        "Product/SyncAllProductQuantities/sync-all-quantities",
+      );
+      if (res.status) {
+        // Fire-and-forget: the controller returns 202 the moment it queues the
+        // work, so there is nothing to refetch yet — the request completing is
+        // not the sync completing. The server's own status line lives in
+        // `data` ("Quantity sync started."); `message` is the envelope's
+        // generic "Operation completed successfully", which would read as if
+        // the sync had finished.
+        message.success(res.data ?? res.message ?? "Quantity sync started");
+      } else {
+        // Includes the 409 gate ("A quantity sync is already running."), which
+        // arrives as the failure message.
+        message.error(res.message ?? "Quantity sync failed");
+      }
+    } finally {
+      hide();
+      setQuantitiesSyncing(false);
     }
   }
 
@@ -386,7 +428,7 @@ export default function ProductsPage() {
     {
       title: "",
       key: "actions",
-      width: 140,
+      width: 170,
       align: "right",
       render: (_, r) => (
         <Space size={4}>
@@ -405,6 +447,14 @@ export default function ProductsPage() {
               icon={<FontSizeOutlined />}
               onClick={() => syncName(r.id)}
               title="Sync name"
+            />
+          )}
+          {canEdit && (
+            <Button
+              size="small"
+              icon={<FieldNumberOutlined />}
+              onClick={() => syncQuantity(r.id)}
+              title="Sync quantity"
             />
           )}
         </Space>
@@ -494,6 +544,18 @@ export default function ProductsPage() {
             >
               Sync all names
             </Button>
+          )}
+          {canEdit && (
+            <Tooltip title="Re-pulls every product's quantity from middleware. Runs in the background — the grid won't update until you refresh, and starting a second run while one is in flight is rejected.">
+              <Button
+                type="default"
+                icon={<SyncOutlined spin={quantitiesSyncing} />}
+                loading={quantitiesSyncing}
+                onClick={syncAllQuantities}
+              >
+                Sync all quantities
+              </Button>
+            </Tooltip>
           )}
           {canEdit && (
             <Tooltip title="Pulls stock for every warehouse from Dynamics. This also runs automatically each hour — trigger it manually only to pick up a change early.">

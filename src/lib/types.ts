@@ -344,12 +344,19 @@ export interface CreditSyncResult {
 }
 
 // ---- CAC Registration ----
+// Fields marked optional are not in the API response yet — see the backend
+// request in CacDataDetailModal. They render only once the API supplies them.
 export interface CacPersonResponse {
+  id?: string;
   firstName: string;
+  middleName?: string | null;
   lastName: string;
   email: string;
+  phoneNumber?: string | null;
+  homeAddress?: string | null;
   dateOfBirth: string;
   occupation: string;
+  idNumber?: string | null;
 }
 
 export interface CacRegistrationResponse {
@@ -357,10 +364,26 @@ export interface CacRegistrationResponse {
   firstPreferredBusinessName: string | null;
   secondPreferredBusinessName: string | null;
   businessDescription: string | null;
+  /** Never populated by the API today — there is no column for it. */
   transactionReference: string | null;
   dateCreated: string;
   directors: CacPersonResponse[];
   secretaries: CacPersonResponse[];
+
+  businessRegType?: string | null;
+  objectiveOfBusiness?: string | null;
+  shareCapital?: string | null;
+  shareholdingRatio?: string | null;
+  companyEmail?: string | null;
+  companyPhone?: string | null;
+  companyHeadOfficeAddress?: string | null;
+  regStatus?: string | null;
+  isCacRegFeePaid?: boolean;
+  isRegCompleted?: boolean;
+  cost?: number | null;
+  proprietor?: CacPersonResponse | null;
+  applicantName?: string | null;
+  applicantEmail?: string | null;
 }
 
 // ---- Ratings ----

@@ -90,8 +90,8 @@ const NAV_TREE: NavNode[] = [
     label: "Deals",
     icon: <TagsOutlined />,
     children: [
-      { type: "leaf", to: "/deals", label: "All Deals", icon: <TagsOutlined />, permission: Permission.CanViewBrands },
-      { type: "leaf", to: "/deals-audit-logs", label: "Audit Logs", icon: <HistoryOutlined />, permission: Permission.CanViewBrands },
+      { type: "leaf", to: "/deals", label: "All Deals", icon: <TagsOutlined />, permission: Permission.CanManageDeals },
+      { type: "leaf", to: "/deals-audit-logs", label: "Audit Logs", icon: <HistoryOutlined />, permission: Permission.CanManageDeals },
     ],
   },
   { type: "leaf", to: "/warehouses", label: "Warehouses", icon: <ContainerOutlined />, permission: Permission.CanViewWarehouses },

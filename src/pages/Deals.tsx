@@ -67,7 +67,7 @@ function discountDisplay(d: DealResponse): string {
 export default function DealsPage() {
   const queryClient = useQueryClient();
   const { message } = AntdApp.useApp();
-  const canEdit = useAuthStore((s) => s.hasPermission(Permission.CanEditBrands));
+  const canEdit = useAuthStore((s) => s.hasPermission(Permission.CanManageDeals));
 
   const [keyword, setKeyword] = useState("");
   const debouncedKeyword = useDebouncedValue(keyword, 350);

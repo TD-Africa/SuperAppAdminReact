@@ -67,6 +67,7 @@ export const Permission = {
   CanManageLogisticsPartners: "CanManageLogisticsPartners",
   CanUpdateOrderLogisticsStatus: "CanUpdateOrderLogisticsStatus",
   CanManageCoupons: "CanManageCoupons",
+  CanManageDeals: "CanManageDeals",
   CanViewDebtCollection: "CanViewDebtCollection",
   CanViewAuditTrail: "CanViewAuditTrail",
   ManageExchangeRate: "ManageExchangeRate",

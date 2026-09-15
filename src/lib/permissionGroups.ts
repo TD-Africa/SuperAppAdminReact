@@ -1,6 +1,6 @@
 import type { Permission } from "./permissions";
 
-// Human-friendly grouping for the 68 PermissionEnum values.
+// Human-friendly grouping for the 69 PermissionEnum values.
 // Used on the Roles edit form to turn a flat list into a matrix.
 // NOTE: PermissionMatrix only renders permissions that appear in a group here, so any
 // permission the backend adds must be slotted in or it is invisible in the role editor.
@@ -60,6 +60,11 @@ export const PERMISSION_GROUPS: PermissionGroupDef[] = [
     key: "coupons",
     label: "Coupons",
     permissions: ["CanManageCoupons"],
+  },
+  {
+    key: "deals",
+    label: "Deals",
+    permissions: ["CanManageDeals"],
   },
   {
     key: "orders",

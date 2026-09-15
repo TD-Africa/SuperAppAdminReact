@@ -217,7 +217,7 @@ export const router = createBrowserRouter([
       {
         path: "deals",
         element: (
-          <ProtectedRoute permission={Permission.CanViewBrands}>
+          <ProtectedRoute permission={Permission.CanManageDeals}>
             {withSuspense(<DealsPage />)}
           </ProtectedRoute>
         ),
@@ -225,7 +225,7 @@ export const router = createBrowserRouter([
       {
         path: "deals-audit-logs",
         element: (
-          <ProtectedRoute permission={Permission.CanViewBrands}>
+          <ProtectedRoute permission={Permission.CanManageDeals}>
             {withSuspense(<DealsAuditLogsPage />)}
           </ProtectedRoute>
         ),

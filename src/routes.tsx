@@ -21,6 +21,7 @@ const FranchiseBrandsPage = lazy(() => import("@/pages/FranchiseBrands"));
 const FranchiseBrandDetailPage = lazy(() => import("@/pages/FranchiseBrandDetail"));
 const FranchiseCategoriesPage = lazy(() => import("@/pages/FranchiseCategories"));
 const FranchiseCategoryDetailPage = lazy(() => import("@/pages/FranchiseCategoryDetail"));
+const FranchiseStoreOwnerInvitesPage = lazy(() => import("@/pages/FranchiseStoreOwnerInvites"));
 const FranchiseStoreOwnersPage = lazy(() => import("@/pages/FranchiseStoreOwners"));
 const FranchiseStoreOwnerDetailPage = lazy(() => import("@/pages/FranchiseStoreOwnerDetail"));
 const FranchisePayoutsPage = lazy(() => import("@/pages/FranchisePayouts"));
@@ -277,6 +278,14 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute permission={Permission.CanViewBrands}>
             {withSuspense(<FranchiseCategoryDetailPage />)}
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "franchise-store-owner-invites",
+        element: (
+          <ProtectedRoute permission={Permission.CanViewUser}>
+            {withSuspense(<FranchiseStoreOwnerInvitesPage />)}
           </ProtectedRoute>
         ),
       },

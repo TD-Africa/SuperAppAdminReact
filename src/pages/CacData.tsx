@@ -1,17 +1,26 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Card, Input, Typography, Table, Button } from "antd";
+import { Card, Input, Select, Tag, Typography, Table, Button } from "antd";
 import type { TableColumnsType } from "antd";
 import { EyeOutlined } from "@ant-design/icons";
 import { apiGet } from "@/lib/api";
 import type { CacRegistrationResponse } from "@/lib/types";
+import {
+  CAC_TYPE_COLOR,
+  CAC_TYPE_LABEL,
+  CAC_TYPE_SHORT_LABEL,
+  cacRegistrationType,
+} from "@/lib/cacRegistrationType";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { formatDate } from "@/lib/utils";
 import { CacDataDetailModal } from "@/components/cac/CacDataDetailModal";
 
+const ALL = "__all__";
+
 export default function CacDataPage() {
   const [keyword, setKeyword] = useState("");
   const debouncedKeyword = useDebouncedValue(keyword, 250);
+  const [regType, setRegType] = useState<string>(ALL);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -32,13 +41,14 @@ export default function CacDataPage() {
   const filtered = useMemo(() => {
     const list = data ?? [];
     const q = debouncedKeyword.trim().toLowerCase();
-    if (!q) return list;
-    return list.filter((r) =>
-      [r.firstPreferredBusinessName, r.secondPreferredBusinessName, r.businessDescription]
+    return list.filter((r) => {
+      if (regType !== ALL && cacRegistrationType(r) !== regType) return false;
+      if (!q) return true;
+      return [r.firstPreferredBusinessName, r.secondPreferredBusinessName]
         .filter(Boolean)
-        .some((v) => v!.toLowerCase().includes(q)),
-    );
-  }, [data, debouncedKeyword]);
+        .some((v) => v!.toLowerCase().includes(q));
+    });
+  }, [data, debouncedKeyword, regType]);
 
   const totalItems = filtered.length;
   const paginated = useMemo(
@@ -54,28 +64,37 @@ export default function CacDataPage() {
     },
     { title: "Second preferred", dataIndex: "secondPreferredBusinessName", render: (v) => v ?? "—" },
     {
-      title: "Business description",
-      dataIndex: "businessDescription",
-      render: (v) => (
-        <span className="block max-w-[320px] truncate text-muted-foreground">{v ?? "—"}</span>
-      ),
+      title: "Type",
+      key: "type",
+      render: (_, r) => {
+        const t = cacRegistrationType(r);
+        return (
+          <Tag color={CAC_TYPE_COLOR[t]} title={CAC_TYPE_LABEL[t]}>
+            {CAC_TYPE_SHORT_LABEL[t]}
+          </Tag>
+        );
+      },
     },
     {
       title: "Submitted",
       dataIndex: "dateCreated",
       render: (v) => <span className="text-xs text-muted-foreground">{formatDate(v)}</span>,
     },
+    // Directors and secretaries belong to the LLC flow only — a business name
+    // carries a proprietor instead, so a zero there would be misleading.
     {
       title: "Directors",
-      dataIndex: "directors",
+      key: "directors",
       align: "right",
-      render: (v: unknown[]) => v?.length ?? 0,
+      render: (_, r) =>
+        cacRegistrationType(r) === "llc" ? (r.directors?.length ?? 0) : "—",
     },
     {
       title: "Secretaries",
-      dataIndex: "secretaries",
+      key: "secretaries",
       align: "right",
-      render: (v: unknown[]) => v?.length ?? 0,
+      render: (_, r) =>
+        cacRegistrationType(r) === "llc" ? (r.secretaries?.length ?? 0) : "—",
     },
     {
       title: "",
@@ -107,15 +126,31 @@ export default function CacDataPage() {
       </div>
 
       <Card styles={{ body: { padding: 16 } }}>
-        <Input
-          placeholder="Search by business name or description…"
-          value={keyword}
-          allowClear
-          onChange={(e) => {
-            setPage(1);
-            setKeyword(e.target.value);
-          }}
-        />
+        <div className="flex flex-col gap-3 md:flex-row">
+          <Input
+            className="md:flex-1"
+            placeholder="Search by preferred business name…"
+            value={keyword}
+            allowClear
+            onChange={(e) => {
+              setPage(1);
+              setKeyword(e.target.value);
+            }}
+          />
+          <Select
+            className="md:w-64"
+            value={regType}
+            onChange={(v) => {
+              setPage(1);
+              setRegType(v);
+            }}
+            options={[
+              { value: ALL, label: "All registration types" },
+              { value: "businessName", label: CAC_TYPE_LABEL.businessName },
+              { value: "llc", label: CAC_TYPE_LABEL.llc },
+            ]}
+          />
+        </div>
       </Card>
 
       <Card styles={{ body: { padding: 0 } }}>

@@ -11,6 +11,11 @@ import {
 import type { TableColumnsType } from "antd";
 import { apiGet } from "@/lib/api";
 import type { CacPersonResponse, CacRegistrationResponse } from "@/lib/types";
+import {
+  CAC_TYPE_COLOR,
+  CAC_TYPE_LABEL,
+  cacRegistrationType,
+} from "@/lib/cacRegistrationType";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
 
 interface Props {
@@ -81,6 +86,9 @@ export function CacDataDetailModal({ cacId, open, onOpenChange }: Props) {
     },
   ];
 
+  const regType = data ? cacRegistrationType(data) : null;
+  const isLlc = regType === "llc";
+
   // Only the rows the API actually returned, so the panel never fills with dashes.
   const businessRows: { label: string; value: React.ReactNode }[] = [];
   if (data) {
@@ -97,13 +105,17 @@ export function CacDataDetailModal({ cacId, open, onOpenChange }: Props) {
       data.secondPreferredBusinessName,
       !!data.secondPreferredBusinessName,
     );
-    add("Registration type", data.businessRegType, !!data.businessRegType);
-    add("Company email", data.companyEmail, !!data.companyEmail);
-    add("Company phone", data.companyPhone, !!data.companyPhone);
-    add("Share capital", data.shareCapital, !!data.shareCapital);
-    add("Shareholding ratio", data.shareholdingRatio, !!data.shareholdingRatio);
+    add(isLlc ? "Company email" : "Business email", data.companyEmail, !!data.companyEmail);
+    add(isLlc ? "Company phone" : "Business phone", data.companyPhone, !!data.companyPhone);
+    // Share capital and shareholding only exist on the LLC flow.
+    add("Share capital", data.shareCapital, isLlc && !!data.shareCapital);
     add(
-      "Head office address",
+      "Shareholding ratio",
+      data.shareholdingRatio,
+      isLlc && !!data.shareholdingRatio,
+    );
+    add(
+      isLlc ? "Head office address" : "Business address",
       data.companyHeadOfficeAddress,
       !!data.companyHeadOfficeAddress,
     );
@@ -121,8 +133,9 @@ export function CacDataDetailModal({ cacId, open, onOpenChange }: Props) {
     );
   }
 
-  const statusTags = data ? (
+  const statusTags = data && regType ? (
     <div className="flex flex-wrap gap-2">
+      <Tag color={CAC_TYPE_COLOR[regType]}>{CAC_TYPE_LABEL[regType]}</Tag>
       {data.regStatus && <Tag>{data.regStatus}</Tag>}
       {data.isCacRegFeePaid != null && (
         <Tag color={data.isCacRegFeePaid ? "green" : "orange"}>
@@ -137,12 +150,6 @@ export function CacDataDetailModal({ cacId, open, onOpenChange }: Props) {
     </div>
   ) : null;
 
-  const hasStatus =
-    !!data &&
-    (!!data.regStatus ||
-      data.isCacRegFeePaid != null ||
-      data.isRegCompleted != null);
-
   const section = (title: string, count: number, node: React.ReactNode) => (
     <div>
       <Typography.Text strong>
@@ -152,7 +159,7 @@ export function CacDataDetailModal({ cacId, open, onOpenChange }: Props) {
     </div>
   );
 
-  const peopleTable = (rows: CacPersonResponse[]) => (
+  const peopleTable = (rows: CacPersonResponse[], emptyText = "None listed.") => (
     <Table<CacPersonResponse>
       rowKey={(r, i) => r.id ?? `${r.email ?? "person"}-${i}`}
       dataSource={rows}
@@ -160,7 +167,7 @@ export function CacDataDetailModal({ cacId, open, onOpenChange }: Props) {
       pagination={false}
       size="small"
       scroll={{ x: "max-content" }}
-      locale={{ emptyText: <Empty description="None listed." /> }}
+      locale={{ emptyText: <Empty description={emptyText} /> }}
     />
   );
 
@@ -177,7 +184,7 @@ export function CacDataDetailModal({ cacId, open, onOpenChange }: Props) {
         <Skeleton active paragraph={{ rows: 8 }} />
       ) : (
         <div className="space-y-5">
-          {hasStatus && statusTags}
+          {statusTags}
 
           {businessRows.length > 0 && (
             <Descriptions column={{ xs: 1, md: 2 }} size="small" colon={false} bordered>
@@ -187,17 +194,6 @@ export function CacDataDetailModal({ cacId, open, onOpenChange }: Props) {
                 </Descriptions.Item>
               ))}
             </Descriptions>
-          )}
-
-          {data.businessDescription && (
-            <div>
-              <Typography.Text type="secondary" className="text-xs uppercase">
-                Business description
-              </Typography.Text>
-              <p className="mt-1 whitespace-pre-wrap text-sm">
-                {data.businessDescription}
-              </p>
-            </div>
           )}
 
           {data.objectiveOfBusiness && (
@@ -211,19 +207,34 @@ export function CacDataDetailModal({ cacId, open, onOpenChange }: Props) {
             </div>
           )}
 
-          {data.proprietor &&
-            section("Proprietor", 1, peopleTable([data.proprietor]))}
+          {/*
+            A business name has one proprietor; an LLC has directors and
+            secretaries. Only the sections that belong to this record's flow are
+            rendered, so an LLC never shows an empty proprietor panel.
+          */}
+          {isLlc ? (
+            <>
+              {section(
+                "Directors",
+                data.directors?.length ?? 0,
+                peopleTable(data.directors ?? []),
+              )}
 
-          {section(
-            "Directors",
-            data.directors?.length ?? 0,
-            peopleTable(data.directors ?? []),
-          )}
-
-          {section(
-            "Secretaries",
-            data.secretaries?.length ?? 0,
-            peopleTable(data.secretaries ?? []),
+              {section(
+                "Secretaries",
+                data.secretaries?.length ?? 0,
+                peopleTable(data.secretaries ?? []),
+              )}
+            </>
+          ) : (
+            section(
+              "Proprietor",
+              data.proprietor ? 1 : 0,
+              peopleTable(
+                data.proprietor ? [data.proprietor] : [],
+                "The API does not return the proprietor on this endpoint yet.",
+              ),
+            )
           )}
         </div>
       )}

@@ -785,38 +785,38 @@ export interface AbandonedCartUserDTO {
   cartProducts: CartProductDTO[];
 }
 
-// ---- Audit logs ----
-export interface PaginatedApiResponse<T> {
-  data: T[];
-  pageNumber: number;
-  pageSize: number;
-  totalPages: number;
-  totalRecords: number;
-  hasPrevious: boolean;
-  hasNext: boolean;
+// ---- Audit trail ----
+// Mirror of TDSuperApp.DTOs.Response.AdminAuditLogResponse — the platform-wide
+// audit trail (AuditLog/Query, AuditLog/GetById). One row per admin mutation on
+// any entity; the snapshots and diff are free-form jsonb, so they arrive as
+// opaque objects rather than a typed shape.
+//
+// Casing note: beforeData/afterData/changes are raw JsonElements the backend
+// stores verbatim, serialized with no naming policy — their *inner* keys are
+// PascalCase ("Name", "Before", "After") even though the envelope around them is
+// camelCase. Read them through the helpers in @/lib/auditTrail, which accept both.
+export interface AuditChange {
+  Before?: unknown;
+  After?: unknown;
+  before?: unknown;
+  after?: unknown;
 }
 
-export interface AuditLogItem {
+export interface AdminAuditLogItem {
   id: string;
+  entityType: string;
+  entityId: string;
   action: string;
-  adminId: string;
+  adminId: string | null;
+  adminName: string | null;
+  adminEmail: string | null;
   roleName: string | null;
-  adminName: string;
-  adminEmail: string;
   beforeData: Record<string, unknown> | null;
   afterData: Record<string, unknown> | null;
-  updatedData: { changes?: Record<string, unknown> } | null;
-  ipAddress: string;
-  userAgent: string;
+  changes: Record<string, AuditChange> | null;
+  ipAddress: string | null;
+  userAgent: string | null;
   createdAt: string;
-}
-
-export interface PromoAuditLogItem extends AuditLogItem {
-  promoId: string;
-}
-
-export interface DealAuditLogItem extends AuditLogItem {
-  dealId: string;
 }
 
 // ---- Order support DTOs ----

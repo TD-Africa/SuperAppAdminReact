@@ -342,8 +342,8 @@ export interface CreditSyncResult {
 }
 
 // ---- CAC Registration ----
-// Fields marked optional are not in the API response yet — see the backend
-// request in CacDataDetailModal. They render only once the API supplies them.
+// Mirrors CacRegistrationResponse / CacPersonResponse / CacRegistrantResponse in
+// the admin API. Optional members are the ones the API declares nullable.
 export interface CacPersonResponse {
   id?: string;
   firstName: string;
@@ -355,33 +355,54 @@ export interface CacPersonResponse {
   dateOfBirth: string;
   occupation: string;
   idNumber?: string | null;
+  // Uploaded supporting documents. Only the names are returned; the files
+  // themselves come down through the CAC documents zip export.
+  passportPhotoFileName?: string | null;
+  signaturePhotoFileName?: string | null;
+  idFileName?: string | null;
+}
+
+/**
+ * The person who submitted the registration — a row in ProspectiveCacCustomers,
+ * not an ApplicationUser. `hasSuperAppAccount` reports whether
+ * CacRegistration/CreateUserAfterCACIsRegistered has already run for them.
+ *
+ * `id` is the value that endpoint wants as `prospectiveUserId`; it equals the
+ * registration's own `applicationUserId`. Null on registrations submitted by an
+ * already-registered partner, which have no prospective-customer row at all.
+ */
+export interface CacRegistrantResponse {
+  id: string;
+  firstName: string | null;
+  lastName: string | null;
+  email: string | null;
+  phoneNumber: string | null;
+  isRegistered: boolean;
+  hasSuperAppAccount: boolean;
+  superAppUserId: string | null;
+  dateCreated: string | null;
 }
 
 export interface CacRegistrationResponse {
   id: string;
+  /** The submitting ProspectiveCacCustomer's id — see `registrant`. */
+  applicationUserId: string;
   firstPreferredBusinessName: string | null;
   secondPreferredBusinessName: string | null;
   businessDescription: string | null;
-  /** Never populated by the API today — there is no column for it. */
-  transactionReference: string | null;
+  objectiveOfBusiness: string | null;
+  shareCapital: string | null;
+  shareholdingRatio: string | null;
+  companyEmail: string | null;
+  companyPhone: string | null;
+  companyHeadOfficeAddress: string | null;
   dateCreated: string;
-  directors: CacPersonResponse[];
-  secretaries: CacPersonResponse[];
-
-  businessRegType?: string | null;
-  objectiveOfBusiness?: string | null;
-  shareCapital?: string | null;
-  shareholdingRatio?: string | null;
-  companyEmail?: string | null;
-  companyPhone?: string | null;
-  companyHeadOfficeAddress?: string | null;
-  regStatus?: string | null;
-  isCacRegFeePaid?: boolean;
-  isRegCompleted?: boolean;
-  cost?: number | null;
+  /** "Company" (LLC flow) or "BusinessName". See lib/cacRegistrationType. */
+  registrationType: string | null;
+  registrant: CacRegistrantResponse | null;
+  directors: CacPersonResponse[] | null;
+  secretaries: CacPersonResponse[] | null;
   proprietor?: CacPersonResponse | null;
-  applicantName?: string | null;
-  applicantEmail?: string | null;
 }
 
 // ---- Ratings ----
@@ -785,38 +806,38 @@ export interface AbandonedCartUserDTO {
   cartProducts: CartProductDTO[];
 }
 
-// ---- Audit logs ----
-export interface PaginatedApiResponse<T> {
-  data: T[];
-  pageNumber: number;
-  pageSize: number;
-  totalPages: number;
-  totalRecords: number;
-  hasPrevious: boolean;
-  hasNext: boolean;
+// ---- Audit trail ----
+// Mirror of TDSuperApp.DTOs.Response.AdminAuditLogResponse — the platform-wide
+// audit trail (AuditLog/Query, AuditLog/GetById). One row per admin mutation on
+// any entity; the snapshots and diff are free-form jsonb, so they arrive as
+// opaque objects rather than a typed shape.
+//
+// Casing note: beforeData/afterData/changes are raw JsonElements the backend
+// stores verbatim, serialized with no naming policy — their *inner* keys are
+// PascalCase ("Name", "Before", "After") even though the envelope around them is
+// camelCase. Read them through the helpers in @/lib/auditTrail, which accept both.
+export interface AuditChange {
+  Before?: unknown;
+  After?: unknown;
+  before?: unknown;
+  after?: unknown;
 }
 
-export interface AuditLogItem {
+export interface AdminAuditLogItem {
   id: string;
+  entityType: string;
+  entityId: string;
   action: string;
-  adminId: string;
+  adminId: string | null;
+  adminName: string | null;
+  adminEmail: string | null;
   roleName: string | null;
-  adminName: string;
-  adminEmail: string;
   beforeData: Record<string, unknown> | null;
   afterData: Record<string, unknown> | null;
-  updatedData: { changes?: Record<string, unknown> } | null;
-  ipAddress: string;
-  userAgent: string;
+  changes: Record<string, AuditChange> | null;
+  ipAddress: string | null;
+  userAgent: string | null;
   createdAt: string;
-}
-
-export interface PromoAuditLogItem extends AuditLogItem {
-  promoId: string;
-}
-
-export interface DealAuditLogItem extends AuditLogItem {
-  dealId: string;
 }
 
 // ---- Order support DTOs ----

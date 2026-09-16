@@ -1,4 +1,8 @@
-import axios, { AxiosError, type AxiosRequestConfig } from "axios";
+import axios, {
+  AxiosError,
+  type AxiosRequestConfig,
+  type AxiosResponse,
+} from "axios";
 import type { ApiResult } from "./types";
 
 export const AUTH_STORAGE_KEY =
@@ -198,6 +202,32 @@ async function blobErrorMessage(err: unknown): Promise<string | null> {
   }
 }
 
+// Hands the blob to the browser as a download. The Content-Disposition filename
+// is only readable when the server also sends Access-Control-Expose-Headers —
+// the admin API does not today, so cross-origin downloads fall back to the
+// caller's filename. Keep that fallback meaningful.
+function saveBlob(res: AxiosResponse, fallbackFilename: string) {
+  let filename = fallbackFilename;
+  const disposition = res.headers?.["content-disposition"] as string | undefined;
+  const match = disposition?.match(/filename\*?=(?:UTF-8'')?"?([^;"]+)"?/i);
+  if (match?.[1]) filename = decodeURIComponent(match[1]);
+
+  const blobUrl = URL.createObjectURL(res.data as Blob);
+  const link = document.createElement("a");
+  link.href = blobUrl;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(blobUrl);
+}
+
+async function downloadError(err: unknown): Promise<string> {
+  return (
+    (await blobErrorMessage(err)) ?? fail<never>(err).message ?? "Download failed"
+  );
+}
+
 // Authenticated file download. Unlike `window.open(...)`, this routes through the
 // axios instance so the Bearer token is attached (required by endpoints like
 // Order/DownloadWorkerSales that return 401 without it). Streams the response as a
@@ -210,27 +240,37 @@ export async function downloadFile(
 ): Promise<string | null> {
   try {
     const res = await http.get(url, { ...config, responseType: "blob" });
-
-    let filename = fallbackFilename;
-    const disposition = res.headers?.["content-disposition"] as
-      | string
-      | undefined;
-    const match = disposition?.match(/filename\*?=(?:UTF-8'')?"?([^;"]+)"?/i);
-    if (match?.[1]) filename = decodeURIComponent(match[1]);
-
-    const blobUrl = URL.createObjectURL(res.data as Blob);
-    const link = document.createElement("a");
-    link.href = blobUrl;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(blobUrl);
+    saveBlob(res, fallbackFilename);
     return null;
   } catch (err) {
-    return (
-      (await blobErrorMessage(err)) ?? fail<never>(err).message ?? "Download failed"
-    );
+    return await downloadError(err);
+  }
+}
+
+// Same contract as `downloadFile`, for the export endpoints that take their
+// selection in a POST body (CacRegistration/ExportSelectedCacRegistrations and
+// .../download-excel both expect a bare JSON array of ids). `validate` lets a
+// caller reject a 200 that carries nothing useful — some of these answer with an
+// empty archive rather than an error; returning a message from it skips the
+// download and surfaces that message instead.
+export async function downloadFilePost(
+  url: string,
+  fallbackFilename: string,
+  body?: unknown,
+  config?: AxiosRequestConfig & { validate?: (blob: Blob) => string | null },
+): Promise<string | null> {
+  const { validate, ...axiosConfig } = config ?? {};
+  try {
+    const res = await http.post(url, body, {
+      ...axiosConfig,
+      responseType: "blob",
+    });
+    const rejection = validate?.(res.data as Blob);
+    if (rejection) return rejection;
+    saveBlob(res, fallbackFilename);
+    return null;
+  } catch (err) {
+    return await downloadError(err);
   }
 }
 

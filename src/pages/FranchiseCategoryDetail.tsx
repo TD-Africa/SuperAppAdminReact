@@ -22,11 +22,14 @@ import type { TableColumnsType } from "antd";
 import { ArrowLeftOutlined, DeleteOutlined, PlusOutlined } from "@ant-design/icons";
 import {
   addProductsToStorefrontCategory,
+  getAllBrands,
+  getBrandProducts,
   getProductsByStorefrontCategory,
   getStorefrontCategoryById,
   getStorefrontProducts,
   removeProductsFromStorefrontCategory,
   updateStorefrontCategory,
+  type BrandProductDto,
 } from "@/lib/storefrontApi";
 import {
   formatStorefrontNaira,
@@ -58,6 +61,9 @@ export default function FranchiseCategoryDetailPage() {
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
   const [adding, setAdding] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const [selectedBrandId, setSelectedBrandId] = useState<string | null>(null);
+  const [brandProductPage, setBrandProductPage] = useState(1);
+  const [brandProductPageSize, setBrandProductPageSize] = useState(20);
 
   const categoryQuery = useQuery({
     queryKey: ["storefront", "category", storefrontCategoryId],
@@ -106,6 +112,41 @@ export default function FranchiseCategoryDetailPage() {
     [products],
   );
 
+  const brandsQuery = useQuery({
+    queryKey: ["brands", "all-active"],
+    queryFn: async () => {
+      const res = await getAllBrands({
+        PageSize: 100,
+        PageNumber: 1,
+        isActive: true,
+      });
+      if (!res.status) throw new Error(res.message ?? "Failed to load brands");
+      return res.data?.data ?? [];
+    },
+    enabled: addOpen,
+  });
+
+  const brandProductsQuery = useQuery({
+    queryKey: [
+      "brand-products",
+      selectedBrandId,
+      brandProductPage,
+      brandProductPageSize,
+      debouncedProductSearch,
+    ],
+    queryFn: async () => {
+      if (!selectedBrandId) return null;
+      const res = await getBrandProducts(selectedBrandId, {
+        PageSize: brandProductPageSize,
+        PageNumber: brandProductPage,
+        SearchString: debouncedProductSearch.trim() || undefined,
+      });
+      if (!res.status) throw new Error(res.message ?? "Failed to load brand products");
+      return res.data;
+    },
+    enabled: Boolean(selectedBrandId && addOpen),
+  });
+
   const catalogSearchQuery = useQuery({
     queryKey: ["storefront", "products-for-category", debouncedProductSearch],
     queryFn: async () => {
@@ -117,7 +158,7 @@ export default function FranchiseCategoryDetailPage() {
       if (!res.status) throw new Error(res.message ?? "Failed to search products");
       return res.data?.data ?? [];
     },
-    enabled: addOpen,
+    enabled: addOpen && !selectedBrandId,
   });
 
   const addOptions = useMemo(() => {
@@ -128,6 +169,13 @@ export default function FranchiseCategoryDetailPage() {
         label: `${p.productName}${p.brandName ? ` · ${p.brandName}` : ""}`,
       }));
   }, [catalogSearchQuery.data, assignedIds]);
+
+  const brandProducts = brandProductsQuery.data?.data ?? [];
+  const brandProductTotal = Number(brandProductsQuery.data?.count ?? 0);
+  
+  const selectableBrandProducts = useMemo(() => {
+    return brandProducts.filter((p) => !assignedIds.has(p.id));
+  }, [brandProducts, assignedIds]);
 
   async function saveCategory() {
     if (!storefrontCategoryId || !draftName.trim()) return;
@@ -165,6 +213,8 @@ export default function FranchiseCategoryDetailPage() {
       setAddOpen(false);
       setSelectedProductIds([]);
       setProductSearch("");
+      setSelectedBrandId(null);
+      setBrandProductPage(1);
       void productsQuery.refetch();
       void queryClient.invalidateQueries({ queryKey: ["storefront", "categories-admin"] });
     } finally {
@@ -348,6 +398,8 @@ export default function FranchiseCategoryDetailPage() {
               onClick={() => {
                 setSelectedProductIds([]);
                 setProductSearch("");
+                setSelectedBrandId(null);
+                setBrandProductPage(1);
                 setAddOpen(true);
               }}
             >
@@ -383,25 +435,168 @@ export default function FranchiseCategoryDetailPage() {
         okButtonProps={{ disabled: selectedProductIds.length === 0 }}
         confirmLoading={adding}
         destroyOnClose
+        width={selectedBrandId ? 900 : 520}
       >
-        <div className="space-y-3 pt-2">
-          <Input
-            allowClear
-            placeholder="Search storefront products…"
-            value={productSearch}
-            onChange={(e) => setProductSearch(e.target.value)}
-          />
-          <Select
-            mode="multiple"
-            className="w-full"
-            placeholder="Select products"
-            value={selectedProductIds}
-            onChange={setSelectedProductIds}
-            options={addOptions}
-            loading={catalogSearchQuery.isFetching}
-            optionFilterProp="label"
-            showSearch
-          />
+        <div className="space-y-4 pt-4">
+          <Form.Item label="Select by brand (optional)">
+            <Select
+              className="w-full"
+              placeholder="Select a brand to view all its products"
+              value={selectedBrandId}
+              onChange={(value) => {
+                setSelectedBrandId(value);
+                setSelectedProductIds([]);
+                setBrandProductPage(1);
+              }}
+              allowClear
+              loading={brandsQuery.isLoading}
+              showSearch
+              optionFilterProp="label"
+              options={
+                brandsQuery.data?.map((brand) => ({
+                  value: brand.id,
+                  label: brand.name,
+                })) ?? []
+              }
+            />
+          </Form.Item>
+
+          {!selectedBrandId ? (
+            <>
+              <Form.Item label="Search products">
+                <Input
+                  allowClear
+                  placeholder="Search storefront products…"
+                  value={productSearch}
+                  onChange={(e) => setProductSearch(e.target.value)}
+                />
+              </Form.Item>
+              <Form.Item label="Select products">
+                <Select
+                  mode="multiple"
+                  className="w-full"
+                  placeholder="Select products"
+                  value={selectedProductIds}
+                  onChange={setSelectedProductIds}
+                  options={addOptions}
+                  loading={catalogSearchQuery.isFetching}
+                  optionFilterProp="label"
+                  showSearch
+                />
+              </Form.Item>
+            </>
+          ) : (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Form.Item label="Search within brand" className="mb-0 flex-1">
+                  <Input
+                    allowClear
+                    placeholder="Search products in this brand…"
+                    value={productSearch}
+                    onChange={(e) => setProductSearch(e.target.value)}
+                  />
+                </Form.Item>
+                <Space className="ml-3">
+                  <Button
+                    size="small"
+                    onClick={() => {
+                      const selectableIds = selectableBrandProducts.map((p) => p.id);
+                      setSelectedProductIds(selectableIds);
+                    }}
+                    disabled={selectableBrandProducts.length === 0}
+                  >
+                    Select all on page
+                  </Button>
+                  <Button
+                    size="small"
+                    onClick={() => setSelectedProductIds([])}
+                    disabled={selectedProductIds.length === 0}
+                  >
+                    Clear selection
+                  </Button>
+                </Space>
+              </div>
+
+              <Table
+                size="small"
+                rowKey="id"
+                dataSource={brandProducts}
+                loading={brandProductsQuery.isLoading || brandProductsQuery.isFetching}
+                rowSelection={{
+                  selectedRowKeys: selectedProductIds,
+                  onChange: (keys) => setSelectedProductIds(keys as string[]),
+                  getCheckboxProps: (record) => ({
+                    disabled: assignedIds.has(record.id),
+                  }),
+                }}
+                onRow={(record) => ({
+                  onClick: () => {
+                    if (assignedIds.has(record.id)) return; // Don't allow selecting already assigned products
+                    
+                    setSelectedProductIds((prev) => {
+                      if (prev.includes(record.id)) {
+                        return prev.filter((id) => id !== record.id);
+                      }
+                      return [...prev, record.id];
+                    });
+                  },
+                  style: {
+                    cursor: assignedIds.has(record.id) ? "not-allowed" : "pointer",
+                  },
+                })}
+                pagination={{
+                  current: brandProductPage,
+                  pageSize: brandProductPageSize,
+                  total: brandProductTotal,
+                  showSizeChanger: true,
+                  size: "small",
+                  onChange: (page, size) => {
+                    setBrandProductPage(page);
+                    setBrandProductPageSize(size);
+                  },
+                }}
+                columns={[
+                  {
+                    title: "Product",
+                    dataIndex: "productName",
+                    render: (name: string, product: BrandProductDto) => (
+                      <div>
+                        <div className="font-medium">{name}</div>
+                        {product.dynamicsId && (
+                          <Typography.Text type="secondary" className="text-xs">
+                            {product.dynamicsId}
+                          </Typography.Text>
+                        )}
+                      </div>
+                    ),
+                  },
+                  {
+                    title: "Price (NGN)",
+                    dataIndex: "priceInNaira",
+                    width: 130,
+                    align: "right",
+                    render: (price: number) =>
+                      price > 0 ? formatStorefrontNaira(price) : "—",
+                  },
+                  {
+                    title: "Status",
+                    dataIndex: "id",
+                    width: 120,
+                    render: (id: string) =>
+                      assignedIds.has(id) ? (
+                        <Tag color="success">Already added</Tag>
+                      ) : (
+                        <Tag>Available</Tag>
+                      ),
+                  },
+                ]}
+              />
+
+              <Typography.Text type="secondary" className="text-sm">
+                Selected: {selectedProductIds.length} product(s)
+              </Typography.Text>
+            </div>
+          )}
         </div>
       </Modal>
     </div>

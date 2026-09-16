@@ -3,18 +3,22 @@ import { useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   App as AntdApp,
+  Badge,
   Button,
   Card,
   Empty,
   Input,
+  List,
   Modal,
   Select,
+  Space,
+  Spin,
   Table,
   Tag,
   Typography,
 } from "antd";
 import type { TableColumnsType } from "antd";
-import { EyeOutlined, MessageOutlined } from "@ant-design/icons";
+import { EyeOutlined, MessageOutlined, UserOutlined } from "@ant-design/icons";
 import {
   addStorefrontTicketComment,
   getStorefrontTicket,
@@ -54,13 +58,6 @@ function ownerDisplayName(o: {
   lastName: string | null;
 }) {
   return [o.firstName, o.lastName].filter(Boolean).join(" ").trim();
-}
-
-function ownerLabel(o: StorefrontOwnerDetailDto) {
-  const name = ownerDisplayName(o);
-  const company = o.companyName?.trim();
-  if (company && name) return `${company} — ${name}`;
-  return company || name || o.userName || o.id || "Unknown owner";
 }
 
 export default function StorefrontTicketsPage() {
@@ -123,15 +120,6 @@ export default function StorefrontTicketsPage() {
     },
     enabled: !!ownerId,
   });
-
-  const ownerOptions = useMemo(
-    () =>
-      (ownersQuery.data ?? []).map((o) => ({
-        value: o.id ?? "",
-        label: ownerLabel(o),
-      })),
-    [ownersQuery.data],
-  );
 
   function handleOwnerChange(value: string) {
     setOwnerId(value);
@@ -214,83 +202,120 @@ export default function StorefrontTicketsPage() {
         </div>
       </div>
 
-      <Card styles={{ body: { padding: 16 } }}>
-        <div className="grid gap-3 md:grid-cols-12">
-          <Select
-            className="md:col-span-4"
-            placeholder="Select a store owner…"
-            value={ownerId || undefined}
-            onChange={handleOwnerChange}
-            options={ownerOptions}
-            showSearch
-            allowClear
-            loading={ownersQuery.isLoading}
-            optionFilterProp="label"
-            notFoundContent={ownersQuery.isLoading ? "Loading…" : "No store owners"}
-          />
-          <Input
-            className="md:col-span-3"
-            placeholder="Search by topic, description…"
-            value={keyword}
-            allowClear
-            onChange={(e) => {
-              setPage(1);
-              setKeyword(e.target.value);
-            }}
-          />
-          <Select
-            className="md:col-span-3"
-            value={ticketStatus}
-            onChange={(v) => {
-              setPage(1);
-              setTicketStatus(v);
-            }}
-            options={[
-              { value: ALL, label: "All statuses" },
-              ...TicketStatusValues.map((s) => ({ value: s, label: s })),
-            ]}
-          />
-          <Select
-            className="md:col-span-2"
-            value={ticketCategory}
-            onChange={(v) => {
-              setPage(1);
-              setTicketCategory(v);
-            }}
-            options={[
-              { value: ALL, label: "All categories" },
-              ...TicketCategoryValues.map((c) => ({ value: c, label: c })),
-            ]}
-          />
-        </div>
-      </Card>
+      <div className="grid gap-6 lg:grid-cols-12">
+        {/* Store Owners List */}
+        <Card
+          className="lg:col-span-4"
+          title={
+            <Space>
+              <UserOutlined />
+              <span>Store Owners</span>
+              {ownersQuery.data && (
+                <Tag color="blue">{ownersQuery.data.length}</Tag>
+              )}
+            </Space>
+          }
+          styles={{ body: { padding: 0 } }}
+        >
+          {ownersQuery.isLoading ? (
+            <div className="flex justify-center p-8">
+              <Spin />
+            </div>
+          ) : !ownersQuery.data || ownersQuery.data.length === 0 ? (
+            <Empty
+              description="No store owners found"
+              className="py-8"
+            />
+          ) : (
+            <List
+              dataSource={ownersQuery.data}
+              renderItem={(owner) => (
+                <OwnerListItem
+                  owner={owner}
+                  isSelected={ownerId === owner.id}
+                  onClick={() => handleOwnerChange(owner.id ?? "")}
+                />
+              )}
+            />
+          )}
+        </Card>
 
-      <Card styles={{ body: { padding: 0 } }}>
-        <Table<TicketResponse>
-          rowKey="id"
-          dataSource={rows}
-          columns={columns}
-          loading={ticketsQuery.isLoading || ticketsQuery.isFetching}
-          pagination={{
-            current: page,
-            pageSize,
-            total: totalItems,
-            showSizeChanger: true,
-            pageSizeOptions: [10, 20, 50, 100],
-            onChange: (p, ps) => {
-              setPage(p);
-              setPageSize(ps);
-            },
-          }}
-          locale={{
-            emptyText: ownerId ? (
-              <Empty description="No tickets for this owner." />
-            ) : (
-              <Empty description="Select a store owner to view their tickets." />
-            ),
-          }}
-        />
-      </Card>
+        {/* Tickets Panel */}
+        <div className="lg:col-span-8 space-y-4">
+          {ownerId ? (
+            <>
+              <Card styles={{ body: { padding: 16 } }}>
+                <div className="grid gap-3 md:grid-cols-12">
+                  <Input
+                    className="md:col-span-5"
+                    placeholder="Search by topic, description…"
+                    value={keyword}
+                    allowClear
+                    onChange={(e) => {
+                      setPage(1);
+                      setKeyword(e.target.value);
+                    }}
+                  />
+                  <Select
+                    className="md:col-span-4"
+                    value={ticketStatus}
+                    onChange={(v) => {
+                      setPage(1);
+                      setTicketStatus(v);
+                    }}
+                    options={[
+                      { value: ALL, label: "All statuses" },
+                      ...TicketStatusValues.map((s) => ({ value: s, label: s })),
+                    ]}
+                  />
+                  <Select
+                    className="md:col-span-3"
+                    value={ticketCategory}
+                    onChange={(v) => {
+                      setPage(1);
+                      setTicketCategory(v);
+                    }}
+                    options={[
+                      { value: ALL, label: "All categories" },
+                      ...TicketCategoryValues.map((c) => ({ value: c, label: c })),
+                    ]}
+                  />
+                </div>
+              </Card>
+
+              <Card styles={{ body: { padding: 0 } }}>
+                <Table<TicketResponse>
+                  rowKey="id"
+                  dataSource={rows}
+                  columns={columns}
+                  loading={ticketsQuery.isLoading || ticketsQuery.isFetching}
+                  pagination={{
+                    current: page,
+                    pageSize,
+                    total: totalItems,
+                    showSizeChanger: true,
+                    pageSizeOptions: [10, 20, 50, 100],
+                    onChange: (p, ps) => {
+                      setPage(p);
+                      setPageSize(ps);
+                    },
+                  }}
+                  locale={{
+                    emptyText: <Empty description="No tickets for this owner." />,
+                  }}
+                />
+              </Card>
+            </>
+          ) : (
+            <Card>
+              <Empty
+                description="Select a store owner from the list to view their tickets"
+                className="py-8"
+              />
+            </Card>
+          )}
+        </div>
+      </div>
 
       <StorefrontTicketDetailModal
         ownerId={ownerId}
@@ -303,6 +328,66 @@ export default function StorefrontTicketsPage() {
         onUpdated={invalidateTickets}
       />
     </div>
+  );
+}
+
+function OwnerListItem({
+  owner,
+  isSelected,
+  onClick,
+}: {
+  owner: StorefrontOwnerDetailDto;
+  isSelected: boolean;
+  onClick: () => void;
+}) {
+  const ownerName = ownerDisplayName(owner);
+  const company = owner.companyName?.trim();
+  const displayName = company || ownerName || owner.userName || "Unknown owner";
+
+  // Fetch ticket count for this owner
+  const { data: ticketCount } = useQuery({
+    queryKey: ["storefront", "tickets-count", owner.id],
+    queryFn: async () => {
+      if (!owner.id) return 0;
+      const res = await getStorefrontTickets(owner.id, { PageSize: 1, PageNumber: 1 });
+      if (!res.status) return 0;
+      return Number(res.data?.count ?? 0);
+    },
+    enabled: !!owner.id,
+    staleTime: 30_000, // Cache for 30 seconds
+  });
+
+  return (
+    <List.Item
+      className={`cursor-pointer transition-colors hover:bg-gray-50 ${
+        isSelected ? "bg-primary/10 border-l-4 border-primary" : ""
+      }`}
+      onClick={onClick}
+      style={{ padding: "12px 16px" }}
+    >
+      <List.Item.Meta
+        title={
+          <div className="flex items-center justify-between">
+            <span className={isSelected ? "font-semibold text-primary" : ""}>
+              {displayName}
+            </span>
+            {ticketCount !== undefined && (
+              <Badge
+                count={ticketCount}
+                showZero
+                color={ticketCount > 0 ? "blue" : "default"}
+              />
+            )}
+          </div>
+        }
+        description={
+          <div className="text-xs text-gray-500">
+            {company && ownerName && <div>{ownerName}</div>}
+            {owner.email && <div>{owner.email}</div>}
+          </div>
+        }
+      />
+    </List.Item>
   );
 }
 

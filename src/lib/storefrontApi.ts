@@ -909,3 +909,48 @@ export function decideStorefrontCouponRequest(
     body,
   );
 }
+
+// —— Brand API ——
+
+export interface BrandDto {
+  id: string;
+  name: string;
+  brandImageUrl: string | null;
+  dynamicsId: string | null;
+  isActive: boolean;
+}
+
+export interface BrandProductDto {
+  id: string;
+  productName: string;
+  brand: BrandDto;
+  priceInNaira: number;
+  priceInDollar: number;
+  dynamicsId: string | null;
+  isActive: boolean;
+  productImageUrls: Array<{ imageUrl: string }> | null;
+}
+
+export function getAllBrands(params: {
+  PageSize?: number;
+  PageNumber?: number;
+  SearchString?: string;
+  isActive?: boolean;
+} = {}) {
+  return apiGet<PaginationResponse<BrandDto>>(
+    `Brand/GetAllBrands${toQuery(params)}`,
+  );
+}
+
+export function getBrandProducts(
+  brandId: string,
+  params: {
+    PageSize?: number;
+    PageNumber?: number;
+    SearchString?: string;
+  } = {},
+) {
+  return apiGet<PaginationResponse<BrandProductDto>>(
+    `Brand/GetBrandProducts/${brandId}/products${toQuery(params)}`,
+  );
+}

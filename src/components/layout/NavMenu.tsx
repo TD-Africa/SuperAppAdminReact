@@ -94,6 +94,7 @@ const NAV_TREE: NavNode[] = [
       { type: "leaf", to: "/franchise-orders", label: "Orders", icon: <ShoppingCartOutlined />, permission: Permission.CanViewOrders },
       { type: "leaf", to: "/franchise-brands", label: "Brands", icon: <ShopOutlined />, permission: Permission.CanViewBrands },
       { type: "leaf", to: "/franchise-categories", label: "Categories", icon: <TagsOutlined />, permission: Permission.CanViewBrands },
+      { type: "leaf", to: "/franchise-store-owner-invites", label: "Owner Invites", icon: <MailOutlined />, permission: Permission.CanViewUser },
       { type: "leaf", to: "/franchise-store-owners", label: "Store Owners", icon: <TeamOutlined />, permission: Permission.CanViewUser },
       { type: "leaf", to: "/franchise-superadmin-wallet", label: "Settlement Wallet", icon: <AccountBookOutlined />, permission: Permission.CanViewUser },
       { type: "leaf", to: "/settlement-recovery", label: "Settlement Recovery", icon: <HistoryOutlined />, permission: Permission.CanViewUser },
@@ -121,6 +122,20 @@ const NAV_TREE: NavNode[] = [
   { type: "leaf", to: "/transaction-settings", label: "Transaction Settings", icon: <SettingOutlined />, permission: Permission.CanChangeSettings },
   { type: "leaf", to: "/exchange-rates", label: "Exchange Rates", icon: <DollarOutlined />, permission: Permission.ManageExchangeRate },
 ];
+
+// Storefront-related paths for reference
+// const STOREFRONT_PATHS = [
+//   "/franchise-products",
+//   "/franchise-orders",
+//   "/franchise-brands",
+//   "/franchise-categories",
+//   "/franchise-store-owner-invites",
+//   "/franchise-store-owners",
+//   "/franchise-superadmin-wallet",
+//   "/settlement-recovery",
+//   "/storefront-coupon-requests",
+//   "/storefront-tickets",
+// ];
 
 function collectLeaves(nodes: NavNode[]): NavLeaf[] {
   return nodes.flatMap((node) => (node.type === "leaf" ? [node] : node.children));

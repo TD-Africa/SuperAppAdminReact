@@ -1,56 +1,31 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import {
-  App as AntdApp,
   Button,
   Card,
+  Col,
   Empty,
-  Form,
   Input,
-  Modal,
-  Popconfirm,
+  Row,
   Space,
+  Statistic,
   Table,
-  Tabs,
   Tag,
   Typography,
 } from "antd";
 import type { TableColumnsType } from "antd";
 import {
-  EditOutlined,
+  DollarOutlined,
   EyeOutlined,
-  MailOutlined,
   ShopOutlined,
-  StopOutlined,
-  UndoOutlined,
-  UserAddOutlined,
+  TeamOutlined,
 } from "@ant-design/icons";
-import { apiGet, apiPatch } from "@/lib/api";
-import {
-  getStorefrontOwners,
-  inviteStorefrontOwner,
-  resendStorefrontOwnerInvitation,
-  revokeStorefrontOwnerInvitation,
-} from "@/lib/storefrontApi";
-import type { StorefrontOwnerDetailDto } from "@/lib/storefrontTypes";
-import type { CustomerResponse, PaginationResponse } from "@/lib/types";
+import { getStorefrontOwners, getStorefrontOwnerDashboard } from "@/lib/storefrontApi";
+import type { StorefrontOwnerDetailDto, StorefrontDashboardDto } from "@/lib/storefrontTypes";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { Permission } from "@/lib/permissions";
-import { useAuthStore } from "@/stores/auth";
-import { EditCustomerModal } from "@/components/customers/EditCustomerModal";
-import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { PromptDialog } from "@/components/PromptDialog";
+import { formatCurrency } from "@/lib/utils";
 
-/**
- * Two tabs:
- *  - Invited:   store owners with an invitation, from `GetStorefrontOwners`.
- *  - Uninvited: CAC-verified customers (from `User/GetUsers`) who have not
- *               been invited yet.
- *
- * `GetOwnerCandidates` exists in the API but currently returns an empty list
- * on the backend, so we source uninvited owners from the Customers endpoint.
- */
 type OwnerRow = {
   id: string;
   companyName: string | null;
@@ -58,11 +33,16 @@ type OwnerRow = {
   firstName: string | null;
   lastName: string | null;
   email: string | null;
-  isCacVerified: boolean | null;
-  isInvited: boolean;
-  isInvitationAccepted: boolean;
   isSuspended: boolean;
   userStatus: string | null;
+  isActive: boolean;
+  primaryStorefrontBrandId: string | null;
+};
+
+type OwnerWithStats = OwnerRow & {
+  totalOrders?: number;
+  grossSales?: number;
+  currency?: string;
 };
 
 function ownerDisplayName(row: { firstName: string | null; lastName: string | null }) {
@@ -77,35 +57,11 @@ function detailToRow(d: StorefrontOwnerDetailDto): OwnerRow {
     firstName: d.firstName,
     lastName: d.lastName,
     email: d.email,
-    isCacVerified: d.isCacVerified,
-    isInvited: d.isInvited,
-    isInvitationAccepted: d.isInvitationAccepted,
     isSuspended: d.isSuspended,
     userStatus: d.userStatus,
+    isActive: d.isActive,
+    primaryStorefrontBrandId: d.primaryStorefrontBrandId ?? null,
   };
-}
-
-function customerToRow(c: CustomerResponse): OwnerRow {
-  return {
-    id: c.id,
-    companyName: c.companyName,
-    userName: c.userName,
-    firstName: c.firstName,
-    lastName: c.lastName,
-    email: c.email,
-    isCacVerified: c.isCacVerified,
-    isInvited: false,
-    isInvitationAccepted: false,
-    isSuspended: c.isSuspended,
-    userStatus: c.userStatus,
-  };
-}
-
-function ownerLabel(row: OwnerRow) {
-  const name = ownerDisplayName(row);
-  const company = row.companyName?.trim();
-  if (company && name) return `${company} — ${name}`;
-  return company || name || row.userName || row.email || row.id;
 }
 
 function openOwnerPath(row: {
@@ -124,201 +80,92 @@ function openOwnerPath(row: {
   return `/franchise-store-owners/${row.id}${qs ? `?${qs}` : ""}`;
 }
 
-function inviteStatusTag(row: OwnerRow) {
-  if (row.isInvitationAccepted) return <Tag color="success">Accepted</Tag>;
-  if (row.isInvited) return <Tag color="processing">Invited</Tag>;
-  return <Tag>Not invited</Tag>;
-}
-
 export default function FranchiseStoreOwnersPage() {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const { message } = AntdApp.useApp();
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebouncedValue(search, 350);
-  const [activeTab, setActiveTab] = useState<"invited" | "uninvited">("uninvited");
-  const [pendingOwnerId, setPendingOwnerId] = useState<string | null>(null);
-  const [inviteOpen, setInviteOpen] = useState(false);
-  const [inviteForm] = Form.useForm<{ ownerId: string }>();
-  const [editId, setEditId] = useState<string | null>(null);
-  const [editOpen, setEditOpen] = useState(false);
-  const [suspendTarget, setSuspendTarget] = useState<OwnerRow | null>(null);
-  const [reactivateTarget, setReactivateTarget] = useState<OwnerRow | null>(null);
-  const canEdit = useAuthStore((s) => s.hasPermission(Permission.CanEditUser));
 
-  // Invited owners (with invite status) from GetStorefrontOwners.
-  const invitedQuery = useQuery({
-    queryKey: ["storefront", "storefront-owners"],
+  // Fetch all accepted store owners
+  const ownersQuery = useQuery({
+    queryKey: ["storefront", "accepted-owners"],
     queryFn: async () => {
       const res = await getStorefrontOwners({ PageSize: 500, PageNumber: 1 });
       if (!res.status) throw new Error(res.message ?? "Failed to load store owners");
-      return (res.data?.data ?? []).map(detailToRow);
+      return (res.data?.data ?? [])
+        .filter((o) => o.isInvitationAccepted === true)
+        .map(detailToRow);
     },
     staleTime: 60_000,
   });
 
-  // CAC-verified customers from User/GetUsers (paged, like Customers.tsx).
-  const customersQuery = useQuery({
-    queryKey: ["customers", "cac-verified"],
+  // Fetch dashboard data for each owner (in parallel)
+  const dashboardsQuery = useQuery({
+    queryKey: ["storefront", "owner-dashboards", ownersQuery.data?.map((o) => o.id)],
     queryFn: async () => {
-      const FETCH_SIZE = 200;
-      const all: CustomerResponse[] = [];
-      let pageNumber = 1;
-      let total = Infinity;
-      while (all.length < total) {
-        const res = await apiGet<PaginationResponse<CustomerResponse>>(
-          `User/GetUsers?PageSize=${FETCH_SIZE}&PageNumber=${pageNumber}`,
-        );
-        if (!res.status) throw new Error(res.message ?? "Failed to load customers");
-        const chunk = res.data?.data ?? [];
-        all.push(...chunk);
-        total = Number(res.data?.count ?? all.length);
-        if (chunk.length === 0) break;
-        pageNumber += 1;
-      }
-      return all.filter((c) => c.isCacVerified === true);
+      const owners = ownersQuery.data ?? [];
+      if (owners.length === 0) return {};
+      
+      const results = await Promise.allSettled(
+        owners.map((owner) => getStorefrontOwnerDashboard(owner.id))
+      );
+
+      const dashboardMap: Record<string, StorefrontDashboardDto | null> = {};
+      owners.forEach((owner, idx) => {
+        const result = results[idx];
+        if (result.status === "fulfilled" && result.value.status && result.value.data) {
+          dashboardMap[owner.id] = result.value.data;
+        } else {
+          dashboardMap[owner.id] = null;
+        }
+      });
+
+      return dashboardMap;
     },
+    enabled: !!ownersQuery.data && ownersQuery.data.length > 0,
+    staleTime: 60_000,
   });
 
-  useEffect(() => {
-    if (invitedQuery.isError) {
-      message.error(
-        invitedQuery.error instanceof Error
-          ? invitedQuery.error.message
-          : "Unable to load invited store owners.",
-      );
-    }
-  }, [invitedQuery.isError, invitedQuery.error, message]);
+  const ownersWithStats = useMemo<OwnerWithStats[]>(() => {
+    const owners = ownersQuery.data ?? [];
+    const dashboards = dashboardsQuery.data ?? {};
 
-  useEffect(() => {
-    if (customersQuery.isError) {
-      message.error(
-        customersQuery.error instanceof Error
-          ? customersQuery.error.message
-          : "Unable to load customers.",
-      );
-    }
-  }, [customersQuery.isError, customersQuery.error, message]);
+    return owners.map((owner) => {
+      const dashboard = dashboards[owner.id];
+      return {
+        ...owner,
+        totalOrders: dashboard?.totalOrders ?? 0,
+        grossSales: dashboard?.grossSales ?? 0,
+        currency: dashboard?.currency ?? "NGN",
+      };
+    });
+  }, [ownersQuery.data, dashboardsQuery.data]);
 
-  const invitedRows = useMemo<OwnerRow[]>(() => invitedQuery.data ?? [], [invitedQuery.data]);
-
-  const uninvitedRows = useMemo<OwnerRow[]>(() => {
-    const customers = customersQuery.data ?? [];
-    const invited = invitedRows;
-
-    const invitedIds = new Set<string>();
-    const invitedUserNames = new Set<string>();
-    const invitedEmails = new Set<string>();
-    for (const o of invited) {
-      if (o.id) invitedIds.add(o.id);
-      if (o.userName) invitedUserNames.add(o.userName.toLowerCase());
-      if (o.email) invitedEmails.add(o.email.toLowerCase());
-    }
-
-    return customers
-      .filter((c) => {
-        if (invitedIds.has(c.id)) return false;
-        if (c.userName && invitedUserNames.has(c.userName.toLowerCase())) return false;
-        if (c.email && invitedEmails.has(c.email.toLowerCase())) return false;
-        return true;
-      })
-      .map(customerToRow);
-  }, [customersQuery.data, invitedRows]);
-
-  const searchedInvited = useMemo(() => {
+  const searchedOwners = useMemo(() => {
     const q = debouncedSearch.trim().toLowerCase();
-    if (!q) return invitedRows;
-    return invitedRows.filter((r) =>
+    if (!q) return ownersWithStats;
+    return ownersWithStats.filter((r) =>
       [r.companyName, r.userName, r.firstName, r.lastName, r.email]
         .filter(Boolean)
         .some((v) => v!.toLowerCase().includes(q)),
     );
-  }, [invitedRows, debouncedSearch]);
+  }, [ownersWithStats, debouncedSearch]);
 
-  const searchedUninvited = useMemo(() => {
-    const q = debouncedSearch.trim().toLowerCase();
-    if (!q) return uninvitedRows;
-    return uninvitedRows.filter((r) =>
-      [r.companyName, r.userName, r.firstName, r.lastName, r.email]
-        .filter(Boolean)
-        .some((v) => v!.toLowerCase().includes(q)),
-    );
-  }, [uninvitedRows, debouncedSearch]);
+  // Calculate aggregate statistics
+  const aggregates = useMemo(() => {
+    const totalOwners = ownersWithStats.length;
+    const activeOwners = ownersWithStats.filter((o) => o.isActive && !o.isSuspended).length;
+    const totalRevenue = ownersWithStats.reduce((sum, o) => sum + (o.grossSales ?? 0), 0);
+    const totalOrders = ownersWithStats.reduce((sum, o) => sum + (o.totalOrders ?? 0), 0);
 
-  async function runOwnerAction(
-    ownerId: string,
-    action: "invite" | "resend" | "revoke",
-  ) {
-    setPendingOwnerId(ownerId);
-    try {
-      const res =
-        action === "invite"
-          ? await inviteStorefrontOwner(ownerId)
-          : action === "resend"
-            ? await resendStorefrontOwnerInvitation(ownerId)
-            : await revokeStorefrontOwnerInvitation(ownerId);
-      if (!res.status) {
-        message.error(res.message ?? "Action failed");
-      } else {
-        message.success(res.message ?? "Done");
-        queryClient.invalidateQueries({ queryKey: ["storefront", "storefront-owners"] });
-      }
-    } finally {
-      setPendingOwnerId(null);
-    }
-  }
+    return {
+      totalOwners,
+      activeOwners,
+      totalRevenue,
+      totalOrders,
+    };
+  }, [ownersWithStats]);
 
-  async function submitManualInvite() {
-    const values = await inviteForm.validateFields();
-    const ownerId = values.ownerId.trim();
-    if (!ownerId) return;
-    setPendingOwnerId(ownerId);
-    try {
-      const res = await inviteStorefrontOwner(ownerId);
-      if (!res.status) {
-        message.error(res.message ?? "Invite failed");
-        return;
-      }
-      message.success(res.message ?? "Invitation sent");
-      inviteForm.resetFields();
-      setInviteOpen(false);
-      queryClient.invalidateQueries({ queryKey: ["storefront", "storefront-owners"] });
-    } finally {
-      setPendingOwnerId(null);
-    }
-  }
-
-  function refreshOwners() {
-    queryClient.invalidateQueries({ queryKey: ["storefront", "storefront-owners"] });
-    queryClient.invalidateQueries({ queryKey: ["customers", "cac-verified"] });
-  }
-
-  async function suspendOwner(row: OwnerRow, reason: string) {
-    const res = await apiPatch<boolean>(`User/SuspendUser/${row.id}`, {
-      suspend: true,
-      reasonForSuspension: reason,
-    });
-    if (!res.status) {
-      message.error(res.message ?? "Suspend failed");
-      return;
-    }
-    message.success(res.message ?? "Store owner suspended");
-    refreshOwners();
-  }
-
-  async function reactivateOwner(row: OwnerRow) {
-    const res = await apiPatch<boolean>(`User/SuspendUser/${row.id}`, {
-      suspend: false,
-    });
-    if (!res.status) {
-      message.error(res.message ?? "Reactivate failed");
-      return;
-    }
-    message.success(res.message ?? "Store owner reactivated");
-    refreshOwners();
-  }
-
-  const columns: TableColumnsType<OwnerRow> = [
+  const columns: TableColumnsType<OwnerWithStats> = [
     {
       title: "Company",
       dataIndex: "companyName",
@@ -338,19 +185,17 @@ export default function FranchiseStoreOwnersPage() {
       render: (_, row) => ownerDisplayName(row) || "—",
     },
     {
-      title: "Username",
-      dataIndex: "userName",
-      render: (v: string | null) => (
-        <span className="text-xs text-muted-foreground">{v ?? "—"}</span>
-      ),
+      title: "Total Orders",
+      dataIndex: "totalOrders",
+      align: "right",
+      render: (v: number | undefined) => v?.toLocaleString() ?? "—",
     },
     {
-      title: "CAC verified",
-      dataIndex: "isCacVerified",
-      width: 120,
-      render: (v: boolean | null) => (
-        <Tag color={v ? "success" : "default"}>{v ? "Yes" : "No"}</Tag>
-      ),
+      title: "Revenue",
+      dataIndex: "grossSales",
+      align: "right",
+      render: (v: number | undefined, row) => 
+        v !== undefined ? formatCurrency(v, (row.currency === "USD" || row.currency === "NGN") ? row.currency : "NGN") : "—",
     },
     {
       title: "Status",
@@ -358,229 +203,117 @@ export default function FranchiseStoreOwnersPage() {
       width: 110,
       render: (_, row) => {
         if (row.isSuspended) return <Tag color="error">Suspended</Tag>;
-        if (row.userStatus === "Active") return <Tag color="success">Active</Tag>;
-        if (row.userStatus) return <Tag color="warning">{row.userStatus}</Tag>;
-        return <Tag>—</Tag>;
+        if (row.isActive) return <Tag color="success">Active</Tag>;
+        return <Tag color="default">Inactive</Tag>;
       },
-    },
-    {
-      title: "Invite",
-      key: "invite",
-      width: 110,
-      render: (_, row) => inviteStatusTag(row),
     },
     {
       title: "",
       key: "actions",
-      width: 230,
+      width: 80,
       align: "right",
       render: (_, row) => (
-        <Space size={4}>
-          <Button
-            size="small"
-            icon={<EyeOutlined />}
-            onClick={() => navigate(openOwnerPath(row))}
-            title="View owner"
-          />
-          {canEdit && (
-            <Button
-              size="small"
-              icon={<EditOutlined />}
-              onClick={() => {
-                setEditId(row.id);
-                setEditOpen(true);
-              }}
-              title="Edit customer"
-            />
-          )}
-          {!row.isInvited && (
-            <Popconfirm
-              title={`Invite ${ownerLabel(row)}?`}
-              description="This will send a store owner invitation by email."
-              okText="Invite"
-              onConfirm={() => runOwnerAction(row.id, "invite")}
-            >
-              <Button
-                size="small"
-                icon={<MailOutlined />}
-                loading={pendingOwnerId === row.id}
-                title="Invite owner"
-              />
-            </Popconfirm>
-          )}
-          {row.isInvited && !row.isInvitationAccepted && (
-            <>
-              <Button
-                size="small"
-                icon={<MailOutlined />}
-                loading={pendingOwnerId === row.id}
-                onClick={() => runOwnerAction(row.id, "resend")}
-                title="Resend invitation"
-              />
-              <Popconfirm
-                title={`Revoke invitation for ${ownerLabel(row)}?`}
-                okText="Revoke"
-                okButtonProps={{ danger: true }}
-                onConfirm={() => runOwnerAction(row.id, "revoke")}
-              >
-                <Button
-                  size="small"
-                  danger
-                  icon={<StopOutlined />}
-                  loading={pendingOwnerId === row.id}
-                  title="Revoke invitation"
-                />
-              </Popconfirm>
-            </>
-          )}
-          {canEdit && !row.isSuspended && (
-            <Button
-              size="small"
-              danger
-              icon={<StopOutlined />}
-              onClick={() => setSuspendTarget(row)}
-              title="Suspend"
-            />
-          )}
-          {canEdit && row.isSuspended && (
-            <Button
-              size="small"
-              icon={<UndoOutlined />}
-              onClick={() => setReactivateTarget(row)}
-              title="Reactivate"
-            />
-          )}
-        </Space>
+        <Button
+          size="small"
+          icon={<EyeOutlined />}
+          onClick={() => navigate(openOwnerPath(row))}
+          title="View details"
+        />
       ),
     },
   ];
 
-  function renderTable(tableRows: OwnerRow[], loading: boolean) {
-    return (
-      <Table<OwnerRow>
-        rowKey={(row) => row.id || row.userName || row.email || "unknown"}
-        columns={columns}
-        dataSource={tableRows}
-        loading={loading}
-        locale={{ emptyText: <Empty description="No store owners" /> }}
-        pagination={{
-          pageSize: 20,
-          showSizeChanger: true,
-          pageSizeOptions: [10, 20, 50, 100],
-          showTotal: (total) => `${total} owner${total === 1 ? "" : "s"}`,
-        }}
-        scroll={{ x: 900 }}
-      />
-    );
-  }
+  const isLoading = ownersQuery.isLoading || dashboardsQuery.isLoading;
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <Typography.Title level={3} className="!m-0">
-            Franchise store owners
+            Store owners
           </Typography.Title>
           <Typography.Text type="secondary">
-            CAC-verified businesses. Invite one to make them a store owner.
+            Active store owners with performance metrics
           </Typography.Text>
         </div>
-        <Button
-          type="primary"
-          icon={<UserAddOutlined />}
-          onClick={() => setInviteOpen(true)}
-        >
-          Invite store owner
-        </Button>
+        <Space>
+          <Button
+            icon={<TeamOutlined />}
+            onClick={() => navigate("/franchise-store-owner-invites")}
+          >
+            Manage invites
+          </Button>
+        </Space>
       </div>
 
+      {/* Aggregate Statistics */}
+      <Row gutter={[16, 16]}>
+        <Col xs={24} sm={12} md={8}>
+          <Card>
+            <Statistic
+              title="Total Store Owners"
+              value={aggregates.totalOwners}
+              prefix={<TeamOutlined />}
+              suffix={
+                <span className="text-sm text-muted-foreground">
+                  ({aggregates.activeOwners} active)
+                </span>
+              }
+              loading={isLoading}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} md={8}>
+          <Card>
+            <Statistic
+              title="Total Revenue"
+              value={aggregates.totalRevenue}
+              prefix={<DollarOutlined />}
+              formatter={(value) => formatCurrency(Number(value), "NGN")}
+              loading={isLoading}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} md={8}>
+          <Card>
+            <Statistic
+              title="Total Orders"
+              value={aggregates.totalOrders}
+              prefix={<ShopOutlined />}
+              loading={isLoading}
+            />
+          </Card>
+        </Col>
+      </Row>
+
+      {/* Search */}
       <Card styles={{ body: { padding: 16 } }}>
         <Input
           allowClear
-          placeholder="Search company, name, username, or email…"
+          placeholder="Search by company, name, username, or email…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           prefix={<ShopOutlined className="text-muted-foreground" />}
         />
       </Card>
 
+      {/* Table */}
       <Card styles={{ body: { padding: 0 } }}>
-        <Tabs
-          activeKey={activeTab}
-          onChange={(key) => setActiveTab(key as "invited" | "uninvited")}
-          items={[
-            {
-              key: "uninvited",
-              label: `Uninvited (${searchedUninvited.length})`,
-              children: renderTable(searchedUninvited, customersQuery.isLoading || invitedQuery.isLoading),
-            },
-            {
-              key: "invited",
-              label: `Invited (${searchedInvited.length})`,
-              children: renderTable(searchedInvited, invitedQuery.isLoading),
-            },
-          ]}
+        <Table<OwnerWithStats>
+          rowKey={(row) => row.id}
+          columns={columns}
+          dataSource={searchedOwners}
+          loading={isLoading}
+          locale={{ emptyText: <Empty description="No store owners" /> }}
+          pagination={{
+            pageSize: 20,
+            showSizeChanger: true,
+            pageSizeOptions: [10, 20, 50, 100],
+            showTotal: (total) => `${total} store owner${total === 1 ? "" : "s"}`,
+          }}
+          scroll={{ x: 1000 }}
         />
       </Card>
-
-      <Modal
-        title="Invite store owner"
-        open={inviteOpen}
-        onCancel={() => {
-          setInviteOpen(false);
-          inviteForm.resetFields();
-        }}
-        onOk={submitManualInvite}
-        okText="Send invite"
-        confirmLoading={pendingOwnerId !== null}
-        destroyOnClose
-      >
-        <Form form={inviteForm} layout="vertical">
-          <Form.Item
-            name="ownerId"
-            label="Owner ID"
-            rules={[{ required: true, whitespace: true, message: "Enter an owner ID" }]}
-            extra="Enter the store owner's user ID manually (e.g. a CAC-registered user ID)."
-          >
-            <Input placeholder="e.g. a1b2c3d4-…" autoFocus />
-          </Form.Item>
-        </Form>
-      </Modal>
-
-      <EditCustomerModal
-        customerId={editId}
-        open={editOpen}
-        onOpenChange={(v) => {
-          setEditOpen(v);
-          if (!v) setEditId(null);
-        }}
-        onUpdated={refreshOwners}
-      />
-
-      <PromptDialog
-        open={!!suspendTarget}
-        onOpenChange={(v) => !v && setSuspendTarget(null)}
-        title={`Suspend ${suspendTarget ? ownerLabel(suspendTarget) : ""}?`}
-        description="Provide a reason — the store owner will see this when signing in."
-        label="Reason for suspension"
-        placeholder="e.g. Outstanding balance, suspected fraud…"
-        confirmLabel="Suspend"
-        destructive
-        onConfirm={(reason) =>
-          suspendTarget ? suspendOwner(suspendTarget, reason) : undefined
-        }
-      />
-
-      <ConfirmDialog
-        open={!!reactivateTarget}
-        onOpenChange={(v) => !v && setReactivateTarget(null)}
-        title={`Reactivate ${reactivateTarget ? ownerLabel(reactivateTarget) : ""}?`}
-        description="The store owner will regain account access immediately."
-        confirmLabel="Reactivate"
-        onConfirm={() =>
-          reactivateTarget ? reactivateOwner(reactivateTarget) : undefined
-        }
-      />
     </div>
   );
 }

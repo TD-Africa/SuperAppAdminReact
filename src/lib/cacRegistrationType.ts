@@ -13,6 +13,10 @@ import type { CacRegistrationResponse } from "@/lib/types";
  *
  * (See StartCacRegistrationDTO / StartCacRegistrationBusinessNameDTO in the .NET
  * API and Signup.jsx in superappweb.)
+ *
+ * The API now states the flow outright in `registrationType` ("Company" /
+ * "BusinessName"), so that is read first. The older marker-sniffing below is
+ * kept only as a fallback for records that predate the field.
  */
 export type CacRegistrationType = "llc" | "businessName";
 
@@ -21,16 +25,21 @@ const BUSINESS_NAME_PATTERN = /business\s*(name|owner)|proprietor|sole/i;
 
 type TypeSource = Pick<
   CacRegistrationResponse,
-  "businessRegType" | "businessDescription" | "proprietor" | "directors" | "secretaries"
+  "registrationType" | "businessDescription" | "proprietor" | "directors" | "secretaries"
 >;
 
 /**
- * Best available reading of which flow produced a record. The markers are
- * checked most-explicit first; because only the LLC flow writes a type marker at
- * all, a record carrying none of them is a business name.
+ * Which flow produced a record. `registrationType` is authoritative when
+ * present; otherwise the markers are checked most-explicit first, and because
+ * only the LLC flow writes a marker at all, a record carrying none is a
+ * business name.
  */
 export function cacRegistrationType(reg: TypeSource): CacRegistrationType {
-  const marker = reg.businessRegType || reg.businessDescription;
+  const declared = reg.registrationType?.trim().toLowerCase();
+  if (declared === "company") return "llc";
+  if (declared === "businessname") return "businessName";
+
+  const marker = reg.businessDescription;
   if (marker) {
     if (LLC_PATTERN.test(marker)) return "llc";
     if (BUSINESS_NAME_PATTERN.test(marker)) return "businessName";

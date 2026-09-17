@@ -1,4 +1,4 @@
-import type { AdminAuditLogItem, AuditChange } from "@/lib/types";
+import type { AdminAuditLogItem, AuditChange, RoleResponse } from "@/lib/types";
 
 /**
  * Mirror of TDSuperApp.Data.Models.AuditEntityType. These are the literal strings
@@ -120,6 +120,75 @@ export function formatValue(v: unknown): string {
   return s;
 }
 
+/**
+ * Money fields are named by their currency on the backend
+ * (OverridePriceInNaira / PriceInDollar / AmountInNaira…), which is the only
+ * signal available for formatting a bare number in a snapshot.
+ */
+export function currencyOfField(key: string): "NGN" | "USD" | null {
+  if (/naira$/i.test(key)) return "NGN";
+  if (/dollar$/i.test(key)) return "USD";
+  return null;
+}
+
+const GUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function isGuid(value: unknown): value is string {
+  return typeof value === "string" && GUID_RE.test(value);
+}
+
+/** Ceiling per kind on the ids one entry will look up, so a bulk payload can't fan out. */
+const MAX_LOOKUPS = 25;
+
+/** Keys whose GUID values name a product: ProductId, Products, product_id… */
+const PRODUCT_KEY_RE = /^products?(_?id)?$/i;
+/**
+ * …and a customer. Bare "User"/"Users" is left out deliberately — it shows up
+ * holding admin ids, which would 404 against the customer read.
+ */
+const CUSTOMER_KEY_RE = /^(customers?(_?id)?|users?_?id)$/i;
+
+export interface AuditEntityIds {
+  products: string[];
+  customers: string[];
+}
+
+/**
+ * Product and customer ids anywhere in a set of snapshots —
+ * `{"ProductId":"4fa060c2-…"}` says nothing to a reader, so the modal trades
+ * them for names.
+ *
+ * Keys are matched rather than values because a snapshot is arbitrary JSON and
+ * the ids sit at different depths per entity: a coupon nests product ids under
+ * Products[] and lists customer ids as bare GUIDs under Customers, while other
+ * entities carry one at the top level. The key travels down through arrays so a
+ * list of bare ids is still attributed to the field that holds it.
+ */
+export function collectEntityIds(...roots: unknown[]): AuditEntityIds {
+  const products = new Set<string>();
+  const customers = new Set<string>();
+
+  const walk = (node: unknown, key?: string) => {
+    if (Array.isArray(node)) {
+      for (const item of node) walk(item, key);
+      return;
+    }
+    if (node && typeof node === "object") {
+      for (const [k, v] of Object.entries(node)) walk(v, k);
+      return;
+    }
+    if (!key || !isGuid(node)) return;
+    if (PRODUCT_KEY_RE.test(key) && products.size < MAX_LOOKUPS)
+      products.add(node);
+    else if (CUSTOMER_KEY_RE.test(key) && customers.size < MAX_LOOKUPS)
+      customers.add(node);
+  };
+
+  for (const root of roots) walk(root);
+  return { products: Array.from(products), customers: Array.from(customers) };
+}
+
 export type AuditMode = "created" | "deleted" | "updated";
 
 /**
@@ -142,6 +211,107 @@ export function classifyAction(item: AdminAuditLogItem): AuditMode {
   if (beforeEmpty && !afterEmpty) return "created";
   if (afterEmpty && !beforeEmpty) return "deleted";
   return "updated";
+}
+
+// ---- Role attribution ----
+//
+// AdminAuditLog.RoleName does not contain a role name. The admin JWT serialises
+// the acting role's *permission list* into the role claim
+// (AdminAuthenticationService.GetClaims, because PermissionFilter deserialises it
+// back out), and CurrentAdminAccessor copies that claim straight into the audit
+// row — so the stored value reads ["CanViewOrders","CanEditOrders",…].
+//
+// The name is recovered here by matching that permission set against the roles
+// the API reports. Roles get edited, so a row written before an edit will not
+// match its role exactly; a close-enough winner is reported as a closest match
+// rather than as fact.
+
+/** How close a permission set must be to a role's before we name it at all. */
+const MIN_SIMILARITY = 0.85;
+/** …and how far clear of the runner-up, so near-identical roles stay unnamed. */
+const MIN_LEAD = 0.1;
+
+export interface ResolvedRole {
+  /** Text for the Role cell. */
+  label: string;
+  /** `name` — certain. `closest` — best match, role edited since. `unknown` — no match. */
+  kind: "name" | "closest" | "unknown";
+  /** Permissions recovered from the claim, for the hover detail. Null when the row stored a real name. */
+  permissions: string[] | null;
+}
+
+/**
+ * Permission names out of a stored RoleName, or null when the value is not a
+ * serialised list (a plain role name, or empty).
+ */
+export function parsePermissionClaim(
+  value: string | null | undefined,
+): string[] | null {
+  const text = value?.trim();
+  if (!text || !text.startsWith("[")) return null;
+
+  const unique = (names: string[]) => Array.from(new Set(names)).sort();
+
+  try {
+    const parsed = JSON.parse(text);
+    if (!Array.isArray(parsed)) return null;
+    return unique(parsed.filter((x): x is string => typeof x === "string"));
+  } catch {
+    // AdminAuditLog.RoleName is capped at 128 chars, so older rows can hold JSON
+    // cut off mid-array. Salvage the names that are still intact.
+    const names = text.match(/"([^"]+)"/g)?.map((s) => s.slice(1, -1)) ?? [];
+    return names.length > 0 ? unique(names) : null;
+  }
+}
+
+/** Overlap of two permission sets, 0 to 1. */
+function similarity(a: string[], b: string[]): number {
+  if (a.length === 0 && b.length === 0) return 1;
+  const other = new Set(b);
+  const shared = a.filter((x) => other.has(x)).length;
+  const union = new Set([...a, ...b]).size;
+  return union === 0 ? 0 : shared / union;
+}
+
+/** Turns an audit row's `roleName` into something worth putting in a table cell. */
+export function resolveRoleName(
+  value: string | null | undefined,
+  roles: RoleResponse[],
+): ResolvedRole | null {
+  const permissions = parsePermissionClaim(value);
+
+  if (!permissions) {
+    const name = value?.trim();
+    return name ? { label: name, kind: "name", permissions: null } : null;
+  }
+
+  const scored = roles
+    .map((role) => ({
+      name: role.name,
+      score: similarity(
+        permissions,
+        Array.from(new Set((role.permissions ?? []).map((p) => p.name as string))).sort(),
+      ),
+    }))
+    .sort((a, b) => b.score - a.score);
+
+  const [best, runnerUp] = scored;
+
+  if (best?.score === 1)
+    return { label: best.name, kind: "name", permissions };
+
+  if (
+    best &&
+    best.score >= MIN_SIMILARITY &&
+    best.score - (runnerUp?.score ?? 0) >= MIN_LEAD
+  )
+    return { label: best.name, kind: "closest", permissions };
+
+  return {
+    label: `${permissions.length} permission${permissions.length === 1 ? "" : "s"}`,
+    kind: "unknown",
+    permissions,
+  };
 }
 
 // The backend writes the diff as { "Field": { "Before": x, "After": y } } with no

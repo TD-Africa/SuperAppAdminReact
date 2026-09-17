@@ -13,13 +13,16 @@ import {
 } from "antd";
 import type { TableColumnsType } from "antd";
 import { apiGet } from "@/lib/api";
+import { AuditRoleLabel } from "@/components/audit/AuditRoleLabel";
+import { AuditValue } from "@/components/audit/AuditValue";
+import { useAuditEntityNames } from "@/hooks/useAuditEntityNames";
+import { useAuditRoleCandidates } from "@/hooks/useAuditRoleCandidates";
 import {
   auditActionColor,
   changeAfter,
   changeBefore,
   classifyAction,
   entityTypeLabel,
-  formatValue,
   humanFieldName,
 } from "@/lib/auditTrail";
 import type { AdminAuditLogItem } from "@/lib/types";
@@ -53,6 +56,7 @@ export function AuditTrailDetailModal({
   onClose,
 }: AuditTrailDetailModalProps) {
   const id = item?.id ?? null;
+  const roles = useAuditRoleCandidates(open);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["audit-trail-detail", id],
@@ -112,6 +116,8 @@ export function AuditTrailDetailModal({
     };
   }, [entry]);
 
+  const names = useAuditEntityNames(entry);
+
   const diffColumns: TableColumnsType<DiffRow> = [
     { title: "Field", dataIndex: "fieldName", width: "25%" },
     {
@@ -125,7 +131,11 @@ export function AuditTrailDetailModal({
             (row.changed ? "bg-amber-100/70 text-amber-900" : "")
           }
         >
-          {formatValue(row.before)}
+          <AuditValue
+            value={row.before}
+            fieldKey={row.key}
+            names={names}
+          />
         </span>
       ),
     },
@@ -140,7 +150,11 @@ export function AuditTrailDetailModal({
             (row.changed ? "bg-emerald-100/70 text-emerald-900" : "")
           }
         >
-          {formatValue(row.after)}
+          <AuditValue
+            value={row.after}
+            fieldKey={row.key}
+            names={names}
+          />
         </span>
       ),
     },
@@ -151,7 +165,7 @@ export function AuditTrailDetailModal({
     {
       title: mode === "created" ? "Recorded value" : "Value at deletion",
       dataIndex: "value",
-      render: (v) => (
+      render: (_, row) => (
         <span
           className={
             "block whitespace-pre-wrap break-words px-2 py-1 " +
@@ -160,7 +174,11 @@ export function AuditTrailDetailModal({
               : "bg-rose-100/70 text-rose-900")
           }
         >
-          {formatValue(v)}
+          <AuditValue
+            value={row.value}
+            fieldKey={row.key}
+            names={names}
+          />
         </span>
       ),
     },
@@ -217,7 +235,7 @@ export function AuditTrailDetailModal({
                 )}
               </Descriptions.Item>
               <Descriptions.Item label="Role">
-                {entry.roleName || "—"}
+                <AuditRoleLabel value={entry.roleName} roles={roles} />
               </Descriptions.Item>
               <Descriptions.Item label="IP address">
                 {entry.ipAddress || "—"}
@@ -247,6 +265,9 @@ export function AuditTrailDetailModal({
                       columns={diffColumns}
                       pagination={false}
                       size="small"
+                      // Values are unbroken ids and long text; auto layout sizes
+                      // columns to them and pushes the table past the modal.
+                      tableLayout="fixed"
                     />
                   </div>
                 )}
@@ -258,6 +279,7 @@ export function AuditTrailDetailModal({
                     columns={diffColumns}
                     pagination={false}
                     size="small"
+                    tableLayout="fixed"
                     locale={{ emptyText: "No snapshot recorded for this entry." }}
                   />
                 </div>
@@ -275,6 +297,7 @@ export function AuditTrailDetailModal({
                   columns={snapshotColumns}
                   pagination={false}
                   size="small"
+                  tableLayout="fixed"
                   locale={{ emptyText: "No snapshot recorded for this entry." }}
                 />
               </div>

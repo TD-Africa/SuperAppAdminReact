@@ -13,9 +13,16 @@ import {
   App as AntdApp,
 } from "antd";
 import type { TableColumnsType } from "antd";
-import { DownloadOutlined, UserAddOutlined } from "@ant-design/icons";
+import {
+  DownloadOutlined,
+  FileZipOutlined,
+  UserAddOutlined,
+} from "@ant-design/icons";
 import { apiGet, apiPost } from "@/lib/api";
-import { downloadCacRegistration } from "@/lib/cacExports";
+import {
+  downloadCacRegistration,
+  downloadCacRegistrationWithDocuments,
+} from "@/lib/cacExports";
 import { useAuthStore } from "@/stores/auth";
 import { Permission } from "@/lib/permissions";
 import type { CacPersonResponse, CacRegistrationResponse } from "@/lib/types";
@@ -42,7 +49,7 @@ export function CacDataDetailModal({ cacId, open, onOpenChange }: Props) {
   const canCreateUser = useAuthStore((s) =>
     s.hasPermission(Permission.CanCreateUser),
   );
-  const [exporting, setExporting] = useState(false);
+  const [exporting, setExporting] = useState<"sheet" | "docs" | null>(null);
   const [creatingUser, setCreatingUser] = useState(false);
 
   const { data, isLoading } = useQuery({
@@ -58,15 +65,18 @@ export function CacDataDetailModal({ cacId, open, onOpenChange }: Props) {
     enabled: !!cacId && open,
   });
 
-  async function exportRecord() {
+  async function exportRecord(kind: "sheet" | "docs") {
     if (!cacId) return;
-    setExporting(true);
+    setExporting(kind);
     try {
-      const err = await downloadCacRegistration(cacId);
+      const err =
+        kind === "docs"
+          ? await downloadCacRegistrationWithDocuments(cacId)
+          : await downloadCacRegistration(cacId);
       if (err) message.error(err);
       else message.success("Download started.");
     } finally {
-      setExporting(false);
+      setExporting(null);
     }
   }
 
@@ -264,10 +274,19 @@ export function CacDataDetailModal({ cacId, open, onOpenChange }: Props) {
     <div className="flex flex-wrap justify-end gap-2">
       <Button
         icon={<DownloadOutlined />}
-        loading={exporting}
-        onClick={exportRecord}
+        loading={exporting === "sheet"}
+        disabled={exporting !== null}
+        onClick={() => exportRecord("sheet")}
       >
         Export record
+      </Button>
+      <Button
+        icon={<FileZipOutlined />}
+        loading={exporting === "docs"}
+        disabled={exporting !== null}
+        onClick={() => exportRecord("docs")}
+      >
+        Export record with documents
       </Button>
       <Tooltip title={createUserBlockedReason ?? ""}>
         {/* span keeps the tooltip alive while the button is disabled */}

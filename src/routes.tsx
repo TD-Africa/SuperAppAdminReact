@@ -40,8 +40,7 @@ const ProductGroupsPage = lazy(() => import("@/pages/ProductGroups"));
 const PromosPage = lazy(() => import("@/pages/Promos"));
 const CouponsPage = lazy(() => import("@/pages/Coupons"));
 const DealsPage = lazy(() => import("@/pages/Deals"));
-const PromosAuditLogsPage = lazy(() => import("@/pages/PromosAuditLogs"));
-const DealsAuditLogsPage = lazy(() => import("@/pages/DealsAuditLogs"));
+const AuditTrailPage = lazy(() => import("@/pages/AuditTrail"));
 const RatingsPage = lazy(() => import("@/pages/Ratings"));
 const EmailChangeRequestsPage = lazy(() => import("@/pages/EmailChangeRequests"));
 const RequestAppealsPage = lazy(() => import("@/pages/RequestAppeals"));
@@ -217,13 +216,12 @@ export const router = createBrowserRouter([
           </ProtectedRoute>
         ),
       },
+      // The per-entity audit pages were folded into the platform-wide trail when
+      // the backend dropped the Promo/Deal audit tables; keep the old paths
+      // working as pre-filtered deep links.
       {
         path: "promos-audit-logs",
-        element: (
-          <ProtectedRoute permission={Permission.CanViewPromos}>
-            {withSuspense(<PromosAuditLogsPage />)}
-          </ProtectedRoute>
-        ),
+        element: <Navigate to="/audit-trail?entityType=Promo" replace />,
       },
       {
         path: "product-groups",
@@ -356,18 +354,14 @@ export const router = createBrowserRouter([
       {
         path: "deals",
         element: (
-          <ProtectedRoute permission={Permission.CanViewBrands}>
+          <ProtectedRoute permission={Permission.CanManageDeals}>
             {withSuspense(<DealsPage />)}
           </ProtectedRoute>
         ),
       },
       {
         path: "deals-audit-logs",
-        element: (
-          <ProtectedRoute permission={Permission.CanViewBrands}>
-            {withSuspense(<DealsAuditLogsPage />)}
-          </ProtectedRoute>
-        ),
+        element: <Navigate to="/audit-trail?entityType=Deal" replace />,
       },
       {
         path: "warehouses",
@@ -438,6 +432,14 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute permission={Permission.ManageExchangeRate}>
             {withSuspense(<ExchangeRatesPage />)}
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "audit-trail",
+        element: (
+          <ProtectedRoute permission={Permission.CanViewAuditTrail}>
+            {withSuspense(<AuditTrailPage />)}
           </ProtectedRoute>
         ),
       },

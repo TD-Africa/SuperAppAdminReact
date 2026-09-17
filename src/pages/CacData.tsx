@@ -1,21 +1,67 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Card, Input, Typography, Table, Button } from "antd";
+import {
+  Card,
+  Input,
+  Select,
+  Tag,
+  Typography,
+  Table,
+  Button,
+  Space,
+  Tooltip,
+  App as AntdApp,
+} from "antd";
 import type { TableColumnsType } from "antd";
-import { EyeOutlined } from "@ant-design/icons";
+import {
+  EyeOutlined,
+  DownloadOutlined,
+  FileZipOutlined,
+} from "@ant-design/icons";
 import { apiGet } from "@/lib/api";
+import {
+  downloadAllCacRegistrations,
+  downloadAllCacRegistrationsWithDocuments,
+  downloadCacRegistration,
+  downloadCacRegistrationWithDocuments,
+  downloadSelectedCacRegistrations,
+  downloadSelectedCacRegistrationsWithDocuments,
+} from "@/lib/cacExports";
 import type { CacRegistrationResponse } from "@/lib/types";
+import {
+  CAC_TYPE_COLOR,
+  CAC_TYPE_LABEL,
+  CAC_TYPE_SHORT_LABEL,
+  cacRegistrationType,
+} from "@/lib/cacRegistrationType";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { formatDate } from "@/lib/utils";
 import { CacDataDetailModal } from "@/components/cac/CacDataDetailModal";
 
+const ALL = "__all__";
+
+// Each toolbar export, so exactly one button shows a spinner at a time.
+type ExportKind =
+  | "all"
+  | "allDocs"
+  | "selected"
+  | "selectedDocs";
+
 export default function CacDataPage() {
+  const { message } = AntdApp.useApp();
   const [keyword, setKeyword] = useState("");
   const debouncedKeyword = useDebouncedValue(keyword, 250);
+  const [regType, setRegType] = useState<string>(ALL);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
+  const [exporting, setExporting] = useState<ExportKind | null>(null);
+  const [exportingRow, setExportingRow] = useState<{
+    id: string;
+    withDocs: boolean;
+  } | null>(null);
 
   const { data, isLoading, isFetching } = useQuery({
     queryKey: ["cac-registrations"],
@@ -32,19 +78,57 @@ export default function CacDataPage() {
   const filtered = useMemo(() => {
     const list = data ?? [];
     const q = debouncedKeyword.trim().toLowerCase();
-    if (!q) return list;
-    return list.filter((r) =>
-      [r.firstPreferredBusinessName, r.secondPreferredBusinessName, r.businessDescription]
+    return list.filter((r) => {
+      if (regType !== ALL && cacRegistrationType(r) !== regType) return false;
+      if (!q) return true;
+      return [r.firstPreferredBusinessName, r.secondPreferredBusinessName]
         .filter(Boolean)
-        .some((v) => v!.toLowerCase().includes(q)),
-    );
-  }, [data, debouncedKeyword]);
+        .some((v) => v!.toLowerCase().includes(q));
+    });
+  }, [data, debouncedKeyword, regType]);
 
   const totalItems = filtered.length;
   const paginated = useMemo(
     () => filtered.slice((page - 1) * pageSize, page * pageSize),
     [filtered, page, pageSize],
   );
+
+  // Selection is kept across pages and filter changes (preserveSelectedRowKeys),
+  // so exporting a selection is not limited to what is currently on screen.
+  async function runExport(kind: ExportKind) {
+    setExporting(kind);
+    try {
+      const err = await {
+        all: () => downloadAllCacRegistrations(),
+        allDocs: () => downloadAllCacRegistrationsWithDocuments(),
+        selected: () => downloadSelectedCacRegistrations(selectedRowKeys),
+        selectedDocs: () =>
+          downloadSelectedCacRegistrationsWithDocuments(selectedRowKeys),
+      }[kind]();
+      if (err) message.error(err);
+      else message.success("Download started.");
+    } finally {
+      setExporting(null);
+    }
+  }
+
+  async function exportRow(cacId: string, withDocs: boolean) {
+    setExportingRow({ id: cacId, withDocs });
+    try {
+      const err = withDocs
+        ? await downloadCacRegistrationWithDocuments(cacId)
+        : await downloadCacRegistration(cacId);
+      if (err) message.error(err);
+      else message.success("Download started.");
+    } finally {
+      setExportingRow(null);
+    }
+  }
+
+  // One export at a time, whichever button started it.
+  const busy = exporting !== null || exportingRow !== null;
+  const rowLoading = (id: string, withDocs: boolean) =>
+    exportingRow?.id === id && exportingRow.withDocs === withDocs;
 
   const columns: TableColumnsType<CacRegistrationResponse> = [
     {
@@ -54,69 +138,170 @@ export default function CacDataPage() {
     },
     { title: "Second preferred", dataIndex: "secondPreferredBusinessName", render: (v) => v ?? "—" },
     {
-      title: "Business description",
-      dataIndex: "businessDescription",
-      render: (v) => (
-        <span className="block max-w-[320px] truncate text-muted-foreground">{v ?? "—"}</span>
-      ),
+      title: "Type",
+      key: "type",
+      render: (_, r) => {
+        const t = cacRegistrationType(r);
+        return (
+          <Tag color={CAC_TYPE_COLOR[t]} title={CAC_TYPE_LABEL[t]}>
+            {CAC_TYPE_SHORT_LABEL[t]}
+          </Tag>
+        );
+      },
     },
     {
       title: "Submitted",
       dataIndex: "dateCreated",
       render: (v) => <span className="text-xs text-muted-foreground">{formatDate(v)}</span>,
     },
+    // Directors and secretaries belong to the LLC flow only — a business name
+    // carries a proprietor instead, so a zero there would be misleading.
     {
       title: "Directors",
-      dataIndex: "directors",
+      key: "directors",
       align: "right",
-      render: (v: unknown[]) => v?.length ?? 0,
+      render: (_, r) =>
+        cacRegistrationType(r) === "llc" ? (r.directors?.length ?? 0) : "—",
     },
     {
       title: "Secretaries",
-      dataIndex: "secretaries",
+      key: "secretaries",
       align: "right",
-      render: (v: unknown[]) => v?.length ?? 0,
+      render: (_, r) =>
+        cacRegistrationType(r) === "llc" ? (r.secretaries?.length ?? 0) : "—",
     },
     {
       title: "",
       key: "actions",
-      width: 60,
+      width: 132,
       align: "right",
       render: (_, r) => (
-        <Button
-          size="small"
-          icon={<EyeOutlined />}
-          onClick={() => {
-            setSelectedId(r.id);
-            setDetailOpen(true);
-          }}
-        />
+        <Space size={4}>
+          <Tooltip title="View details">
+            <Button
+              size="small"
+              icon={<EyeOutlined />}
+              onClick={() => {
+                setSelectedId(r.id);
+                setDetailOpen(true);
+              }}
+            />
+          </Tooltip>
+          <Tooltip title="Export spreadsheet">
+            <Button
+              size="small"
+              icon={<DownloadOutlined />}
+              loading={rowLoading(r.id, false)}
+              disabled={busy && !rowLoading(r.id, false)}
+              onClick={() => exportRow(r.id, false)}
+            />
+          </Tooltip>
+          <Tooltip title="Export with documents (zip)">
+            <Button
+              size="small"
+              icon={<FileZipOutlined />}
+              loading={rowLoading(r.id, true)}
+              disabled={busy && !rowLoading(r.id, true)}
+              onClick={() => exportRow(r.id, true)}
+            />
+          </Tooltip>
+        </Space>
       ),
     },
   ];
 
   return (
     <div className="space-y-6">
-      <div>
-        <Typography.Title level={3} className="!m-0">
-          CAC Data
-        </Typography.Title>
-        <Typography.Text type="secondary">
-          Corporate Affairs Commission registrations submitted during onboarding.
-        </Typography.Text>
+      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div>
+          <Typography.Title level={3} className="!m-0">
+            CAC Data
+          </Typography.Title>
+          <Typography.Text type="secondary">
+            Corporate Affairs Commission registrations submitted during onboarding.
+          </Typography.Text>
+        </div>
+        <Space wrap>
+          <Button
+            icon={<DownloadOutlined />}
+            loading={exporting === "all"}
+            disabled={busy}
+            onClick={() => runExport("all")}
+          >
+            Export all
+          </Button>
+          <Button
+            icon={<FileZipOutlined />}
+            loading={exporting === "allDocs"}
+            disabled={busy}
+            onClick={() => runExport("allDocs")}
+          >
+            Export all with documents
+          </Button>
+        </Space>
       </div>
 
       <Card styles={{ body: { padding: 16 } }}>
-        <Input
-          placeholder="Search by business name or description…"
-          value={keyword}
-          allowClear
-          onChange={(e) => {
-            setPage(1);
-            setKeyword(e.target.value);
-          }}
-        />
+        <div className="flex flex-col gap-3 md:flex-row">
+          <Input
+            className="md:flex-1"
+            placeholder="Search by preferred business name…"
+            value={keyword}
+            allowClear
+            onChange={(e) => {
+              setPage(1);
+              setKeyword(e.target.value);
+            }}
+          />
+          <Select
+            className="md:w-64"
+            value={regType}
+            onChange={(v) => {
+              setPage(1);
+              setRegType(v);
+            }}
+            options={[
+              { value: ALL, label: "All registration types" },
+              { value: "businessName", label: CAC_TYPE_LABEL.businessName },
+              { value: "llc", label: CAC_TYPE_LABEL.llc },
+            ]}
+          />
+        </div>
       </Card>
+
+      {selectedRowKeys.length > 0 && (
+        <Card styles={{ body: { padding: 12 } }}>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <Typography.Text>
+              {selectedRowKeys.length} registration
+              {selectedRowKeys.length === 1 ? "" : "s"} selected
+            </Typography.Text>
+            <Space wrap>
+              <Button size="small" onClick={() => setSelectedRowKeys([])}>
+                Clear
+              </Button>
+              <Button
+                size="small"
+                icon={<DownloadOutlined />}
+                loading={exporting === "selected"}
+                disabled={busy}
+                onClick={() => runExport("selected")}
+              >
+                Export selected
+              </Button>
+              <Button
+                size="small"
+                icon={<FileZipOutlined />}
+                loading={exporting === "selectedDocs"}
+                disabled={busy}
+                onClick={() => runExport("selectedDocs")}
+              >
+                Selected + documents
+              </Button>
+            </Space>
+          </div>
+        </Card>
+      )}
 
       <Card styles={{ body: { padding: 0 } }}>
         <Table<CacRegistrationResponse>
@@ -124,6 +309,11 @@ export default function CacDataPage() {
           dataSource={paginated}
           columns={columns}
           loading={isLoading || isFetching}
+          rowSelection={{
+            selectedRowKeys,
+            preserveSelectedRowKeys: true,
+            onChange: (keys) => setSelectedRowKeys(keys as string[]),
+          }}
           pagination={{
             current: page,
             pageSize,

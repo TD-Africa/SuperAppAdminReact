@@ -20,7 +20,6 @@ import {
   UserSwitchOutlined,
   KeyOutlined,
   PercentageOutlined,
-  HistoryOutlined,
   AccountBookOutlined,
   UsergroupAddOutlined,
   GiftOutlined,
@@ -28,6 +27,8 @@ import {
   WalletOutlined,
   LockOutlined,
   DollarOutlined,
+  AuditOutlined,
+  HistoryOutlined,
 } from "@ant-design/icons";
 import { useAuthStore } from "@/stores/auth";
 import { Permission } from "@/lib/permissions";
@@ -62,16 +63,7 @@ const NAV_TREE: NavNode[] = [
   { type: "leaf", to: "/employees", label: "Employees", icon: <UsergroupAddOutlined />, permission: Permission.CanViewDashboard },
   { type: "leaf", to: "/cac-data", label: "CAC Data", icon: <IdcardOutlined />, permission: Permission.CanViewUser },
   { type: "leaf", to: "/kyc", label: "KYC", icon: <SafetyCertificateOutlined />, permission: Permission.CanEditUser },
-  {
-    type: "group",
-    key: "promos",
-    label: "Promos",
-    icon: <PercentageOutlined />,
-    children: [
-      { type: "leaf", to: "/promos", label: "All Promos", icon: <PercentageOutlined />, permission: Permission.CanViewPromos },
-      { type: "leaf", to: "/promos-audit-logs", label: "Audit Logs", icon: <HistoryOutlined />, permission: Permission.CanViewPromos },
-    ],
-  },
+  { type: "leaf", to: "/promos", label: "Promos", icon: <PercentageOutlined />, permission: Permission.CanViewPromos },
   { type: "leaf", to: "/coupons", label: "Coupons", icon: <GiftOutlined />, permission: Permission.CanViewPromos },
   { type: "leaf", to: "/product-groups", label: "Product Groups", icon: <GroupOutlined />, permission: Permission.CanViewProductGroup },
   {
@@ -102,16 +94,7 @@ const NAV_TREE: NavNode[] = [
       { type: "leaf", to: "/storefront-tickets", label: "Tickets", icon: <CustomerServiceOutlined />, permission: Permission.CanViewTicket },
     ],
   },
-  {
-    type: "group",
-    key: "deals",
-    label: "Deals",
-    icon: <TagsOutlined />,
-    children: [
-      { type: "leaf", to: "/deals", label: "All Deals", icon: <TagsOutlined />, permission: Permission.CanViewBrands },
-      { type: "leaf", to: "/deals-audit-logs", label: "Audit Logs", icon: <HistoryOutlined />, permission: Permission.CanViewBrands },
-    ],
-  },
+  { type: "leaf", to: "/deals", label: "Deals", icon: <TagsOutlined />, permission: Permission.CanManageDeals },
   { type: "leaf", to: "/warehouses", label: "Warehouses", icon: <ContainerOutlined />, permission: Permission.CanViewWarehouses },
   { type: "leaf", to: "/tickets", label: "Tickets", icon: <CustomerServiceOutlined />, permission: Permission.CanViewTicket },
   { type: "leaf", to: "/ratings", label: "Ratings", icon: <StarOutlined />, permission: Permission.CanViewRatings },
@@ -121,6 +104,7 @@ const NAV_TREE: NavNode[] = [
   { type: "leaf", to: "/roles", label: "Roles", icon: <KeyOutlined />, permission: Permission.CanViewRoles },
   { type: "leaf", to: "/transaction-settings", label: "Transaction Settings", icon: <SettingOutlined />, permission: Permission.CanChangeSettings },
   { type: "leaf", to: "/exchange-rates", label: "Exchange Rates", icon: <DollarOutlined />, permission: Permission.ManageExchangeRate },
+  { type: "leaf", to: "/audit-trail", label: "Audit Trail", icon: <AuditOutlined />, permission: Permission.CanViewAuditTrail },
 ];
 
 // Storefront-related paths for reference

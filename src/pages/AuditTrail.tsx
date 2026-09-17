@@ -27,7 +27,9 @@ import {
   auditActionColor,
   entityTypeLabel,
 } from "@/lib/auditTrail";
+import { AuditRoleLabel } from "@/components/audit/AuditRoleLabel";
 import { AuditTrailDetailModal } from "@/components/audit/AuditTrailDetailModal";
+import { useAuditRoleCandidates } from "@/hooks/useAuditRoleCandidates";
 import type {
   AdminAuditLogItem,
   AdminUserReturnDto,
@@ -59,6 +61,7 @@ export default function AuditTrailPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [selected, setSelected] = useState<AdminAuditLogItem | null>(null);
+  const roles = useAuditRoleCandidates();
 
   useEffect(() => {
     setEntityType(urlEntityType || ALL);
@@ -192,7 +195,11 @@ export default function AuditTrailPage() {
             {row.adminName || row.adminEmail || "—"}
           </div>
           <div className="text-xs text-muted-foreground">
-            {row.adminName && row.adminEmail ? row.adminEmail : row.roleName}
+            {row.adminName && row.adminEmail ? (
+              row.adminEmail
+            ) : (
+              <AuditRoleLabel value={row.roleName} roles={roles} />
+            )}
           </div>
         </div>
       ),

@@ -228,6 +228,13 @@ async function downloadError(err: unknown): Promise<string> {
   );
 }
 
+// `validate` lets a caller reject a 200 that carries nothing useful — an export
+// that answers with an empty archive rather than an error, say. Returning a
+// message from it skips the download and surfaces that message instead.
+type DownloadConfig = AxiosRequestConfig & {
+  validate?: (blob: Blob) => string | null;
+};
+
 // Authenticated file download. Unlike `window.open(...)`, this routes through the
 // axios instance so the Bearer token is attached (required by endpoints like
 // Order/DownloadWorkerSales that return 401 without it). Streams the response as a
@@ -236,10 +243,13 @@ async function downloadError(err: unknown): Promise<string> {
 export async function downloadFile(
   url: string,
   fallbackFilename: string,
-  config?: AxiosRequestConfig,
+  config?: DownloadConfig,
 ): Promise<string | null> {
+  const { validate, ...axiosConfig } = config ?? {};
   try {
-    const res = await http.get(url, { ...config, responseType: "blob" });
+    const res = await http.get(url, { ...axiosConfig, responseType: "blob" });
+    const rejection = validate?.(res.data as Blob);
+    if (rejection) return rejection;
     saveBlob(res, fallbackFilename);
     return null;
   } catch (err) {
@@ -248,16 +258,13 @@ export async function downloadFile(
 }
 
 // Same contract as `downloadFile`, for the export endpoints that take their
-// selection in a POST body (CacRegistration/ExportSelectedCacRegistrations and
-// .../download-excel both expect a bare JSON array of ids). `validate` lets a
-// caller reject a 200 that carries nothing useful — some of these answer with an
-// empty archive rather than an error; returning a message from it skips the
-// download and surfaces that message instead.
+// selection in a POST body — CacRegistration's ExportSelected* routes expect a
+// bare JSON array of ids.
 export async function downloadFilePost(
   url: string,
   fallbackFilename: string,
   body?: unknown,
-  config?: AxiosRequestConfig & { validate?: (blob: Blob) => string | null },
+  config?: DownloadConfig,
 ): Promise<string | null> {
   const { validate, ...axiosConfig } = config ?? {};
   try {

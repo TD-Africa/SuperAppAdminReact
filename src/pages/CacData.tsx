@@ -21,9 +21,11 @@ import {
 import { apiGet } from "@/lib/api";
 import {
   downloadAllCacRegistrations,
-  downloadCacDocuments,
+  downloadAllCacRegistrationsWithDocuments,
   downloadCacRegistration,
+  downloadCacRegistrationWithDocuments,
   downloadSelectedCacRegistrations,
+  downloadSelectedCacRegistrationsWithDocuments,
 } from "@/lib/cacExports";
 import type { CacRegistrationResponse } from "@/lib/types";
 import {
@@ -38,7 +40,12 @@ import { CacDataDetailModal } from "@/components/cac/CacDataDetailModal";
 
 const ALL = "__all__";
 
-type ExportKind = "all" | "selected" | "documents";
+// Each toolbar export, so exactly one button shows a spinner at a time.
+type ExportKind =
+  | "all"
+  | "allDocs"
+  | "selected"
+  | "selectedDocs";
 
 export default function CacDataPage() {
   const { message } = AntdApp.useApp();
@@ -51,7 +58,10 @@ export default function CacDataPage() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
   const [exporting, setExporting] = useState<ExportKind | null>(null);
-  const [exportingRowId, setExportingRowId] = useState<string | null>(null);
+  const [exportingRow, setExportingRow] = useState<{
+    id: string;
+    withDocs: boolean;
+  } | null>(null);
 
   const { data, isLoading, isFetching } = useQuery({
     queryKey: ["cac-registrations"],
@@ -88,12 +98,13 @@ export default function CacDataPage() {
   async function runExport(kind: ExportKind) {
     setExporting(kind);
     try {
-      const err =
-        kind === "all"
-          ? await downloadAllCacRegistrations()
-          : kind === "selected"
-            ? await downloadSelectedCacRegistrations(selectedRowKeys)
-            : await downloadCacDocuments(selectedRowKeys);
+      const err = await {
+        all: () => downloadAllCacRegistrations(),
+        allDocs: () => downloadAllCacRegistrationsWithDocuments(),
+        selected: () => downloadSelectedCacRegistrations(selectedRowKeys),
+        selectedDocs: () =>
+          downloadSelectedCacRegistrationsWithDocuments(selectedRowKeys),
+      }[kind]();
       if (err) message.error(err);
       else message.success("Download started.");
     } finally {
@@ -101,19 +112,23 @@ export default function CacDataPage() {
     }
   }
 
-  async function exportRow(cacId: string) {
-    setExportingRowId(cacId);
+  async function exportRow(cacId: string, withDocs: boolean) {
+    setExportingRow({ id: cacId, withDocs });
     try {
-      const err = await downloadCacRegistration(cacId);
+      const err = withDocs
+        ? await downloadCacRegistrationWithDocuments(cacId)
+        : await downloadCacRegistration(cacId);
       if (err) message.error(err);
       else message.success("Download started.");
     } finally {
-      setExportingRowId(null);
+      setExportingRow(null);
     }
   }
 
   // One export at a time, whichever button started it.
-  const busy = exporting !== null || exportingRowId !== null;
+  const busy = exporting !== null || exportingRow !== null;
+  const rowLoading = (id: string, withDocs: boolean) =>
+    exportingRow?.id === id && exportingRow.withDocs === withDocs;
 
   const columns: TableColumnsType<CacRegistrationResponse> = [
     {
@@ -158,7 +173,7 @@ export default function CacDataPage() {
     {
       title: "",
       key: "actions",
-      width: 96,
+      width: 132,
       align: "right",
       render: (_, r) => (
         <Space size={4}>
@@ -172,13 +187,22 @@ export default function CacDataPage() {
               }}
             />
           </Tooltip>
-          <Tooltip title="Export this registration">
+          <Tooltip title="Export spreadsheet">
             <Button
               size="small"
               icon={<DownloadOutlined />}
-              loading={exportingRowId === r.id}
-              disabled={busy && exportingRowId !== r.id}
-              onClick={() => exportRow(r.id)}
+              loading={rowLoading(r.id, false)}
+              disabled={busy && !rowLoading(r.id, false)}
+              onClick={() => exportRow(r.id, false)}
+            />
+          </Tooltip>
+          <Tooltip title="Export with documents (zip)">
+            <Button
+              size="small"
+              icon={<FileZipOutlined />}
+              loading={rowLoading(r.id, true)}
+              disabled={busy && !rowLoading(r.id, true)}
+              onClick={() => exportRow(r.id, true)}
             />
           </Tooltip>
         </Space>
@@ -197,14 +221,24 @@ export default function CacDataPage() {
             Corporate Affairs Commission registrations submitted during onboarding.
           </Typography.Text>
         </div>
-        <Button
-          icon={<DownloadOutlined />}
-          loading={exporting === "all"}
-          disabled={busy}
-          onClick={() => runExport("all")}
-        >
-          Export all
-        </Button>
+        <Space wrap>
+          <Button
+            icon={<DownloadOutlined />}
+            loading={exporting === "all"}
+            disabled={busy}
+            onClick={() => runExport("all")}
+          >
+            Export all
+          </Button>
+          <Button
+            icon={<FileZipOutlined />}
+            loading={exporting === "allDocs"}
+            disabled={busy}
+            onClick={() => runExport("allDocs")}
+          >
+            Export all with documents
+          </Button>
+        </Space>
       </div>
 
       <Card styles={{ body: { padding: 16 } }}>
@@ -258,11 +292,11 @@ export default function CacDataPage() {
               <Button
                 size="small"
                 icon={<FileZipOutlined />}
-                loading={exporting === "documents"}
+                loading={exporting === "selectedDocs"}
                 disabled={busy}
-                onClick={() => runExport("documents")}
+                onClick={() => runExport("selectedDocs")}
               >
-                Download documents
+                Selected + documents
               </Button>
             </Space>
           </div>

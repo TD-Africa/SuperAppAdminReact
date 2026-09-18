@@ -82,6 +82,7 @@ const NAV_TREE: NavNode[] = [
     label: "Storefront",
     icon: <ShopOutlined />,
     children: [
+      { type: "leaf", to: "/storefront-dashboard", label: "Dashboard", icon: <DashboardOutlined />, permission: Permission.CanViewDashboard },
       { type: "leaf", to: "/franchise-products", label: "Products", icon: <AppstoreOutlined />, permission: Permission.CanViewProducts },
       { type: "leaf", to: "/franchise-orders", label: "Orders", icon: <ShoppingCartOutlined />, permission: Permission.CanViewOrders },
       { type: "leaf", to: "/franchise-brands", label: "Brands", icon: <ShopOutlined />, permission: Permission.CanViewBrands },

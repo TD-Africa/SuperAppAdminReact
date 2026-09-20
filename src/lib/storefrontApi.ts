@@ -52,6 +52,11 @@ import type {
   StorefrontQuoteDto,
   StorefrontQuoteRequest,
   StorefrontSettlementCancellationRequest,
+  StorefrontShippingOptionsDto,
+  StorefrontShippingQuoteDto,
+  StorefrontShippingQuoteRequest,
+  StorefrontShippingRateDto,
+  StorefrontShippingRateRequest,
   StorefrontSettlementRecoveryDto,
   StorefrontSettlementRefundCompletionRequest,
   StorefrontTicketCommentRequest,
@@ -305,6 +310,42 @@ export function getStorefrontCategoriesByProduct(productId: string) {
 
 export function quoteStorefront(body: StorefrontQuoteRequest): Promise<ApiResult<StorefrontQuoteDto>> {
   return apiPost<StorefrontQuoteDto>("Storefront/Quote", body);
+}
+
+// —— Storefront shipping ——
+
+export function getStorefrontShippingOptions() {
+  return apiGet<StorefrontShippingOptionsDto>("Storefront/GetShippingOptions");
+}
+
+export function getStorefrontShippingQuote(body: StorefrontShippingQuoteRequest) {
+  return apiPost<StorefrontShippingQuoteDto>("Storefront/GetShippingQuote", body);
+}
+
+// —— Storefront shipping rates ——
+
+export function getStorefrontShippingRates(params: { isActive?: boolean } = {}) {
+  return apiGet<StorefrontShippingRateDto[]>(
+    `Storefront/GetShippingRates${toQuery(params)}`,
+  );
+}
+
+export function addStorefrontShippingRate(body: StorefrontShippingRateRequest) {
+  return apiPost<StorefrontShippingRateDto>("Storefront/AddShippingRate", body);
+}
+
+export function updateStorefrontShippingRate(
+  rateId: string,
+  body: StorefrontShippingRateRequest,
+) {
+  return apiPut<StorefrontShippingRateDto>(
+    `Storefront/UpdateShippingRate/${rateId}`,
+    body,
+  );
+}
+
+export function deleteStorefrontShippingRate(rateId: string) {
+  return apiDelete<boolean>(`Storefront/DeleteShippingRate/${rateId}`);
 }
 
 // —— Settlement wallet (storefront/settlement-wallet) ——

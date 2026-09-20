@@ -29,6 +29,7 @@ import {
   DollarOutlined,
   AuditOutlined,
   HistoryOutlined,
+  CarOutlined,
 } from "@ant-design/icons";
 import { useAuthStore } from "@/stores/auth";
 import { Permission } from "@/lib/permissions";
@@ -85,6 +86,7 @@ const NAV_TREE: NavNode[] = [
       { type: "leaf", to: "/storefront-dashboard", label: "Dashboard", icon: <DashboardOutlined />, permission: Permission.CanViewDashboard },
       { type: "leaf", to: "/franchise-products", label: "Products", icon: <AppstoreOutlined />, permission: Permission.CanViewProducts },
       { type: "leaf", to: "/franchise-orders", label: "Orders", icon: <ShoppingCartOutlined />, permission: Permission.CanViewOrders },
+      { type: "leaf", to: "/storefront-shipping", label: "Shipping", icon: <CarOutlined />, permission: Permission.CanViewDeliveryMethod },
       { type: "leaf", to: "/franchise-brands", label: "Brands", icon: <ShopOutlined />, permission: Permission.CanViewBrands },
       { type: "leaf", to: "/franchise-categories", label: "Categories", icon: <TagsOutlined />, permission: Permission.CanViewBrands },
       { type: "leaf", to: "/franchise-store-owner-invites", label: "Owner Invites", icon: <MailOutlined />, permission: Permission.CanViewUser },

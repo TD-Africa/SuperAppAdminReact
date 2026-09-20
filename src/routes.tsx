@@ -30,6 +30,7 @@ const SettlementRecoveryPage = lazy(() => import("@/pages/SettlementRecovery"));
 const StorefrontCouponRequestsPage = lazy(() => import("@/pages/StorefrontCouponRequests"));
 const StorefrontTicketsPage = lazy(() => import("@/pages/StorefrontTickets"));
 const StorefrontDashboardPage = lazy(() => import("@/pages/StorefrontDashboard"));
+const StorefrontShippingPage = lazy(() => import("@/pages/StorefrontShipping"));
 const BrandRestrictionsPage = lazy(() => import("@/pages/BrandRestrictions"));
 const WarehousesPage = lazy(() => import("@/pages/Warehouses"));
 const TicketsPage = lazy(() => import("@/pages/Tickets"));
@@ -349,6 +350,14 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute permission={Permission.CanViewDashboard}>
             {withSuspense(<StorefrontDashboardPage />)}
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "storefront-shipping",
+        element: (
+          <ProtectedRoute permission={Permission.CanViewDeliveryMethod}>
+            {withSuspense(<StorefrontShippingPage />)}
           </ProtectedRoute>
         ),
       },

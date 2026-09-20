@@ -572,6 +572,18 @@ export interface StorefrontPaidOrderResponse {
   earning: StorefrontEarningDto | null;
 }
 
+// —— Storefront commission settings (OEM) ——
+
+/** GET Storefront/GetCommissionSettings | PUT Storefront/UpdateCommissionSettings response */
+export interface StorefrontCommissionSettingsDto {
+  oemCommissionPercent: number;
+}
+
+/** PUT Storefront/UpdateCommissionSettings request */
+export interface StorefrontCommissionSettingsRequest {
+  oemCommissionPercent: number;
+}
+
 // —— Store owner management (StorefrontOwner) ——
 
 /** GET Storefront/GetStorefrontOwners | GetAcceptedStorefrontOwners | GetStorefrontOwner/{ownerId} */

@@ -12,6 +12,8 @@ import type {
   StorefrontBrandThemeRequest,
   StorefrontCategoryDto,
   StorefrontCategoryProductsRequest,
+  StorefrontCommissionSettingsDto,
+  StorefrontCommissionSettingsRequest,
   StorefrontDashboardDto,
   StorefrontEarningsSummaryDto,
   StorefrontOwnerBrandDto,
@@ -132,6 +134,21 @@ export function updateStorefrontBrand(
 
 export function deleteStorefrontBrand(storefrontBrandId: string) {
   return apiDelete<boolean>(`Storefront/DeleteStorefrontBrand/${storefrontBrandId}`);
+}
+
+// —— Storefront commission settings (OEM) ——
+
+export function getStorefrontCommissionSettings() {
+  return apiGet<StorefrontCommissionSettingsDto>("Storefront/GetCommissionSettings");
+}
+
+export function updateStorefrontCommissionSettings(
+  body: StorefrontCommissionSettingsRequest,
+) {
+  return apiPut<StorefrontCommissionSettingsDto>(
+    "Storefront/UpdateCommissionSettings",
+    body,
+  );
 }
 
 /** No dedicated get-by-id endpoint — scan paginated list. */

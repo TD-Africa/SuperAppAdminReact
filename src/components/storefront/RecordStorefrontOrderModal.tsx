@@ -17,11 +17,14 @@ import type { DeliveryMethodReturnDTO, LocationReturnDTO } from "@/lib/types";
 import {
   createStorefrontOrder,
   createStorefrontSettlementOrder,
+  getStorefrontShippingQuote,
   quoteStorefront,
 } from "@/lib/storefrontApi";
+import { useStorefrontShippingOptions } from "@/hooks/useStorefrontShippingOptions";
 import type {
   StorefrontPaidOrderRequest,
   StorefrontProductQuantity,
+  StorefrontShippingQuoteRequest,
 } from "@/lib/storefrontTypes";
 import { formatCurrency } from "@/lib/utils";
 
@@ -53,6 +56,11 @@ export function RecordStorefrontOrderModal({
   const [form] = Form.useForm<FormValues>();
   const [quoting, setQuoting] = useState(false);
   const [lastQuoteTotal, setLastQuoteTotal] = useState<number | null>(null);
+  const [shippingQuoting, setShippingQuoting] = useState(false);
+  const [lastShippingQuote, setLastShippingQuote] = useState<{
+    totalFee: number;
+    currency: string;
+  } | null>(null);
 
   const { data: deliveryMethods } = useQuery({
     queryKey: ["delivery-methods"],
@@ -78,9 +86,12 @@ export function RecordStorefrontOrderModal({
     enabled: open,
   });
 
+  const { data: shippingOptions } = useStorefrontShippingOptions(open);
+  
   useEffect(() => {
     if (open) {
       setLastQuoteTotal(null);
+      setLastShippingQuote(null);
       form.setFieldsValue({
         storefrontOwnerId: ownerId,
         currency: "NGN",
@@ -89,6 +100,22 @@ export function RecordStorefrontOrderModal({
       });
     }
   }, [open, ownerId, form]);
+
+  // Prefill shipping defaults once options load.
+  useEffect(() => {
+    if (open && shippingOptions) {
+      form.setFieldsValue({
+        shippingOriginRegion:
+          shippingOptions.defaultOriginRegion ??
+          shippingOptions.originRegions?.[0] ??
+          undefined,
+        shippingPaymentMode:
+          shippingOptions.defaultPaymentMode ??
+          shippingOptions.paymentModes?.[0] ??
+          undefined,
+      });
+    }
+  }, [open, shippingOptions, form]);
 
   async function handleQuote() {
     const values = form.getFieldsValue();
@@ -126,6 +153,44 @@ export function RecordStorefrontOrderModal({
       );
     } finally {
       setQuoting(false);
+    }
+  }
+
+  async function handleShippingQuote() {
+    const values = form.getFieldsValue();
+    if (
+      !values.shippingOriginRegion ||
+      !values.shippingDestinationRegion ||
+      !values.shippingPaymentMode ||
+      !values.shippingWeightKg ||
+      values.shippingWeightKg <= 0
+    ) {
+      message.warning("Select origin, destination, payment mode, and weight first.");
+      return;
+    }
+    setShippingQuoting(true);
+    try {
+      const body: StorefrontShippingQuoteRequest = {
+        originRegion: values.shippingOriginRegion,
+        destinationRegion: values.shippingDestinationRegion,
+        paymentMode: values.shippingPaymentMode,
+        weightKg: values.shippingWeightKg,
+      };
+      const res = await getStorefrontShippingQuote(body);
+      if (!res.status || !res.data) {
+        message.error(res.message ?? "Shipping quote failed");
+        return;
+      }
+      setLastShippingQuote({
+        totalFee: res.data.totalFee,
+        currency: res.data.currency ?? "NGN",
+      });
+      form.setFieldsValue({ shippingFee: res.data.totalFee });
+      message.success(
+        `Shipping quote ${formatCurrency(res.data.totalFee, (res.data.currency as "NGN" | "USD") ?? "NGN")} applied to shipping fee.`,
+      );
+    } finally {
+      setShippingQuoting(false);
     }
   }
 
@@ -241,6 +306,71 @@ export function RecordStorefrontOrderModal({
         </Form.Item>
 
         <div className="mb-2 flex items-center justify-between gap-2">
+          <Typography.Text strong>Shipping</Typography.Text>
+          <Button
+            size="small"
+            icon={<CalculatorOutlined />}
+            loading={shippingQuoting}
+            onClick={handleShippingQuote}
+          >
+            Quote shipping
+          </Button>
+        </div>
+        <div className="grid gap-0 sm:grid-cols-2 sm:gap-3">
+          <Form.Item name="shippingOriginRegion" label="Origin region">
+            <Select
+              allowClear
+              showSearch
+              optionFilterProp="label"
+              placeholder="Origin region"
+              options={(shippingOptions?.originRegions ?? []).map((r) => ({
+                value: r,
+                label: r,
+              }))}
+            />
+          </Form.Item>
+          <Form.Item name="shippingDestinationRegion" label="Destination region">
+            <Select
+              allowClear
+              showSearch
+              optionFilterProp="label"
+              placeholder="Destination region"
+              options={(shippingOptions?.destinationRegions ?? []).map((r) => ({
+                value: r,
+                label: r,
+              }))}
+            />
+          </Form.Item>
+          <Form.Item name="shippingPaymentMode" label="Payment mode">
+            <Select
+              allowClear
+              showSearch
+              optionFilterProp="label"
+              placeholder="Payment mode"
+              options={(shippingOptions?.paymentModes ?? []).map((m) => ({
+                value: m,
+                label: m,
+              }))}
+            />
+          </Form.Item>
+          <Form.Item name="shippingWeightKg" label="Weight (kg)">
+            <InputNumber className="!w-full" min={0.01} max={2000000} step={0.01} precision={2} />
+          </Form.Item>
+          <Form.Item name="shippingFee" label="Shipping fee">
+            <InputNumber className="!w-full" min={0} precision={2} />
+          </Form.Item>
+        </div>
+        {lastShippingQuote != null ? (
+          <Typography.Text type="secondary" className="mb-3 block text-xs">
+            Last shipping quote:{" "}
+            {formatCurrency(
+              lastShippingQuote.totalFee,
+              lastShippingQuote.currency as "USD" | "NGN",
+            )}
+          </Typography.Text>
+        ) : null}
+
+        <div className="mb-2 flex items-center justify-between gap-2">
           <Typography.Text strong>Products (optional)</Typography.Text>
           <Button
             size="small"
@@ -331,7 +461,8 @@ export function RecordStorefrontOrderModal({
           <Input.TextArea rows={2} />
         </Form.Item>
         <Space className="text-xs text-muted-foreground">
-          Quote uses consumer API <code>Storefront/Quote</code> and fills amount paid.
+          Product quote uses <code>Storefront/Quote</code>; shipping quote uses{" "}
+          <code>Storefront/GetShippingQuote</code>.
         </Space>
       </Form>
     </Modal>

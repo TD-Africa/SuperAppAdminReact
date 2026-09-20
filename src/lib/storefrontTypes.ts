@@ -228,6 +228,67 @@ export interface StorefrontQuoteDto {
   totalInNaira: number;
 }
 
+// —— Storefront shipping (StorefrontShipping) ——
+
+/** GET Storefront/GetShippingOptions */
+export interface StorefrontShippingOptionsDto {
+  originRegions: string[] | null;
+  destinationRegions: string[] | null;
+  paymentModes: string[] | null;
+  defaultOriginRegion: string | null;
+  defaultPaymentMode: string | null;
+  baseWeightKg: number;
+}
+
+/** POST Storefront/GetShippingQuote request */
+export interface StorefrontShippingQuoteRequest {
+  originRegion: string;
+  destinationRegion: string;
+  weightKg: number;
+  paymentMode: string;
+}
+
+/** POST Storefront/GetShippingQuote response */
+export interface StorefrontShippingQuoteDto {
+  originRegion: string | null;
+  destinationRegion: string | null;
+  paymentMode: string | null;
+  weightKg: number;
+  baseWeightKg: number;
+  extraKgCount: number;
+  baseFee: number;
+  extraKgFee: number;
+  totalFee: number;
+  currency: string | null;
+}
+
+// —— Storefront shipping rates (StorefrontShippingRate) ——
+
+/** POST Storefront/AddShippingRate | PUT Storefront/UpdateShippingRate request */
+export interface StorefrontShippingRateRequest {
+  originRegion: string;
+  destinationRegion: string;
+  paymentMode: string;
+  baseFee: number;
+  extraKgFee: number;
+  currency: string;
+  isActive: boolean;
+}
+
+/** GET Storefront/GetShippingRates | POST AddShippingRate | PUT UpdateShippingRate response */
+export interface StorefrontShippingRateDto {
+  id: string;
+  originRegion: string | null;
+  destinationRegion: string | null;
+  paymentMode: string | null;
+  baseFee: number;
+  extraKgFee: number;
+  currency: string | null;
+  isActive: boolean;
+  dateCreated: string;
+  dateModified: string | null;
+}
+
 export function pickDefaultVariant(product: StorefrontProductDto): StorefrontVariantDto | null {
   const variants = product.variants ?? [];
   return variants.find((v) => v.isDefault) ?? variants[0] ?? null;
@@ -482,6 +543,11 @@ export interface StorefrontPaidOrderRequest {
   phoneNumber: string;
   email?: string | null;
   referralId?: string | null;
+  shippingFee?: number;
+  shippingOriginRegion?: string | null;
+  shippingDestinationRegion?: string | null;
+  shippingWeightKg?: number;
+  shippingPaymentMode?: string | null;
 }
 
 export interface StorefrontPaidOrderResponse {
@@ -489,6 +555,7 @@ export interface StorefrontPaidOrderResponse {
   externalOrderId: string | null;
   storefrontOwnerId: string | null;
   superAppAmount: number;
+  shippingFee: number;
   storefrontAmountPaid: number;
   currency: string | null;
   isPaid: boolean;
@@ -497,6 +564,8 @@ export interface StorefrontPaidOrderResponse {
   walletDebitAmount: number;
   walletFeeAmount: number;
   storefrontEarningAmount: number;
+  oemCommissionPercent: number;
+  oemCommissionAmount: number;
   storefrontWalletBalanceAfter: number | null;
   superAdminWalletCreditAmount: number;
   superAdminWalletBalance: number | null;

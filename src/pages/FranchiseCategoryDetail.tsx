@@ -11,6 +11,7 @@ import {
   Modal,
   Popconfirm,
   Select,
+  Segmented,
   Space,
   Spin,
   Switch,
@@ -25,6 +26,7 @@ import {
   getAllBrands,
   getBrandProducts,
   getProductsByStorefrontCategory,
+  getPublishedProductsByStorefrontCategory,
   getStorefrontCategoryById,
   getStorefrontProducts,
   removeProductsFromStorefrontCategory,
@@ -33,8 +35,10 @@ import {
 } from "@/lib/storefrontApi";
 import {
   formatStorefrontNaira,
+  pickDisplayVariant,
   type StorefrontCategoryDto,
   type StorefrontCategoryProductDto,
+  type StorefrontProductDto,
 } from "@/lib/storefrontTypes";
 import { Permission } from "@/lib/permissions";
 import { useAuthStore } from "@/stores/auth";
@@ -64,6 +68,7 @@ export default function FranchiseCategoryDetailPage() {
   const [selectedBrandId, setSelectedBrandId] = useState<string | null>(null);
   const [brandProductPage, setBrandProductPage] = useState(1);
   const [brandProductPageSize, setBrandProductPageSize] = useState(20);
+  const [viewMode, setViewMode] = useState<"assigned" | "published">("assigned");
 
   const categoryQuery = useQuery({
     queryKey: ["storefront", "category", storefrontCategoryId],
@@ -107,6 +112,29 @@ export default function FranchiseCategoryDetailPage() {
 
   const products = productsQuery.data?.data ?? [];
   const productTotal = Number(productsQuery.data?.count ?? 0);
+
+  const publishedProductsQuery = useQuery({
+    queryKey: [
+      "storefront",
+      "category-published-products",
+      storefrontCategoryId,
+      productPage,
+      productPageSize,
+    ],
+    queryFn: async () => {
+      if (!storefrontCategoryId) return null;
+      const res = await getPublishedProductsByStorefrontCategory(storefrontCategoryId, {
+        PageSize: productPageSize,
+        PageNumber: productPage,
+      });
+      if (!res.status) throw new Error(res.message ?? "Failed to load published products");
+      return res.data;
+    },
+    enabled: Boolean(storefrontCategoryId && viewMode === "published"),
+  });
+
+  const publishedProducts = publishedProductsQuery.data?.data ?? [];
+  const publishedTotal = Number(publishedProductsQuery.data?.count ?? 0);
   const assignedIds = useMemo(
     () => new Set(products.map((p) => p.productId)),
     [products],
@@ -331,6 +359,49 @@ export default function FranchiseCategoryDetailPage() {
     },
   ];
 
+  const publishedColumns: TableColumnsType<StorefrontProductDto> = [
+    {
+      title: "Product",
+      dataIndex: "productName",
+      render: (name: string, product) => (
+        <div>
+          <div className="font-medium">{name}</div>
+          <Typography.Text type="secondary" className="text-xs">
+            {product.slug || product.productId}
+          </Typography.Text>
+        </div>
+      ),
+    },
+    {
+      title: "Brand",
+      dataIndex: "brandName",
+      width: 150,
+      render: (name: string | null) => name ?? "—",
+    },
+    {
+      title: "Storefront price",
+      key: "storefrontPrice",
+      width: 140,
+      align: "right",
+      render: (_, product) => {
+        const variant = pickDisplayVariant(product);
+        return variant && variant.storefrontPrice > 0 ? (
+          <span className="font-medium">{formatStorefrontNaira(variant.storefrontPrice)}</span>
+        ) : (
+          "—"
+        );
+      },
+    },
+    {
+      title: "Published",
+      dataIndex: "isStorefrontPublished",
+      width: 110,
+      render: (published: boolean) => (
+        <Tag color={published ? "success" : "default"}>{published ? "Yes" : "No"}</Tag>
+      ),
+    },
+  ];
+
   return (
     <div className="space-y-6">
       <Space>
@@ -389,42 +460,72 @@ export default function FranchiseCategoryDetailPage() {
       </Card>
 
       <Card
-        title={`Products (${productTotal})`}
+        title={`Products (${viewMode === "published" ? publishedTotal : productTotal})`}
         extra={
-          canEdit ? (
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={() => {
-                setSelectedProductIds([]);
-                setProductSearch("");
-                setSelectedBrandId(null);
-                setBrandProductPage(1);
-                setAddOpen(true);
-              }}
-            >
-              Add products
-            </Button>
-          ) : null
+          <Space>
+            <Segmented
+              value={viewMode}
+              onChange={(value) => setViewMode(value as "assigned" | "published")}
+              options={[
+                { label: "Assigned", value: "assigned" },
+                { label: "Published", value: "published" },
+              ]}
+            />
+            {canEdit && viewMode === "assigned" ? (
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={() => {
+                  setSelectedProductIds([]);
+                  setProductSearch("");
+                  setSelectedBrandId(null);
+                  setBrandProductPage(1);
+                  setAddOpen(true);
+                }}
+              >
+                Add products
+              </Button>
+            ) : null}
+          </Space>
         }
       >
-        <Table
-          rowKey="productId"
-          columns={columns}
-          dataSource={products}
-          loading={productsQuery.isLoading || productsQuery.isFetching}
-          locale={{ emptyText: <Empty description="No products in this category" /> }}
-          pagination={{
-            current: productPage,
-            pageSize: productPageSize,
-            total: productTotal,
-            showSizeChanger: true,
-            onChange: (nextPage, nextSize) => {
-              setProductPage(nextPage);
-              setProductPageSize(nextSize);
-            },
-          }}
-        />
+        {viewMode === "published" ? (
+          <Table
+            rowKey="productId"
+            columns={publishedColumns}
+            dataSource={publishedProducts}
+            loading={publishedProductsQuery.isLoading || publishedProductsQuery.isFetching}
+            locale={{ emptyText: <Empty description="No published products in this category" /> }}
+            pagination={{
+              current: productPage,
+              pageSize: productPageSize,
+              total: publishedTotal,
+              showSizeChanger: true,
+              onChange: (nextPage, nextSize) => {
+                setProductPage(nextPage);
+                setProductPageSize(nextSize);
+              },
+            }}
+          />
+        ) : (
+          <Table
+            rowKey="productId"
+            columns={columns}
+            dataSource={products}
+            loading={productsQuery.isLoading || productsQuery.isFetching}
+            locale={{ emptyText: <Empty description="No products in this category" /> }}
+            pagination={{
+              current: productPage,
+              pageSize: productPageSize,
+              total: productTotal,
+              showSizeChanger: true,
+              onChange: (nextPage, nextSize) => {
+                setProductPage(nextPage);
+                setProductPageSize(nextSize);
+              },
+            }}
+          />
+        )}
       </Card>
 
       <Modal

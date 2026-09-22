@@ -12,6 +12,7 @@ import type {
   StorefrontBrandThemeRequest,
   StorefrontCategoryDto,
   StorefrontCategoryProductsRequest,
+  StorefrontCategoryReturnDto,
   StorefrontCommissionSettingsDto,
   StorefrontCommissionSettingsRequest,
   StorefrontDashboardDto,
@@ -324,6 +325,27 @@ export function getStorefrontCategoriesByProduct(productId: string) {
     `Storefront/GetStorefrontCategoriesByProduct/${productId}`,
   );
 }
+
+export function getPublishedProductCategories(productId: string) {
+  return apiGet<StorefrontCategoryReturnDto[]>(
+    `Storefront/GetPublishedProductCategories/${productId}`,
+  );
+}
+
+export function getPublishedProductsByStorefrontCategory(
+  storefrontCategoryId: string,
+  params: {
+    PageSize?: number;
+    PageNumber?: number;
+    SearchString?: string;
+    storefrontBrandId?: string;
+  } = {},
+) {
+  return apiGet<StorefrontPagedProducts>(
+    `Storefront/GetPublishedProductsByStorefrontCategory/${storefrontCategoryId}${toQuery(params)}`,
+  );
+}
+
 
 export function quoteStorefront(body: StorefrontQuoteRequest): Promise<ApiResult<StorefrontQuoteDto>> {
   return apiPost<StorefrontQuoteDto>("Storefront/Quote", body);

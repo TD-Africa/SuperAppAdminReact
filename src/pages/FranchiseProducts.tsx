@@ -31,6 +31,7 @@ import {
   getActiveStorefrontBrands,
   getActiveStorefrontCategories,
   getPublishedProduct,
+  getPublishedProductCategories,
   getStorefrontCategories,
   getStorefrontCategoriesByProduct,
   getStorefrontProducts,
@@ -44,6 +45,7 @@ import {
   pickDisplayVariant,
   storefrontMarkupPercent,
   type StorefrontCategoryDto,
+  type StorefrontCategoryReturnDto,
   type StorefrontProductDto,
 } from "@/lib/storefrontTypes";
 import type { ProductReturnDto } from "@/lib/types";
@@ -85,6 +87,7 @@ export default function FranchiseProductsPage() {
   const [categoriesLoading, setCategoriesLoading] = useState(false);
   const [categoriesSaving, setCategoriesSaving] = useState(false);
   const [publishedSnapshot, setPublishedSnapshot] = useState<StorefrontProductDto | null>(null);
+  const [publishedCategories, setPublishedCategories] = useState<StorefrontCategoryReturnDto[] | null>(null);
 
   useEffect(() => {
     if (brandIdFromUrl) setBrandId(brandIdFromUrl);
@@ -207,10 +210,12 @@ export default function FranchiseProductsPage() {
     setCategoriesProduct(product);
     setCategoriesLoading(true);
     setPublishedSnapshot(null);
+    setPublishedCategories(null);
     try {
-      const [catsRes, publishedRes] = await Promise.all([
+      const [catsRes, publishedRes, publishedCatsRes] = await Promise.all([
         getStorefrontCategoriesByProduct(product.productId),
         getPublishedProduct(product.productId),
+        getPublishedProductCategories(product.productId),
       ]);
       if (!catsRes.status) {
         message.error(catsRes.message ?? "Failed to load product categories");
@@ -221,6 +226,7 @@ export default function FranchiseProductsPage() {
       setAssignedCategoryIds(ids);
       setInitialCategoryIds(ids);
       if (publishedRes.status) setPublishedSnapshot(publishedRes.data);
+      if (publishedCatsRes.status) setPublishedCategories(publishedCatsRes.data ?? []);
     } finally {
       setCategoriesLoading(false);
     }
@@ -670,6 +676,13 @@ export default function FranchiseProductsPage() {
                   {publishedSnapshot.productName}
                   {publishedSnapshot.isStorefrontPublished ? " · published" : " · not published"}
                 </div>
+                {publishedCategories !== null && (
+                  <div className="text-muted-foreground">
+                    {publishedCategories.length > 0
+                      ? `Published categories: ${publishedCategories.map((c) => c.name).join(", ")}`
+                      : "No published categories"}
+                  </div>
+                )}
               </div>
             )}
             <Select

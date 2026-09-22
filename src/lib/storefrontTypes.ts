@@ -78,6 +78,16 @@ export interface StorefrontCategoryDto {
 
 export type StorefrontPagedCategories = PaginationResponse<StorefrontCategoryDto>;
 
+/** GET Storefront/GetPublishedProductCategories/{productId} */
+export interface StorefrontCategoryReturnDto {
+  id: string;
+  name: string | null;
+  imageUrl: string | null;
+  isActive: boolean;
+  dateCreated: string;
+  productCount: number;
+}
+
 export interface AddStorefrontCategoryRequest {
   name: string;
   isActive: boolean;

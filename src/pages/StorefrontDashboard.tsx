@@ -19,23 +19,11 @@ import type { TableColumnsType } from "antd";
 import type { Dayjs } from "dayjs";
 import {
   DollarCircleOutlined,
-  WalletOutlined,
-  ShoppingCartOutlined,
   PercentageOutlined,
-  BankOutlined,
-  ClockCircleOutlined,
-  CheckCircleOutlined,
   UserOutlined,
   TeamOutlined,
+  ShoppingCartOutlined,
 } from "@ant-design/icons";
-import {
-  PieChart,
-  Pie,
-  Cell,
-  ResponsiveContainer,
-  Tooltip,
-  Legend,
-} from "recharts";
 import {
   getStorefrontOwners,
   getStorefrontOwnerDashboard,
@@ -48,8 +36,6 @@ import { formatCurrency, formatDate, formatNumber } from "@/lib/utils";
 
 const { RangePicker } = DatePicker;
 
-const COMMISSION_COLORS = ["#800020", "#16a34a", "#d97706"];
-const ORDER_COLORS = ["#800020", "#16a34a"];
 const ALL = "__all__";
 
 /** Sum numeric metrics across every owner's dashboard into one aggregate. */
@@ -268,29 +254,6 @@ export default function StorefrontDashboard() {
     },
   ];
 
-  const commissionData = useMemo(
-    () =>
-      data
-        ? [
-            { name: "Current", value: data.currentCommission },
-            { name: "Paid", value: data.commissionPaid },
-            { name: "Pending", value: data.pendingCommission },
-          ].filter((item) => item.value > 0)
-        : [],
-    [data],
-  );
-
-  const orderData = useMemo(
-    () =>
-      data
-        ? [
-            { name: "Paid", value: data.paidOrders },
-            { name: "Unpaid", value: Math.max(0, data.totalOrders - data.paidOrders) },
-          ].filter((item) => item.value > 0)
-        : [],
-    [data],
-  );
-
   function applyFilter() {
     const [start, end] = range ?? [null, null];
     if (start && start.isAfter(new Date())) {
@@ -476,67 +439,23 @@ export default function StorefrontDashboard() {
             </Col>
             <Col xs={24} sm={12} xl={6}>
               <KpiCard
-                title="Current wallet balance"
-                value={formatCurrency(data.currentWalletBalance, currency as "USD" | "NGN")}
-                icon={<WalletOutlined />}
-                accentClass="text-sky-600"
-              />
-            </Col>
-            <Col xs={24} sm={12} xl={6}>
-              <KpiCard
                 title="Total commission"
                 value={formatCurrency(data.totalCommission, currency as "USD" | "NGN")}
                 icon={<PercentageOutlined />}
                 accentClass="text-amber-600"
               />
             </Col>
-
             <Col xs={24} sm={12} xl={6}>
-              <KpiCard
-                title="Current commission"
-                value={formatCurrency(data.currentCommission, currency as "USD" | "NGN")}
-                icon={<CheckCircleOutlined />}
-                accentClass="text-green-600"
-              />
-            </Col>
-            <Col xs={24} sm={12} xl={6}>
-              <KpiCard
-                title="Commission paid"
-                value={formatCurrency(data.commissionPaid, currency as "USD" | "NGN")}
-                icon={<BankOutlined />}
-                accentClass="text-blue-600"
-              />
-            </Col>
-            <Col xs={24} sm={12} xl={6}>
-              <KpiCard
-                title="Pending commission"
-                value={formatCurrency(data.pendingCommission, currency as "USD" | "NGN")}
-                icon={<ClockCircleOutlined />}
-                accentClass="text-orange-600"
-              />
-            </Col>
-            <Col xs={24} sm={12} xl={6}>
-              <KpiCard
-                title="Reserved for payout"
-                value={formatCurrency(data.reservedForPayout, currency as "USD" | "NGN")}
-                icon={<BankOutlined />}
-                accentClass="text-purple-600"
-              />
-            </Col>
-          </Row>
-
-          <Row gutter={[16, 16]}>
-            <Col xs={24} md={12} lg={8}>
               <Card>
-                <div className="space-y-2">
+                <div className="">
                   <div className="text-sm text-muted-foreground">Total orders</div>
-                  <div className="text-3xl font-bold text-primary">
+                  <div className="text-2xl font-bold text-primary">
                     {formatNumber(data.totalOrders)}
                   </div>
                 </div>
               </Card>
             </Col>
-            <Col xs={24} md={12} lg={8}>
+            {/* <Col xs={24} sm={12} xl={6}>
               <Card>
                 <div className="space-y-2">
                   <div className="text-sm text-muted-foreground">Paid orders</div>
@@ -545,86 +464,7 @@ export default function StorefrontDashboard() {
                   </div>
                 </div>
               </Card>
-            </Col>
-            <Col xs={24} md={12} lg={8}>
-              <Card>
-                <div className="space-y-2">
-                  <div className="text-sm text-muted-foreground">
-                    Orders waiting for commission
-                  </div>
-                  <div className="text-3xl font-bold text-orange-600">
-                    {formatNumber(data.ordersWaitingForCommission)}
-                  </div>
-                </div>
-              </Card>
-            </Col>
-          </Row>
-
-          <Row gutter={[16, 16]}>
-            <Col xs={24} lg={12}>
-              <Card title="Commission breakdown">
-                {commissionData.length === 0 ? (
-                  <Empty description="No commission data" className="py-8" />
-                ) : (
-                  <div className="h-72">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={commissionData}
-                          dataKey="value"
-                          nameKey="name"
-                          innerRadius={50}
-                          outerRadius={90}
-                          paddingAngle={2}
-                        >
-                          {commissionData.map((_, i) => (
-                            <Cell
-                              key={i}
-                              fill={COMMISSION_COLORS[i % COMMISSION_COLORS.length]}
-                            />
-                          ))}
-                        </Pie>
-                        <Tooltip
-                          formatter={(value: number) =>
-                            formatCurrency(value, currency as "USD" | "NGN")
-                          }
-                        />
-                        <Legend />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                )}
-              </Card>
-            </Col>
-            <Col xs={24} lg={12}>
-              <Card title="Order status">
-                {orderData.length === 0 ? (
-                  <Empty description="No order data" className="py-8" />
-                ) : (
-                  <div className="h-72">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={orderData}
-                          dataKey="value"
-                          nameKey="name"
-                          outerRadius={100}
-                        >
-                          {orderData.map((_, i) => (
-                            <Cell
-                              key={i}
-                              fill={ORDER_COLORS[i % ORDER_COLORS.length]}
-                            />
-                          ))}
-                        </Pie>
-                        <Tooltip />
-                        <Legend />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                )}
-              </Card>
-            </Col>
+            </Col> */}
           </Row>
 
           {ownerId === ALL && (
@@ -659,29 +499,6 @@ export default function StorefrontDashboard() {
                 `${record.date}-${record.orderId ?? record.payoutId ?? record.description ?? "activity"}-${index ?? 0}`
               }
             />
-          </Card>
-
-          <Card>
-            <Row gutter={[16, 16]}>
-              <Col xs={24} sm={12}>
-                <div className="space-y-2">
-                  <div className="text-sm text-muted-foreground">
-                    Total payouts paid
-                  </div>
-                  <div className="text-2xl font-semibold">
-                    {formatCurrency(data.totalPayoutsPaid, currency as "USD" | "NGN")}
-                  </div>
-                </div>
-              </Col>
-              <Col xs={24} sm={12}>
-                <div className="space-y-2">
-                  <div className="text-sm text-muted-foreground">Currency</div>
-                  <div className="text-2xl font-semibold">
-                    <Tag color="blue">{currency}</Tag>
-                  </div>
-                </div>
-              </Col>
-            </Row>
           </Card>
         </>
       ) : null}

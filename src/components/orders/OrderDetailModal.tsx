@@ -7,13 +7,17 @@ import {
   Skeleton,
   Tag,
   Descriptions,
-  Divider,
   Typography,
   App as AntdApp,
   Checkbox,
   InputNumber,
   Table,
   Tooltip,
+  Card,
+  Flex,
+  Space,
+  Statistic,
+  Tabs,
 } from "antd";
 import type { DescriptionsProps, TableColumnsType } from "antd";
 import { CloudUploadOutlined, FilePdfOutlined } from "@ant-design/icons";
@@ -198,6 +202,26 @@ export function OrderDetailModal({ orderId, open, onOpenChange, onUpdated }: Pro
     }
     return items;
   }, [data, hasDollarLines, discrepancy]);
+
+  const customerItems: DescriptionsProps["items"] = useMemo(() => {
+    if (!data) return [];
+    return [
+      { key: "company", label: "Company", children: data.companyName ?? "—" },
+      { key: "recipient", label: "Recipient", children: data.name ?? "—" },
+      { key: "phone", label: "Phone", children: data.phoneNumber ?? "—" },
+      { key: "warehouse", label: "Warehouse", children: data.location?.name ?? "—" },
+      { key: "payment", label: "Payment method", children: data.paymentMethod?.method ?? "—" },
+      { key: "delivery", label: "Delivery method", children: data.deliveryMethod?.method ?? "—" },
+      { key: "ordered", label: "Date ordered", children: formatDate(data.dateCreated) },
+      { key: "due", label: "Due date", children: data.dueDate ? formatDate(data.dueDate) : "N/A" },
+      {
+        key: "address",
+        label: "Delivery address",
+        children: data.deliveryAddress ?? data.location?.name ?? "—",
+        span: 3,
+      },
+    ];
+  }, [data]);
 
   function openProduct(id: string) {
     setSelectedProductId(id);
@@ -394,163 +418,215 @@ export function OrderDetailModal({ orderId, open, onOpenChange, onUpdated }: Pro
           <Skeleton active paragraph={{ rows: 6 }} />
         ) : (
           <div className="space-y-5">
-            <Descriptions column={{ xs: 1, sm: 2, md: 4 }} size="small" colon={false}>
-              <Descriptions.Item label="Order ID" span={4}>
-                <Typography.Text copyable className="text-xs font-mono">
-                  {data.id}
-                </Typography.Text>
-              </Descriptions.Item>
-              <Descriptions.Item label="Company">
-                {data.companyName ?? "—"}
-              </Descriptions.Item>
-              <Descriptions.Item label="Recipient">{data.name ?? "—"}</Descriptions.Item>
-              <Descriptions.Item label="Phone">{data.phoneNumber ?? "—"}</Descriptions.Item>
-              <Descriptions.Item label="Warehouse">
-                {data.location?.name ?? "—"}
-              </Descriptions.Item>
-              <Descriptions.Item label="Total (NGN)">
-                {formatCurrency(totalNaira, "NGN")}
-              </Descriptions.Item>
-              <Descriptions.Item label="Total (USD)">
-                {formatCurrency(totalDollar, "USD")}
-              </Descriptions.Item>
-              <Descriptions.Item label="Payment">
-                {data.paymentMethod?.method ?? "—"}
-              </Descriptions.Item>
-              <Descriptions.Item label="Delivery">
-                {data.deliveryMethod?.method ?? "—"}
-              </Descriptions.Item>
-              <Descriptions.Item label="Date ordered">
-                {formatDate(data.dateCreated)}
-              </Descriptions.Item>
-              <Descriptions.Item label="Due date">
-                {data.dueDate ? formatDate(data.dueDate) : "N/A"}
-              </Descriptions.Item>
-              <Descriptions.Item label="Delivery address" span={2}>
-                {data.deliveryAddress ?? data.location?.name ?? "—"}
-              </Descriptions.Item>
-              <Descriptions.Item label="Status">
-                <Tag color={orderStatusColor(data.orderStatus?.id)}>
-                  {data.orderStatus?.status ?? "—"}
-                </Tag>
-              </Descriptions.Item>
-              <Descriptions.Item label="Dynamics" span={2}>
-                {postedToDynamics ? (
-                  <span className="text-xs">
-                    <Tag color="success">Posted</Tag>
-                    <span className="font-mono text-muted-foreground">
-                      {salesIds.join(", ")}
-                    </span>
-                  </span>
-                ) : (
-                  <Tag color="warning">Not posted</Tag>
-                )}
-              </Descriptions.Item>
-            </Descriptions>
+            {/* Summary header */}
+            <Card size="small" className="bg-muted/40">
+              <Flex justify="space-between" align="center" gap={16} wrap>
+                <Space direction="vertical" size={6}>
+                  <Space size={6} wrap>
+                    <Tag
+                      color={orderStatusColor(data.orderStatus?.id)}
+                      className="!m-0 !py-0.5 !text-sm"
+                    >
+                      {data.orderStatus?.status ?? "—"}
+                    </Tag>
+                    {summary && (
+                      <Tag
+                        color={
+                          summary.state === "paid"
+                            ? "success"
+                            : summary.state === "partial"
+                              ? "orange"
+                              : "error"
+                        }
+                        className="!m-0 !py-0.5"
+                      >
+                        {summary.state === "paid"
+                          ? "Paid in full"
+                          : summary.state === "partial"
+                            ? "Partially paid"
+                            : "Unpaid"}
+                      </Tag>
+                    )}
+                    {data.isPoaTransaction && (
+                      <Tag color="gold" className="!m-0 !py-0.5">
+                        POA transaction
+                      </Tag>
+                    )}
+                    {postedToDynamics ? (
+                      <Tag color="success" className="!m-0 !py-0.5">
+                        Dynamics · posted
+                      </Tag>
+                    ) : (
+                      <Tag color="warning" className="!m-0 !py-0.5">
+                        Dynamics · not posted
+                      </Tag>
+                    )}
+                  </Space>
+                  <Typography.Text type="secondary" className="text-xs">
+                    Order ID{" "}
+                    <Typography.Text copyable className="font-mono text-xs">
+                      {data.id}
+                    </Typography.Text>
+                  </Typography.Text>
+                </Space>
 
-            <Divider className="!my-2" />
+                <Space size={24} wrap>
+                  <Statistic
+                    title="Total (NGN)"
+                    value={totalNaira}
+                    formatter={(v) => formatCurrency(Number(v), "NGN")}
+                  />
+                  <Statistic
+                    title="Total (USD)"
+                    value={totalDollar}
+                    formatter={(v) => formatCurrency(Number(v), "USD")}
+                  />
+                </Space>
+              </Flex>
+            </Card>
 
-            <div className="flex flex-wrap items-center gap-6">
-              <Checkbox
-                checked={isPDCCollected}
-                disabled={!canEdit}
-                onChange={(e) => setIsPDCCollected(e.target.checked)}
-              >
-                Post-dated check collected
-              </Checkbox>
-              <Checkbox
-                checked={isFullyPaid}
-                disabled={!canEdit}
-                onChange={(e) => setIsFullyPaid(e.target.checked)}
-              >
-                Fully paid
-              </Checkbox>
-              {data.isPoaTransaction && <Tag color="gold">POA transaction</Tag>}
-            </div>
+            <Tabs
+              defaultActiveKey="overview"
+              items={[
+                {
+                  key: "overview",
+                  label: "Overview",
+                  children: (
+                    <div className="space-y-6 pt-1">
+                      <section>
+                        <Typography.Title level={5} className="!mb-3 !mt-0">
+                          Customer & delivery
+                        </Typography.Title>
+                        <Descriptions
+                          column={{ xs: 1, sm: 2, md: 3 }}
+                          size="small"
+                          colon={false}
+                          items={customerItems}
+                        />
+                      </section>
 
-            <div>
-              <div className="mb-2 flex flex-wrap items-baseline gap-x-2">
-                <Typography.Text strong>Payment</Typography.Text>
-                {summary &&
-                  (summary.state === "paid" ? (
-                    <span className="text-xs text-emerald-600">Paid in full</span>
-                  ) : summary.state === "unpaid" ? (
-                    <span className="text-xs text-muted-foreground">
-                      Nothing received
-                    </span>
-                  ) : (
-                    <span className="text-xs text-amber-600">
-                      {formatCurrency(summary.received, "NGN")} of{" "}
-                      {formatCurrency(summary.charged, "NGN")}
-                      {summary.percent !== null &&
-                        ` · ${formatPercent(summary.percent)} received`}
-                    </span>
-                  ))}
-              </div>
-              <Descriptions
-                column={{ xs: 1, sm: 2, md: 4 }}
-                size="small"
-                bordered
-                items={paymentItems}
-              />
-              <Typography.Paragraph type="secondary" className="!mb-0 !mt-2 text-xs">
-                "Received" is the total banked against the order; invoiced/settled
-                figures come from the Dynamics payment journal, so the two move
-                independently until an invoice is settled.
-              </Typography.Paragraph>
+                      <section>
+                        <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1">
+                          <Typography.Title level={5} className="!mb-0 !mt-0">
+                            Payment
+                          </Typography.Title>
+                          {summary &&
+                            (summary.state === "paid" ? (
+                              <span className="text-xs text-emerald-600">
+                                Paid in full
+                              </span>
+                            ) : summary.state === "unpaid" ? (
+                              <span className="text-xs text-muted-foreground">
+                                Nothing received
+                              </span>
+                            ) : (
+                              <span className="text-xs text-amber-600">
+                                {formatCurrency(summary.received, "NGN")} of{" "}
+                                {formatCurrency(summary.charged, "NGN")}
+                                {summary.percent !== null &&
+                                  ` · ${formatPercent(summary.percent)} received`}
+                              </span>
+                            ))}
+                        </div>
+                        <Descriptions
+                          column={{ xs: 1, sm: 2, md: 4 }}
+                          size="small"
+                          bordered
+                          items={paymentItems}
+                        />
+                        <Typography.Paragraph
+                          type="secondary"
+                          className="!mb-0 !mt-2 text-xs"
+                        >
+                          "Received" is the total banked against the order;
+                          invoiced/settled figures come from the Dynamics payment
+                          journal, so the two move independently until an invoice
+                          is settled.
+                        </Typography.Paragraph>
 
-              {discrepancy && (
-                <Alert
-                  className="mt-3"
-                  type="info"
-                  showIcon
-                  message="Journal split misreports this order"
-                  description={
-                    <span className="text-xs">
-                      The order is fully paid, but the Dynamics journal reports{" "}
-                      {formatCurrency(data.amountDueInNaira, "NGN")} still due. Its
-                      lines carry per-line payments rather than the group total the
-                      settlement reader expects, so the other lines' payments get
-                      counted as debt. Shown as settled above — no balance to chase.
-                    </span>
-                  }
-                />
-              )}
+                        {discrepancy && (
+                          <Alert
+                            className="mt-3"
+                            type="info"
+                            showIcon
+                            message="Journal split misreports this order"
+                            description={
+                              <span className="text-xs">
+                                The order is fully paid, but the Dynamics journal
+                                reports {formatCurrency(data.amountDueInNaira, "NGN")}{" "}
+                                still due. Its lines carry per-line payments rather
+                                than the group total the settlement reader expects,
+                                so the other lines' payments get counted as debt.
+                                Shown as settled above — no balance to chase.
+                              </span>
+                            }
+                          />
+                        )}
+                      </section>
 
-            </div>
-
-            {showInvoiceTable && (
-              <div>
-                <Typography.Text strong>Credit invoices</Typography.Text>
-                <Table<InvoiceRow>
-                  rowKey="salesId"
-                  dataSource={invoiceRows}
-                  columns={invoiceColumns}
-                  pagination={false}
-                  size="small"
-                  className="mt-2"
-                />
-              </div>
-            )}
-
-            <div>
-              <Typography.Text strong>
-                Products ({data.orderedProducts?.length ?? 0})
-              </Typography.Text>
-              <Table<OrderProductReturnDto>
-                rowKey={(r) => `${r.product.id}-${r.salesID ?? ""}`}
-                dataSource={data.orderedProducts ?? []}
-                columns={productColumns}
-                pagination={false}
-                size="small"
-                className="mt-2"
-                scroll={{ x: 1000 }}
-                onRow={(record) => ({
-                  onClick: () => openProduct(record.product.id),
-                  style: { cursor: "pointer" },
-                })}
-              />
-            </div>
+                      <section>
+                        <Typography.Title level={5} className="!mb-3 !mt-0">
+                          Flags
+                        </Typography.Title>
+                        <div className="flex flex-wrap items-center gap-6">
+                          <Checkbox
+                            checked={isPDCCollected}
+                            disabled={!canEdit}
+                            onChange={(e) => setIsPDCCollected(e.target.checked)}
+                          >
+                            Post-dated check collected
+                          </Checkbox>
+                          <Checkbox
+                            checked={isFullyPaid}
+                            disabled={!canEdit}
+                            onChange={(e) => setIsFullyPaid(e.target.checked)}
+                          >
+                            Fully paid
+                          </Checkbox>
+                        </div>
+                      </section>
+                    </div>
+                  ),
+                },
+                {
+                  key: "products",
+                  label: `Products (${data.orderedProducts?.length ?? 0})`,
+                  children: (
+                    <Table<OrderProductReturnDto>
+                      rowKey={(r) => `${r.product.id}-${r.salesID ?? ""}`}
+                      dataSource={data.orderedProducts ?? []}
+                      columns={productColumns}
+                      pagination={false}
+                      size="small"
+                      className="mt-3"
+                      scroll={{ x: 1000 }}
+                      onRow={(record) => ({
+                        onClick: () => openProduct(record.product.id),
+                        style: { cursor: "pointer" },
+                      })}
+                    />
+                  ),
+                },
+                ...(showInvoiceTable
+                  ? [
+                      {
+                        key: "invoices",
+                        label: `Credit invoices (${invoiceRows.length})`,
+                        children: (
+                          <Table<InvoiceRow>
+                            rowKey="salesId"
+                            dataSource={invoiceRows}
+                            columns={invoiceColumns}
+                            pagination={false}
+                            size="small"
+                            className="mt-3"
+                          />
+                        ),
+                      },
+                    ]
+                  : []),
+              ]}
+            />
           </div>
         )}
       </Modal>

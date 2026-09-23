@@ -47,10 +47,18 @@ function aggregateDashboards(list: StorefrontDashboardDto[]): StorefrontDashboar
       acc.grossSales += d.grossSales ?? 0;
       acc.superAppOrderValue += d.superAppOrderValue ?? 0;
       acc.currentWalletBalance += d.currentWalletBalance ?? 0;
-      acc.totalCommission += d.totalCommission ?? 0;
-      acc.currentCommission += d.currentCommission ?? 0;
-      acc.commissionPaid += d.commissionPaid ?? 0;
-      acc.pendingCommission += d.pendingCommission ?? 0;
+      acc.storefrontOemCommissionTotal =
+        (acc.storefrontOemCommissionTotal ?? 0) +
+        (d.storefrontOemCommissionTotal ?? d.totalCommission ?? 0);
+      acc.storefrontOemCommissionCurrent =
+        (acc.storefrontOemCommissionCurrent ?? 0) +
+        (d.storefrontOemCommissionCurrent ?? d.currentCommission ?? 0);
+      acc.storefrontOemCommissionPaid =
+        (acc.storefrontOemCommissionPaid ?? 0) +
+        (d.storefrontOemCommissionPaid ?? d.commissionPaid ?? 0);
+      acc.storefrontOemCommissionPending =
+        (acc.storefrontOemCommissionPending ?? 0) +
+        (d.storefrontOemCommissionPending ?? d.pendingCommission ?? 0);
       acc.ordersWaitingForCommission += d.ordersWaitingForCommission ?? 0;
       acc.reservedForPayout += d.reservedForPayout ?? 0;
       acc.totalPayoutsPaid += d.totalPayoutsPaid ?? 0;
@@ -64,10 +72,10 @@ function aggregateDashboards(list: StorefrontDashboardDto[]): StorefrontDashboar
       grossSales: 0,
       superAppOrderValue: 0,
       currentWalletBalance: 0,
-      totalCommission: 0,
-      currentCommission: 0,
-      commissionPaid: 0,
-      pendingCommission: 0,
+      storefrontOemCommissionTotal: 0,
+      storefrontOemCommissionCurrent: 0,
+      storefrontOemCommissionPaid: 0,
+      storefrontOemCommissionPending: 0,
       ordersWaitingForCommission: 0,
       reservedForPayout: 0,
       totalPayoutsPaid: 0,
@@ -224,7 +232,10 @@ export default function StorefrontDashboard() {
         email: o.email,
         totalOrders: map[o.id!].totalOrders,
         grossSales: map[o.id!].grossSales,
-        totalCommission: map[o.id!].totalCommission,
+        totalCommission:
+          map[o.id!].storefrontOemCommissionTotal ??
+          map[o.id!].totalCommission ??
+          0,
         currency: map[o.id!].currency ?? "NGN",
       }))
       .sort((a, b) => b.grossSales - a.grossSales);
@@ -310,6 +321,10 @@ export default function StorefrontDashboard() {
   ];
 
   const currency = data?.currency ?? "NGN";
+  const totalOemCommission =
+    data?.storefrontOemCommissionTotal ??
+    data?.totalCommission ??
+    0;
   const selectedOwner = ownersQuery.data?.find((o) => o.id === ownerId);
 
   return (
@@ -440,7 +455,7 @@ export default function StorefrontDashboard() {
             <Col xs={24} sm={12} xl={6}>
               <KpiCard
                 title="Total commission"
-                value={formatCurrency(data.totalCommission, currency as "USD" | "NGN")}
+                value={formatCurrency(totalOemCommission, currency as "USD" | "NGN")}
                 icon={<PercentageOutlined />}
                 accentClass="text-amber-600"
               />

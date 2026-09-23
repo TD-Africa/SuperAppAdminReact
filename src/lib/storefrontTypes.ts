@@ -451,10 +451,16 @@ export interface StorefrontWalletStatsDto {
   totalOrders: number;
   paidOrders: number;
   revenue: number;
-  totalCommission: number;
-  currentCommission: number;
-  commissionPaid: number;
-  pendingCommission: number;
+  /** OEM commission totals (authoritative) */
+  storefrontOemCommissionTotal?: number | null;
+  storefrontOemCommissionCurrent?: number | null;
+  storefrontOemCommissionPaid?: number | null;
+  storefrontOemCommissionPending?: number | null;
+  /** Legacy aggregates kept for backwards compatibility */
+  totalCommission?: number;
+  currentCommission?: number;
+  commissionPaid?: number;
+  pendingCommission?: number;
   ordersWaitingForCommission: number;
   reservedForPayout: number;
   totalPayoutsPaid: number;
@@ -465,7 +471,11 @@ export interface StorefrontWalletOrderDto {
   orderReference: string | null;
   externalOrderId: string | null;
   amount: number;
-  commission: number;
+  /** OEM commission amount for this order (authoritative) */
+  storefrontOemCommissionAmount?: number | null;
+  /** Legacy / owner commission fields kept for backwards compatibility */
+  storefrontOwnerCommissionAmount?: number | null;
+  commission?: number;
   commissionStatus: string;
   isPaid: boolean;
   isDynamicsPosted: boolean;
@@ -724,10 +734,16 @@ export interface StorefrontDashboardDto {
   grossSales: number;
   superAppOrderValue: number;
   currentWalletBalance: number;
-  totalCommission: number;
-  currentCommission: number;
-  commissionPaid: number;
-  pendingCommission: number;
+  /** OEM commission aggregates (authoritative) */
+  storefrontOemCommissionTotal?: number | null;
+  storefrontOemCommissionCurrent?: number | null;
+  storefrontOemCommissionPaid?: number | null;
+  storefrontOemCommissionPending?: number | null;
+  /** Legacy aggregates kept for backwards compatibility */
+  totalCommission?: number;
+  currentCommission?: number;
+  commissionPaid?: number;
+  pendingCommission?: number;
   ordersWaitingForCommission: number;
   reservedForPayout: number;
   totalPayoutsPaid: number;

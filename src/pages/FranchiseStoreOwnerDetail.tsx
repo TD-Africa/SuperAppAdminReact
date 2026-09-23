@@ -310,6 +310,11 @@ export default function FranchiseStoreOwnerDetailPage() {
     statsQuery.data?.currency ??
     summaryQuery.data?.currency ??
     "NGN";
+  const pendingOemCommission =
+    statsQuery.data?.storefrontOemCommissionPending ??
+    statsQuery.data?.pendingCommission ??
+    summaryQuery.data?.pending ??
+    0;
 
   const earningsColumns: TableColumnsType<StorefrontEarningDto> = [
     {
@@ -430,10 +435,26 @@ export default function FranchiseStoreOwnerDetailPage() {
       render: (v) => money(v, currency),
     },
     {
-      title: "Commission",
-      dataIndex: "commission",
+      title: "Owner commission",
+      dataIndex: "storefrontOwnerCommissionAmount",
       align: "right",
-      render: (v) => money(v, currency),
+      render: (_, row) =>
+        money(
+          row.storefrontOwnerCommissionAmount ??
+            row.commission ??
+            0,
+          currency,
+        ),
+    },
+    {
+      title: "OEM commission",
+      dataIndex: "storefrontOemCommissionAmount",
+      align: "right",
+      render: (_, row) =>
+        money(
+          row.storefrontOemCommissionAmount ?? 0,
+          currency,
+        ),
     },
     {
       title: "Commission status",
@@ -609,13 +630,8 @@ export default function FranchiseStoreOwnerDetailPage() {
         <Card loading={statsQuery.isLoading || summaryQuery.isLoading}>
           <Statistic
             title="Pending commission"
-            value={statsQuery.data?.pendingCommission ?? summaryQuery.data?.pending ?? 0}
-            formatter={() =>
-              money(
-                statsQuery.data?.pendingCommission ?? summaryQuery.data?.pending ?? 0,
-                currency,
-              )
-            }
+            value={pendingOemCommission}
+            formatter={() => money(pendingOemCommission, currency)}
           />
         </Card>
       </div>

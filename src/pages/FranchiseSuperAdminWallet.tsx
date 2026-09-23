@@ -132,6 +132,10 @@ export default function FranchiseSuperAdminWalletPage() {
 
   const currency = walletQuery.data?.currency ?? "NGN";
   const currencyCode = currency === "USD" ? "USD" : "NGN";
+  const pendingOemCommission =
+    settlementStatsQuery.data?.storefrontOemCommissionPending ??
+    settlementStatsQuery.data?.pendingCommission ??
+    0;
 
   const columns: TableColumnsType<SuperAdminWalletTransactionDto> = [
     {
@@ -281,13 +285,8 @@ export default function FranchiseSuperAdminWalletPage() {
             />
             <Statistic
               title="Pending commission"
-              value={settlementStatsQuery.data?.pendingCommission ?? 0}
-              formatter={() =>
-                formatCurrency(
-                  settlementStatsQuery.data?.pendingCommission ?? 0,
-                  currencyCode,
-                )
-              }
+              value={pendingOemCommission}
+              formatter={() => formatCurrency(pendingOemCommission, currencyCode)}
             />
           </div>
         </Card>
@@ -401,10 +400,26 @@ export default function FranchiseSuperAdminWalletPage() {
                       render: (v: number) => formatCurrency(v, currencyCode),
                     },
                     {
-                      title: "Commission",
-                      dataIndex: "commission",
+                      title: "Owner commission",
+                      dataIndex: "storefrontOwnerCommissionAmount",
                       align: "right" as const,
-                      render: (v: number) => formatCurrency(v, currencyCode),
+                      render: (_, row) =>
+                        formatCurrency(
+                          row.storefrontOwnerCommissionAmount ??
+                            row.commission ??
+                            0,
+                          currencyCode,
+                        ),
+                    },
+                    {
+                      title: "OEM commission",
+                      dataIndex: "storefrontOemCommissionAmount",
+                      align: "right" as const,
+                      render: (_, row) =>
+                        formatCurrency(
+                          row.storefrontOemCommissionAmount ?? 0,
+                          currencyCode,
+                        ),
                     },
                   ]}
                   dataSource={settlementOrdersQuery.data?.data ?? []}

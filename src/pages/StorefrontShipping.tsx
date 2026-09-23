@@ -66,6 +66,7 @@ export default function StorefrontShippingPage() {
 
   const [rateModalOpen, setRateModalOpen] = useState(false);
   const [editingRate, setEditingRate] = useState<StorefrontShippingRateDto | null>(null);
+  const [importModalOpen, setImportModalOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const optionsQuery = useStorefrontShippingOptions();
@@ -246,16 +247,25 @@ export default function StorefrontShippingPage() {
           </Space>
         }
         extra={
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={() => {
-              setEditingRate(null);
-              setRateModalOpen(true);
-            }}
-          >
-            Add rate
-          </Button>
+          <Space>
+            <Button
+              onClick={() => {
+                setImportModalOpen(true);
+              }}
+            >
+              Import CSV
+            </Button>
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => {
+                setEditingRate(null);
+                setRateModalOpen(true);
+              }}
+            >
+              Add rate
+            </Button>
+          </Space>
         }
         styles={{ body: { padding: 0 } }}
       >
@@ -485,6 +495,15 @@ export default function StorefrontShippingPage() {
           queryClient.invalidateQueries({ queryKey: ["storefront", "shipping-options"] });
         }}
       />
+
+      <ShippingRatesImportModal
+        open={importModalOpen}
+        onOpenChange={setImportModalOpen}
+        onImported={() => {
+          queryClient.invalidateQueries({ queryKey: ["storefront", "shipping-rates"] });
+          queryClient.invalidateQueries({ queryKey: ["storefront", "shipping-options"] });
+        }}
+      />
     </div>
   );
 }
@@ -643,6 +662,239 @@ function ShippingRateModal({
           <Switch />
         </Form.Item>
       </Form>
+    </Modal>
+  );
+}
+
+function ShippingRatesImportModal({
+  open,
+  onOpenChange,
+  onImported,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onImported: () => void;
+}) {
+  const { message } = AntdApp.useApp();
+  const [fileName, setFileName] = useState<string | null>(null);
+  const [parsingError, setParsingError] = useState<string | null>(null);
+  const [rows, setRows] = useState<StorefrontShippingRateRequest[]>([]);
+  const [importing, setImporting] = useState(false);
+
+  function resetState() {
+    setFileName(null);
+    setParsingError(null);
+    setRows([]);
+    setImporting(false);
+  }
+
+  function handleClose() {
+    if (importing) return;
+    resetState();
+    onOpenChange(false);
+  }
+
+  function parseCsv(text: string) {
+    const lines = text
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0);
+
+    if (lines.length < 2) {
+      throw new Error("CSV must include a header row and at least one data row.");
+    }
+
+    const headerLine = lines[0];
+    const headers = headerLine
+      .split(",")
+      .map((h) => h.trim().toLowerCase());
+
+    function idx(name: string) {
+      return headers.indexOf(name);
+    }
+
+    const originIdx = idx("originregion");
+    const destIdx = idx("destinationregion");
+    const modeIdx = idx("paymentmode");
+    const baseIdx = idx("basefee");
+    const extraIdx = idx("extrakgfee");
+    const currencyIdx = idx("currency");
+    const activeIdx = idx("isactive");
+
+    if (originIdx === -1 || destIdx === -1 || modeIdx === -1 || baseIdx === -1) {
+      throw new Error(
+        "Header must include at least: originRegion,destinationRegion,paymentMode,baseFee.",
+      );
+    }
+
+    const parsed: StorefrontShippingRateRequest[] = [];
+
+    for (let i = 1; i < lines.length; i += 1) {
+      const raw = lines[i];
+      if (!raw) continue;
+      const cells = raw.split(",").map((c) => c.trim());
+
+      const originRegion = cells[originIdx] ?? "";
+      const destinationRegion = cells[destIdx] ?? "";
+      const paymentMode = cells[modeIdx] ?? "";
+      const baseRaw = cells[baseIdx] ?? "";
+      const extraRaw = extraIdx >= 0 ? cells[extraIdx] ?? "" : "";
+      const currencyRaw = currencyIdx >= 0 ? cells[currencyIdx] ?? "" : "";
+      const activeRaw = activeIdx >= 0 ? cells[activeIdx] ?? "" : "";
+
+      if (!originRegion || !destinationRegion || !paymentMode) {
+        throw new Error(
+          `Row ${i + 1}: originRegion, destinationRegion, and paymentMode are required.`,
+        );
+      }
+
+      const baseFee = Number(baseRaw);
+      if (!Number.isFinite(baseFee)) {
+        throw new Error(`Row ${i + 1}: baseFee must be a valid number.`);
+      }
+
+      let extraKgFee = 0;
+      if (extraRaw) {
+        const parsedExtra = Number(extraRaw);
+        if (!Number.isFinite(parsedExtra)) {
+          throw new Error(`Row ${i + 1}: extraKgFee must be a valid number when provided.`);
+        }
+        extraKgFee = parsedExtra;
+      }
+
+      const currency = (currencyRaw || "NGN").toUpperCase();
+
+      let isActive = true;
+      if (activeRaw) {
+        const v = activeRaw.toLowerCase();
+        if (["true", "1", "yes", "y"].includes(v)) isActive = true;
+        else if (["false", "0", "no", "n"].includes(v)) isActive = false;
+        else {
+          throw new Error(
+            `Row ${i + 1}: isActive must be true/false (or 1/0, yes/no, y/n).`,
+          );
+        }
+      }
+
+      parsed.push({
+        originRegion,
+        destinationRegion,
+        paymentMode,
+        baseFee,
+        extraKgFee,
+        currency,
+        isActive,
+      });
+    }
+
+    return parsed;
+  }
+
+  function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const text = String(reader.result ?? "");
+        const parsed = parseCsv(text);
+        setRows(parsed);
+        setFileName(file.name);
+        setParsingError(null);
+        message.success(`Parsed ${parsed.length} row(s) from ${file.name}`);
+      } catch (err) {
+        setRows([]);
+        setParsingError(err instanceof Error ? err.message : "Failed to parse CSV file.");
+      }
+    };
+    reader.onerror = () => {
+      setRows([]);
+      setParsingError("Could not read file.");
+    };
+    reader.readAsText(file);
+  }
+
+  async function handleImport() {
+    if (rows.length === 0) {
+      message.error("Please choose a CSV file with at least one valid row.");
+      return;
+    }
+    setImporting(true);
+    try {
+      const results = await Promise.allSettled(
+        rows.map((r) => addStorefrontShippingRate(r)),
+      );
+
+      let successCount = 0;
+      let failCount = 0;
+      for (const r of results) {
+        if (r.status === "fulfilled" && r.value.status) {
+          successCount += 1;
+        } else {
+          failCount += 1;
+        }
+      }
+
+      if (successCount > 0) {
+        message.success(
+          `Imported ${successCount} shipping rate${successCount === 1 ? "" : "s"}${
+            failCount ? ` (${failCount} failed)` : ""
+          }.`,
+        );
+        onImported();
+        resetState();
+        onOpenChange(false);
+      } else {
+        message.error("All rows failed to import. Please check your CSV and try again.");
+      }
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  return (
+    <Modal
+      open={open}
+      title="Import shipping rates from CSV"
+      okText="Import"
+      confirmLoading={importing}
+      onCancel={handleClose}
+      onOk={handleImport}
+      destroyOnClose
+    >
+      <div className="space-y-3">
+        <Typography.Paragraph type="secondary">
+          Upload a CSV file with columns:{" "}
+          <code>
+            originRegion,destinationRegion,paymentMode,baseFee,extraKgFee,currency,isActive
+          </code>
+          . Extra kg fee and isActive are optional.
+        </Typography.Paragraph>
+
+        <input
+          type="file"
+          accept=".csv,text/csv"
+          onChange={onFileChange}
+          disabled={importing}
+        />
+
+        {fileName && (
+          <Typography.Text type="secondary">
+            Selected file: <strong>{fileName}</strong> ({rows.length} row
+            {rows.length === 1 ? "" : "s"} parsed)
+          </Typography.Text>
+        )}
+
+        {parsingError && (
+          <Alert
+            type="error"
+            showIcon
+            message="Could not parse CSV"
+            description={parsingError}
+          />
+        )}
+      </div>
     </Modal>
   );
 }

@@ -174,10 +174,30 @@ export default function FranchiseOrdersPage() {
       render: (v) => formatCurrency(Number(v ?? 0), "NGN"),
     },
     {
-      title: "Commission",
-      dataIndex: "commission",
+      title: "Owner commission",
+      dataIndex: "storefrontOwnerCommissionAmount",
       align: "right",
-      render: (v) => formatCurrency(Number(v ?? 0), "NGN"),
+      render: (_, row) =>
+        formatCurrency(
+          Number(
+            row.storefrontOwnerCommissionAmount ??
+              row.commission ??
+              0,
+          ),
+          "NGN",
+        ),
+    },
+    {
+      title: "OEM commission",
+      dataIndex: "storefrontOemCommissionAmount",
+      align: "right",
+      render: (_, row) =>
+        formatCurrency(
+          Number(
+            row.storefrontOemCommissionAmount ?? 0,
+          ),
+          "NGN",
+        ),
     },
     {
       title: "Commission status",

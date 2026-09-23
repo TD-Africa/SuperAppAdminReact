@@ -16,6 +16,14 @@ export const PERMISSION_GROUPS: PermissionGroupDef[] = [
     label: "Dashboard",
     permissions: ["CanViewDashboard"],
   },
+  { 
+    key: "analytics", 
+    label: "Analytics",
+    permissions: [
+      "CanViewAnalytics",
+      "CanExportAnalytics"
+    ]
+  },
   {
     key: "products",
     label: "Products",

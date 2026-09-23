@@ -56,6 +56,8 @@ export const Permission = {
   CanViewProductGroup: "CanViewProductGroup",
   CanDeleteProductGroup: "CanDeleteProductGroup",
   CanViewDashboard: "CanViewDashboard",
+  CanViewAnalytics: "CanViewAnalytics",
+  CanExportAnalytics: "CanExportAnalytics",
   CanViewFeaturedProducts: "CanViewFeaturedProducts",
   CanEditFeaturedProducts: "CanEditFeaturedProducts",
   CanApproveOrder: "CanApproveOrder",

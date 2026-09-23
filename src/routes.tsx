@@ -7,6 +7,7 @@ import { Permission } from "@/lib/permissions";
 
 const LoginPage = lazy(() => import("@/pages/Login"));
 const DashboardPage = lazy(() => import("@/pages/Dashboard"));
+const AnalyticsPage = lazy(() => import("@/pages/Analytics"));
 const ProductsPage = lazy(() => import("@/pages/Products"));
 const OrdersPage = lazy(() => import("@/pages/Orders"));
 const BrandsPage = lazy(() => import("@/pages/Brands"));
@@ -101,6 +102,14 @@ export const router = createBrowserRouter([
         ),
       },
       { path: "forbidden", element: withSuspense(<ForbiddenPage />) },
+      {
+        path: "analytics",
+        element: (
+          <ProtectedRoute permission={Permission.CanViewAnalytics}>
+            {withSuspense(<AnalyticsPage />)}
+          </ProtectedRoute>
+        ),
+      },
       {
         path: "products",
         element: (

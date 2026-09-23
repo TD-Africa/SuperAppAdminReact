@@ -4,6 +4,7 @@ import { Menu } from "antd";
 import type { MenuProps } from "antd";
 import {
   DashboardOutlined,
+  LineChartOutlined,
   AppstoreOutlined,
   ShoppingCartOutlined,
   TeamOutlined,
@@ -54,6 +55,7 @@ type NavNode = NavLeaf | NavGroup;
 
 const NAV_TREE: NavNode[] = [
   { type: "leaf", to: "/", label: "Home", icon: <DashboardOutlined />, permission: Permission.CanViewDashboard, exact: true },
+  { type: "leaf", to: "/analytics", label: "Analytics and insights", icon: <LineChartOutlined />, permission: Permission.CanViewAnalytics },
   { type: "leaf", to: "/products", label: "Products", icon: <AppstoreOutlined />, permission: Permission.CanViewProducts },
   { type: "leaf", to: "/orders", label: "Orders", icon: <ShoppingCartOutlined />, permission: Permission.CanViewOrders },
   { type: "leaf", to: "/debt-collection", label: "Debt Collection", icon: <AccountBookOutlined />, permission: Permission.CanViewOrders },

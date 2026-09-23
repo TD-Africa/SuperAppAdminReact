@@ -1,0 +1,314 @@
+/* ==========================================================================
+   Workspace layout
+   ========================================================================== */
+
+.analytics-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.analytics-main {
+  min-width: 0;
+  container-type: inline-size;
+}
+
+.analytics-report {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  min-width: 0;
+}
+
+/* Sidebar submenu is shown from 1280px up (see media query below). */
+.analytics-submenu {
+  display: none;
+}
+
+.analytics-mobile-navigation {
+  margin-bottom: 24px;
+}
+
+.analytics-mobile-navigation label {
+  display: block;
+  margin-bottom: 8px;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.analytics-observed {
+  color: #64748b;
+  margin-top: 10px;
+}
+
+/* ==========================================================================
+   Toolbar & filters
+   ========================================================================== */
+
+.analytics-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 16px;
+}
+
+.analytics-toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.analytics-filter-panel {
+  border-top: 1px solid #edf0f3;
+  margin-top: 16px;
+  padding-top: 16px;
+}
+
+.analytics-filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.analytics-filter-chips .ant-tag {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  margin: 0;
+}
+
+/* ==========================================================================
+   Ant Design overrides inside the report
+   ========================================================================== */
+
+.analytics-report .ant-card {
+  min-width: 0;
+  border-color: #e5e7eb;
+  box-shadow: 0 2px 4px #0f172a03;
+}
+
+.analytics-report .ant-card-head {
+  min-height: 56px;
+}
+
+.analytics-report .ant-card-head-title {
+  white-space: normal;
+  padding-block: 14px;
+  font-weight: 600;
+}
+
+.analytics-report .ant-card-head-wrapper {
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.analytics-report .ant-card-extra {
+  margin-inline-start: 0;
+  max-width: 100%;
+}
+
+.analytics-report .ant-statistic-content {
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.analytics-report .ant-table-wrapper {
+  min-width: 0;
+}
+
+.analytics-report .ant-table-cell {
+  font-variant-numeric: tabular-nums;
+}
+
+.analytics-report .ant-pagination {
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.analytics-report .ant-row > .ant-col {
+  min-width: 0;
+}
+
+/* ==========================================================================
+   Methodology notes & comparison charts
+   ========================================================================== */
+
+.analytics-methodology {
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 14px 18px;
+  color: #64748b;
+}
+
+.analytics-methodology summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: #334155;
+}
+
+.analytics-methodology p {
+  margin: 12px 0 0;
+}
+
+.analytics-comparison {
+  min-width: 0;
+  margin-bottom: 20px;
+}
+
+/* ==========================================================================
+   Desktop (≥ 1280px): sidebar submenu replaces the mobile section picker
+   ========================================================================== */
+
+@media (min-width: 1280px) {
+  .analytics-workspace {
+    grid-template-columns: 204px minmax(0, 1fr);
+    gap: 48px;
+  }
+
+  .analytics-submenu {
+    display: block;
+    position: sticky;
+    top: 88px;
+    max-height: calc(100vh - 112px);
+    overflow-y: auto;
+    padding: 6px 0;
+  }
+
+  .analytics-submenu-title {
+    font-weight: 600;
+    color: #1e293b;
+    padding: 0 12px;
+  }
+
+  .analytics-submenu-caption {
+    color: #64748b;
+    padding: 0 12px;
+    margin: 5px 0 22px;
+  }
+
+  .analytics-submenu nav {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .analytics-submenu button {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    text-align: left;
+    width: 100%;
+    padding: 12px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: #526075;
+    font: inherit;
+    cursor: pointer;
+    line-height: 1.5;
+  }
+
+  .analytics-submenu button .anticon {
+    font-size: var(--ant-font-size-lg, 16px);
+    flex: none;
+  }
+
+  .analytics-submenu button:hover {
+    background: #f1e8eb;
+    color: #800020;
+  }
+
+  .analytics-submenu button[aria-current="page"] {
+    background: #800020;
+    color: white;
+  }
+
+  .analytics-submenu button:focus-visible {
+    outline: 2px solid #800020;
+    outline-offset: 2px;
+  }
+
+  .analytics-mobile-navigation {
+    display: none;
+  }
+}
+
+/* ==========================================================================
+   Container queries: based on the report column's width, not the viewport
+   ========================================================================== */
+
+/* Medium: four-up stat cards become two-up; half-width cards go full width. */
+@container (max-width: 1000px) {
+  .analytics-report .xl\:grid-cols-4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .analytics-report .ant-col-xl-6 {
+    flex: 0 0 50%;
+    max-width: 50%;
+  }
+
+  .analytics-report .ant-col-xl-12 {
+    flex: 0 0 100%;
+    max-width: 100%;
+  }
+}
+
+/* Narrow: single column, tighter spacing. */
+@container (max-width: 540px) {
+  .analytics-report {
+    gap: 18px;
+  }
+
+  .analytics-report .ant-card-body {
+    padding: 16px;
+  }
+
+  .analytics-report .ant-card-head {
+    padding-inline: 16px;
+  }
+
+  .analytics-report .xl\:grid-cols-4 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .analytics-report .ant-col-xl-6 {
+    flex: 0 0 100%;
+    max-width: 100%;
+  }
+
+  .analytics-toolbar-actions {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .analytics-report .ant-picker {
+    min-width: 0;
+  }
+}
+
+/* ==========================================================================
+   Overview insights
+   ========================================================================== */
+
+.analytics-overview-insights {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+}
+
+.analytics-overview-insights > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+@container (max-width: 800px) {
+  .analytics-overview-insights {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+  }
+}

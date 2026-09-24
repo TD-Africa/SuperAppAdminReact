@@ -162,23 +162,36 @@ export type StorefrontPagedProducts = PaginationResponse<StorefrontProductDto>;
 export type StorefrontPagedCategoryProducts = PaginationResponse<StorefrontCategoryProductDto>;
 export type StorefrontPagedStoreOwners = PaginationResponse<StorefrontStoreOwnerDto>;
 
+export type StorefrontEarningStatus =
+  | "Pending"
+  | "Available"
+  | "Reversed"
+  | "Withdrawn";
+
 /** GET storefront/wallet/balance */
 export interface StorefrontWalletBalanceDto {
   walletId: string;
-  ownerId: string;
+  ownerId: string | null;
   balance: number;
-  currency: string;
-  updatedAt: string;
+  currency: string | null;
+  walletKey?: string | null;
+  updatedAt: string | null;
 }
 
 /** GET storefront/wallet | GET storefront/earnings/summary */
 export interface StorefrontEarningsSummaryDto {
-  currency: string;
+  currency: string | null;
   pending: number;
   available: number;
   withdrawn: number;
   reversed: number;
   totalEarned: number;
+
+  storefrontOemCommissionPending: number;
+  storefrontOemCommissionAvailable: number;
+  storefrontOemCommissionWithdrawn: number;
+  storefrontOemCommissionReversed: number;
+  storefrontOemCommissionTotal: number;
 }
 
 /** GET storefront/earnings | GET storefront/wallet/transactions */
@@ -189,10 +202,17 @@ export interface StorefrontEarningDto {
   grossAmount: number;
   superAppAmount: number;
   fees: number;
+
+  oemCommissionPercent: number;
+  oemCommissionAmount: number;
+  storefrontOemCommissionAmount: number;
+  storefrontOwnerCommissionAmount: number;
+  superAdminCommissionAmount: number;
+
   earnedAmount: number;
   withdrawnAmount: number;
-  currency: string;
-  status: string;
+  currency: string | null;
+  status: StorefrontEarningStatus;
   dateCreated: string;
 }
 
@@ -437,6 +457,8 @@ export interface StorefrontWalletTransactionDto {
   externalOrderId: string | null;
   paymentReference: string | null;
   transactionKind: string | null;
+  storefrontOemCommissionAmount: number;
+  storefrontOwnerCommissionAmount: number;
   payoutId: string | null;
   providerReference: string | null;
   createdByUserId: string | null;
@@ -456,6 +478,11 @@ export interface StorefrontWalletStatsDto {
   storefrontOemCommissionCurrent?: number | null;
   storefrontOemCommissionPaid?: number | null;
   storefrontOemCommissionPending?: number | null;
+  storefrontOwnerCommissionTotal: number;
+  storefrontOwnerCommissionCurrent: number;
+  storefrontOwnerCommissionPaid: number;
+  superAdminCommissionDebited: number;
+  storefrontOemCommissionDebited: number;
   /** Legacy aggregates kept for backwards compatibility */
   totalCommission?: number;
   currentCommission?: number;
@@ -472,11 +499,12 @@ export interface StorefrontWalletOrderDto {
   externalOrderId: string | null;
   amount: number;
   /** OEM commission amount for this order (authoritative) */
-  storefrontOemCommissionAmount?: number | null;
+  storefrontOemCommissionAmount: number;
   /** Legacy / owner commission fields kept for backwards compatibility */
-  storefrontOwnerCommissionAmount?: number | null;
+  storefrontOwnerCommissionAmount: number;
   commission?: number;
-  commissionStatus: string;
+  superAdminCommissionAmount: number;
+  commissionStatus: StorefrontEarningStatus;
   isPaid: boolean;
   isDynamicsPosted: boolean;
   orderStatus: string | null;
@@ -538,6 +566,57 @@ export interface SuperAdminWalletTransactionDeleteRequest {
 
 export type SuperAdminPagedTransactions =
   PaginationResponse<SuperAdminWalletTransactionDto>;
+
+// —— OEM wallet (admin/storefront/oem-wallet) ——
+
+export interface OemWalletDto {
+  walletId: string | null;
+  walletKey: string | null;
+  balance: number;
+  storefrontOemCommissionReceived: number;
+  currency: string | null;
+  updatedAt: string | null;
+}
+
+export interface OemWalletAdjustmentRequest {
+  amount?: number;
+  reference: string;
+  description: string;
+}
+
+export interface OemWalletTransactionUpdateRequest {
+  amount?: number;
+  type: string;
+  reference: string;
+  description: string;
+  metadataJson?: string | null;
+}
+
+export interface OemWalletTransactionDeleteRequest {
+  reason: string;
+}
+
+export interface OemWalletTransactionDto {
+  id: string;
+  isDeleted: boolean;
+  orderId: string | null;
+  storefrontOwnerId: string | null;
+  amount: number;
+  balanceBefore: number;
+  balanceAfter: number;
+  type: string | null;
+  transactionKind: string | null;
+  reference: string | null;
+  description: string | null;
+  status: string | null;
+  externalOrderId: string | null;
+  paymentReference: string | null;
+  createdByUserId: string | null;
+  metadataJson: string | null;
+  transactionDate: string;
+}
+
+export type OemWalletPagedTransactions = PaginationResponse<OemWalletTransactionDto>;
 
 // —— Storefront orders ——
 

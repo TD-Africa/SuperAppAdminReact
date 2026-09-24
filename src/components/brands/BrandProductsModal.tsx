@@ -5,7 +5,7 @@ import type { TableColumnsType } from "antd";
 import { EyeOutlined } from "@ant-design/icons";
 import { apiGet } from "@/lib/api";
 import type { PaginationResponse, ProductReturnDto } from "@/lib/types";
-import { formatCurrency, formatNumber } from "@/lib/utils";
+import { formatCategory, formatCurrency, formatNumber } from "@/lib/utils";
 import { ProductDetailModal } from "@/components/products/ProductDetailModal";
 
 const ALL = "__all__";
@@ -26,13 +26,6 @@ function effectivePrice(
   if (fromDefault) return pick(fromDefault);
   const fromAny = variants.find((v) => pick(v) > 0);
   return fromAny ? pick(fromAny) : base;
-}
-
-// `category` occasionally comes back as the raw C# type name
-// ("TDSuperApp.Data.Models.Category") instead of a real category. Hide those.
-function cleanCategory(category: string | null): string {
-  if (!category || category.startsWith("TDSuperApp.")) return "—";
-  return category;
 }
 
 interface Props {
@@ -122,7 +115,7 @@ export function BrandProductsModal({
         <div className="max-w-[260px]">
           <div className="truncate font-medium">{v}</div>
           <div className="truncate text-xs text-muted-foreground">
-            {cleanCategory(r.category)}
+            {formatCategory(r.category)}
           </div>
         </div>
       ),

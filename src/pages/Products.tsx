@@ -31,7 +31,7 @@ import type {
 import { Permission } from "@/lib/permissions";
 import { useAuthStore } from "@/stores/auth";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { formatCurrency, formatNumber } from "@/lib/utils";
+import { formatCategory, formatCurrency, formatNumber } from "@/lib/utils";
 import { ProductDetailModal } from "@/components/products/ProductDetailModal";
 
 const ALL = "__all__";
@@ -340,7 +340,7 @@ export default function ProductsPage() {
         <div className="max-w-[260px]">
           <div className="truncate font-medium">{v}</div>
           <div className="truncate text-xs text-muted-foreground">
-            {r.category ?? "—"}
+            {formatCategory(r.category)}
           </div>
         </div>
       ),

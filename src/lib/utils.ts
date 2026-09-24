@@ -15,6 +15,13 @@ export function formatCurrency(
   }).format(n);
 }
 
+// A product's `category` occasionally comes back as the raw C# type name
+// ("TDSuperApp.Data.Models.Category") instead of a real category. Hide those.
+export function formatCategory(category: string | null | undefined) {
+  if (!category || category.startsWith("TDSuperApp.")) return "—";
+  return category;
+}
+
 export function formatDate(d: string | Date | null | undefined) {
   if (!d) return "-";
   const date = typeof d === "string" ? new Date(d) : d;

@@ -28,7 +28,7 @@ import type {
 } from "@/lib/types";
 import { useAuthStore } from "@/stores/auth";
 import { Permission } from "@/lib/permissions";
-import { formatCurrency, formatNumber } from "@/lib/utils";
+import { formatCategory, formatCurrency, formatNumber } from "@/lib/utils";
 
 interface Props {
   productId: string | null;
@@ -321,7 +321,7 @@ export function ProductDetailModal({ productId, open, onOpenChange }: Props) {
                   {data.brand?.name ?? "—"}
                 </Descriptions.Item>
                 <Descriptions.Item label="Category">
-                  {data.category ?? "—"}
+                  {formatCategory(data.category)}
                 </Descriptions.Item>
                 <Descriptions.Item label="Dynamics ID">
                   {data.dynamicsId ?? "—"}

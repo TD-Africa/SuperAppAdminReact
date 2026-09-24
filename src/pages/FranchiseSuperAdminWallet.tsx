@@ -332,112 +332,112 @@ export default function FranchiseSuperAdminWalletPage() {
                 />
               ),
             },
-            {
-              key: "settlement-tx",
-              label: "Settlement transactions",
-              children: (
-                <Table<StorefrontWalletTransactionDto>
-                  rowKey="id"
-                  columns={settlementColumns}
-                  dataSource={settlementTxQuery.data?.data ?? []}
-                  loading={settlementTxQuery.isLoading}
-                  scroll={{ x: 1100 }}
-                  locale={{ emptyText: <Empty description="No settlement transactions" /> }}
-                  pagination={{
-                    current: page,
-                    pageSize,
-                    total: Number(settlementTxQuery.data?.count ?? 0),
-                    showSizeChanger: true,
-                    onChange: (p, ps) => {
-                      setPage(p);
-                      setPageSize(ps);
-                    },
-                  }}
-                />
-              ),
-            },
-            {
-              key: "settlement-ledger",
-              label: "Settlement ledger",
-              children: (
-                <Table<StorefrontWalletLedgerDto>
-                  rowKey="id"
-                  columns={ledgerColumns}
-                  dataSource={settlementLedgerQuery.data?.data ?? []}
-                  loading={settlementLedgerQuery.isLoading}
-                  scroll={{ x: 1100 }}
-                  locale={{ emptyText: <Empty description="No ledger entries" /> }}
-                  pagination={{
-                    current: page,
-                    pageSize,
-                    total: Number(settlementLedgerQuery.data?.count ?? 0),
-                    showSizeChanger: true,
-                    onChange: (p, ps) => {
-                      setPage(p);
-                      setPageSize(ps);
-                    },
-                  }}
-                />
-              ),
-            },
-            {
-              key: "settlement-orders",
-              label: "Settlement orders",
-              children: (
-                <Table<StorefrontWalletOrderDto>
-                  rowKey="orderId"
-                  columns={[
-                    {
-                      title: "Date",
-                      dataIndex: "dateCreated",
-                      render: (v: string) => formatDate(v),
-                    },
-                    { title: "Reference", dataIndex: "orderReference", render: (v) => v ?? "—" },
-                    {
-                      title: "Amount",
-                      dataIndex: "amount",
-                      align: "right" as const,
-                      render: (v: number) => formatCurrency(v, currencyCode),
-                    },
-                    // {
-                    //   title: "Owner commission",
-                    //   dataIndex: "storefrontOwnerCommissionAmount",
-                    //   align: "right" as const,
-                    //   render: (_, row) =>
-                    //     formatCurrency(
-                    //       row.storefrontOwnerCommissionAmount ??
-                    //         row.commission ??
-                    //         0,
-                    //       currencyCode,
-                    //     ),
-                    // },
-                    {
-                      title: "OEM commission",
-                      dataIndex: "storefrontOemCommissionAmount",
-                      align: "right" as const,
-                      render: (_, row) =>
-                        formatCurrency(
-                          row.storefrontOemCommissionAmount ?? 0,
-                          currencyCode,
-                        ),
-                    },
-                  ]}
-                  dataSource={settlementOrdersQuery.data?.data ?? []}
-                  loading={settlementOrdersQuery.isLoading}
-                  locale={{ emptyText: <Empty description="No settlement orders" /> }}
-                  pagination={{
-                    current: page,
-                    pageSize,
-                    total: Number(settlementOrdersQuery.data?.count ?? 0),
-                    showSizeChanger: true,
-                    onChange: (p, ps) => {
-                      setPage(p);
-                      setPageSize(ps);
-                    },
-                  }}
-                />
-              ),
-            },
+            // {
+            //   key: "settlement-tx",
+            //   label: "Settlement transactions",
+            //   children: (
+            //     <Table<StorefrontWalletTransactionDto>
+            //       rowKey="id"
+            //       columns={settlementColumns}
+            //       dataSource={settlementTxQuery.data?.data ?? []}
+            //       loading={settlementTxQuery.isLoading}
+            //       scroll={{ x: 1100 }}
+            //       locale={{ emptyText: <Empty description="No settlement transactions" /> }}
+            //       pagination={{
+            //         current: page,
+            //         pageSize,
+            //         total: Number(settlementTxQuery.data?.count ?? 0),
+            //         showSizeChanger: true,
+            //         onChange: (p, ps) => {
+            //           setPage(p);
+            //           setPageSize(ps);
+            //         },
+            //       }}
+            //     />
+            //   ),
+            // },
+            // {
+            //   key: "settlement-ledger",
+            //   label: "Settlement ledger",
+            //   children: (
+            //     <Table<StorefrontWalletLedgerDto>
+            //       rowKey="id"
+            //       columns={ledgerColumns}
+            //       dataSource={settlementLedgerQuery.data?.data ?? []}
+            //       loading={settlementLedgerQuery.isLoading}
+            //       scroll={{ x: 1100 }}
+            //       locale={{ emptyText: <Empty description="No ledger entries" /> }}
+            //       pagination={{
+            //         current: page,
+            //         pageSize,
+            //         total: Number(settlementLedgerQuery.data?.count ?? 0),
+            //         showSizeChanger: true,
+            //         onChange: (p, ps) => {
+            //           setPage(p);
+            //           setPageSize(ps);
+            //         },
+            //       }}
+            //     />
+            //   ),
+            // },
+            // {
+            //   key: "settlement-orders",
+            //   label: "Settlement orders",
+            //   children: (
+            //     <Table<StorefrontWalletOrderDto>
+            //       rowKey="orderId"
+            //       columns={[
+            //         {
+            //           title: "Date",
+            //           dataIndex: "dateCreated",
+            //           render: (v: string) => formatDate(v),
+            //         },
+            //         { title: "Reference", dataIndex: "orderReference", render: (v) => v ?? "—" },
+            //         {
+            //           title: "Amount",
+            //           dataIndex: "amount",
+            //           align: "right" as const,
+            //           render: (v: number) => formatCurrency(v, currencyCode),
+            //         },
+            //         // {
+            //         //   title: "Owner commission",
+            //         //   dataIndex: "storefrontOwnerCommissionAmount",
+            //         //   align: "right" as const,
+            //         //   render: (_, row) =>
+            //         //     formatCurrency(
+            //         //       row.storefrontOwnerCommissionAmount ??
+            //         //         row.commission ??
+            //         //         0,
+            //         //       currencyCode,
+            //         //     ),
+            //         // },
+            //         {
+            //           title: "OEM commission",
+            //           dataIndex: "storefrontOemCommissionAmount",
+            //           align: "right" as const,
+            //           render: (_, row) =>
+            //             formatCurrency(
+            //               row.storefrontOemCommissionAmount ?? 0,
+            //               currencyCode,
+            //             ),
+            //         },
+            //       ]}
+            //       dataSource={settlementOrdersQuery.data?.data ?? []}
+            //       loading={settlementOrdersQuery.isLoading}
+            //       locale={{ emptyText: <Empty description="No settlement orders" /> }}
+            //       pagination={{
+            //         current: page,
+            //         pageSize,
+            //         total: Number(settlementOrdersQuery.data?.count ?? 0),
+            //         showSizeChanger: true,
+            //         onChange: (p, ps) => {
+            //           setPage(p);
+            //           setPageSize(ps);
+            //         },
+            //       }}
+            //     />
+            //   ),
+            // },
           ]}
         />
       </Card>

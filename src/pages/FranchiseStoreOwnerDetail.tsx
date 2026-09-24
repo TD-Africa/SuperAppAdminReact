@@ -25,10 +25,10 @@ import { apiGet } from "@/lib/api";
 import {
   addStorefrontTicketComment,
   configureStorefrontOwner,
-  getAdminStorefrontWallet,
-  getAdminStorefrontWalletOrders,
-  getAdminStorefrontWalletStats,
-  getAdminStorefrontWalletTransactions,
+  getLegacyStorefrontWalletBalance,
+  getLegacyStorefrontWalletOrders,
+  getLegacyStorefrontWalletStats,
+  getLegacyStorefrontWalletLedger,
   getOwnerProduct,
   getOwnerProducts,
   getOwnerQuote,
@@ -132,7 +132,7 @@ export default function FranchiseStoreOwnerDetailPage() {
   const walletQuery = useQuery({
     queryKey: ["admin-storefront-wallet", storeOwnerId],
     queryFn: async () => {
-      const res = await getAdminStorefrontWallet(storeOwnerId!);
+      const res = await getLegacyStorefrontWalletBalance(storeOwnerId!);
       if (!res.status) throw new Error(res.message ?? "Failed to load wallet");
       return res.data;
     },
@@ -142,7 +142,7 @@ export default function FranchiseStoreOwnerDetailPage() {
   const statsQuery = useQuery({
     queryKey: ["admin-storefront-wallet-stats", storeOwnerId],
     queryFn: async () => {
-      const res = await getAdminStorefrontWalletStats(storeOwnerId!);
+      const res = await getLegacyStorefrontWalletStats(storeOwnerId!);
       if (!res.status) throw new Error(res.message ?? "Failed to load wallet stats");
       return res.data;
     },
@@ -191,7 +191,7 @@ export default function FranchiseStoreOwnerDetailPage() {
   const txQuery = useQuery({
     queryKey: ["admin-storefront-wallet-tx", storeOwnerId, txParams],
     queryFn: async () => {
-      const res = await getAdminStorefrontWalletTransactions(storeOwnerId!, txParams);
+      const res = await getLegacyStorefrontWalletLedger(storeOwnerId!, txParams);
       if (!res.status) throw new Error(res.message ?? "Failed to load transactions");
       return res.data;
     },
@@ -210,7 +210,7 @@ export default function FranchiseStoreOwnerDetailPage() {
   const ordersQuery = useQuery({
     queryKey: ["admin-storefront-wallet-orders", storeOwnerId, ordersParams],
     queryFn: async () => {
-      const res = await getAdminStorefrontWalletOrders(storeOwnerId!, ordersParams);
+      const res = await getLegacyStorefrontWalletOrders(storeOwnerId!, ordersParams);
       if (!res.status) throw new Error(res.message ?? "Failed to load orders");
       return res.data;
     },
@@ -310,11 +310,7 @@ export default function FranchiseStoreOwnerDetailPage() {
     statsQuery.data?.currency ??
     summaryQuery.data?.currency ??
     "NGN";
-  const pendingOemCommission =
-    statsQuery.data?.storefrontOemCommissionPending ??
-    statsQuery.data?.pendingCommission ??
-    summaryQuery.data?.pending ??
-    0;
+  const superAdminCommissionDebited = statsQuery.data?.superAdminCommissionDebited ?? 0;
 
   const earningsColumns: TableColumnsType<StorefrontEarningDto> = [
     {
@@ -455,6 +451,12 @@ export default function FranchiseStoreOwnerDetailPage() {
           row.storefrontOemCommissionAmount ?? 0,
           currency,
         ),
+    },
+    {
+      title: "Super admin commission",
+      dataIndex: "superAdminCommissionAmount",
+      align: "right",
+      render: (_, row) => money(row.superAdminCommissionAmount ?? 0, currency),
     },
     {
       title: "Commission status",
@@ -617,6 +619,14 @@ export default function FranchiseStoreOwnerDetailPage() {
             valueStyle={{ color: "#800020", fontWeight: 600 }}
           />
         </Card>
+
+        <Card loading={statsQuery.isLoading}>
+          <Statistic
+            title="Total orders"
+            value={statsQuery.data?.totalOrders ?? 0}
+          />
+        </Card>
+
         <Card loading={statsQuery.isLoading}>
           <Statistic
             title="Revenue"
@@ -624,14 +634,12 @@ export default function FranchiseStoreOwnerDetailPage() {
             formatter={() => money(statsQuery.data?.revenue ?? 0, currency)}
           />
         </Card>
+
         <Card loading={statsQuery.isLoading}>
-          <Statistic title="Paid orders" value={statsQuery.data?.paidOrders ?? 0} />
-        </Card>
-        <Card loading={statsQuery.isLoading || summaryQuery.isLoading}>
           <Statistic
-            title="Pending commission"
-            value={pendingOemCommission}
-            formatter={() => money(pendingOemCommission, currency)}
+            title="Super admin commission"
+            value={superAdminCommissionDebited}
+            formatter={() => money(superAdminCommissionDebited, currency)}
           />
         </Card>
       </div>

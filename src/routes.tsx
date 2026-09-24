@@ -26,6 +26,7 @@ const FranchiseStoreOwnersPage = lazy(() => import("@/pages/FranchiseStoreOwners
 const FranchiseStoreOwnerDetailPage = lazy(() => import("@/pages/FranchiseStoreOwnerDetail"));
 const FranchisePayoutsPage = lazy(() => import("@/pages/FranchisePayouts"));
 const FranchiseSuperAdminWalletPage = lazy(() => import("@/pages/FranchiseSuperAdminWallet"));
+const FranchiseOemWalletTransactionsPage = lazy(() => import("@/pages/FranchiseOemWalletTransactions"));
 const SettlementRecoveryPage = lazy(() => import("@/pages/SettlementRecovery"));
 const StorefrontCouponRequestsPage = lazy(() => import("@/pages/StorefrontCouponRequests"));
 const StorefrontTicketsPage = lazy(() => import("@/pages/StorefrontTickets"));
@@ -319,6 +320,14 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute permission={Permission.CanViewUser}>
             {withSuspense(<FranchiseSuperAdminWalletPage />)}
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "franchise-oem-wallet-transactions",
+        element: (
+          <ProtectedRoute permission={Permission.CanViewUser}>
+            {withSuspense(<FranchiseOemWalletTransactionsPage />)}
           </ProtectedRoute>
         ),
       },

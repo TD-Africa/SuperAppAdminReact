@@ -68,6 +68,12 @@ import type {
   StorefrontWalletBalanceDto,
   StorefrontWalletStatsDto,
   StorefrontWalletTransactionDto,
+  OemWalletAdjustmentRequest,
+  OemWalletDto,
+  OemWalletPagedTransactions,
+  OemWalletTransactionDto,
+  OemWalletTransactionDeleteRequest,
+  OemWalletTransactionUpdateRequest,
   SuperAdminPagedTransactions,
   SuperAdminWalletAdjustmentRequest,
   SuperAdminWalletDto,
@@ -387,6 +393,53 @@ export function deleteStorefrontShippingRate(rateId: string) {
   return apiDelete<boolean>(`Storefront/DeleteShippingRate/${rateId}`);
 }
 
+// —— AdminStorefrontLegacyWalletParity (storefront/wallet) ——
+
+export function getLegacyStorefrontWallet(ownerId: string) {
+  return apiGet<StorefrontEarningsSummaryDto>(
+    `storefront/wallet${toQuery({ ownerId })}`,
+  );
+}
+
+export function getLegacyStorefrontWalletBalance(ownerId: string) {
+  return apiGet<StorefrontWalletBalanceDto>(
+    `storefront/wallet/balance${toQuery({ ownerId })}`,
+  );
+}
+
+export function getLegacyStorefrontWalletLedger(
+  ownerId: string,
+  params: PagedParams = {},
+) {
+  return apiGet<StorefrontPagedWalletTransactions>(
+    `storefront/wallet/ledger${toQuery({ ...params, ownerId })}`,
+  );
+}
+
+export function getLegacyStorefrontWalletStats(ownerId: string) {
+  return apiGet<StorefrontWalletStatsDto>(
+    `storefront/wallet/stats${toQuery({ ownerId })}`,
+  );
+}
+
+export function getLegacyStorefrontWalletOrders(
+  ownerId: string,
+  params: PagedParams = {},
+) {
+  return apiGet<StorefrontPagedWalletOrders>(
+    `storefront/wallet/orders${toQuery({ ...params, ownerId })}`,
+  );
+}
+
+export function getLegacyStorefrontWalletTransactions(
+  ownerId: string,
+  params: PagedParams = {},
+) {
+  return apiGet<StorefrontPagedEarnings>(
+    `storefront/wallet/transactions${toQuery({ ...params, ownerId })}`,
+  );
+}
+
 // —— Settlement wallet (storefront/settlement-wallet) ——
 
 export function getSettlementWallet() {
@@ -594,6 +647,56 @@ export function debitAdminStorefrontWallet(
     `admin/storefront/wallets/${encodeURIComponent(ownerId)}/debit`,
     body,
   );
+}
+
+// —— AdminStorefrontOemWallet (admin/storefront/oem-wallet) ——
+
+export function getAdminStorefrontOemWallet() {
+  return apiGet<OemWalletDto>(`admin/storefront/oem-wallet`);
+}
+
+export function getAdminStorefrontOemWalletTransactions(
+  params: PagedParams = {},
+) {
+  return apiGet<OemWalletPagedTransactions>(
+    `admin/storefront/oem-wallet/transactions${toQuery(params)}`,
+  );
+}
+
+export function getAdminStorefrontOemWalletTransaction(
+  transactionId: string,
+) {
+  return apiGet<OemWalletTransactionDto>(
+    `admin/storefront/oem-wallet/transactions/${encodeURIComponent(transactionId)}`,
+  );
+}
+
+export function updateAdminStorefrontOemWalletTransaction(
+  transactionId: string,
+  body: OemWalletTransactionUpdateRequest,
+) {
+  return apiPut<OemWalletTransactionDto>(
+    `admin/storefront/oem-wallet/transactions/${encodeURIComponent(transactionId)}`,
+    body,
+  );
+}
+
+export function deleteAdminStorefrontOemWalletTransaction(
+  transactionId: string,
+  body: OemWalletTransactionDeleteRequest,
+) {
+  return apiDelete<OemWalletTransactionDto>(
+    `admin/storefront/oem-wallet/transactions/${encodeURIComponent(transactionId)}`,
+    { data: body },
+  );
+}
+
+export function creditAdminStorefrontOemWallet(body: OemWalletAdjustmentRequest) {
+  return apiPost<OemWalletTransactionDto>(`admin/storefront/oem-wallet/credit`, body);
+}
+
+export function debitAdminStorefrontOemWallet(body: OemWalletAdjustmentRequest) {
+  return apiPost<OemWalletTransactionDto>(`admin/storefront/oem-wallet/debit`, body);
 }
 
 // —— Super admin wallet ——

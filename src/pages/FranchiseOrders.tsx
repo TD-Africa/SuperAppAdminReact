@@ -200,6 +200,16 @@ export default function FranchiseOrdersPage() {
         ),
     },
     {
+      title: "Super admin commission",
+      dataIndex: "superAdminCommissionAmount",
+      align: "right",
+      render: (_, row) =>
+        formatCurrency(
+          Number(row.superAdminCommissionAmount ?? 0),
+          "NGN",
+        ),
+    },
+    {
       title: "Commission status",
       dataIndex: "commissionStatus",
       render: (v) => <Tag>{v ?? "—"}</Tag>,

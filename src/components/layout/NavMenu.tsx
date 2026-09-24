@@ -93,7 +93,7 @@ const NAV_TREE: NavNode[] = [
       { type: "leaf", to: "/franchise-store-owner-invites", label: "Owner Invites", icon: <MailOutlined />, permission: Permission.CanViewUser },
       { type: "leaf", to: "/franchise-store-owners", label: "Store Owners", icon: <TeamOutlined />, permission: Permission.CanViewUser },
       { type: "leaf", to: "/franchise-superadmin-wallet", label: "Settlement Wallet", icon: <AccountBookOutlined />, permission: Permission.CanViewUser },
-      { type: "leaf", to: "/franchise-oem-wallet-transactions", label: "OEM Wallet Transactions", icon: <WalletOutlined />, permission: Permission.CanViewUser },
+      // { type: "leaf", to: "/franchise-oem-wallet-transactions", label: "OEM Wallet Transactions", icon: <WalletOutlined />, permission: Permission.CanViewUser },
       { type: "leaf", to: "/settlement-recovery", label: "Settlement Recovery", icon: <HistoryOutlined />, permission: Permission.CanViewUser },
       { type: "leaf", to: "/storefront-coupon-requests", label: "Coupon Requests", icon: <GiftOutlined />, permission: Permission.CanViewPromos },
       { type: "leaf", to: "/storefront-tickets", label: "Tickets", icon: <CustomerServiceOutlined />, permission: Permission.CanViewTicket },

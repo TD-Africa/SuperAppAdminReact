@@ -533,7 +533,10 @@ export default function FranchiseProductsPage() {
           <Button
             size="small"
             icon={<EyeOutlined />}
-            onClick={() => openDetail(storefront.productId)}
+            onClick={(e) => {
+              e.stopPropagation();
+              openDetail(storefront.productId);
+            }}
             title="View product"
           />
           {canEdit && (
@@ -623,6 +626,10 @@ export default function FranchiseProductsPage() {
           rowKey={(row) => row.storefront.productId}
           columns={columns}
           dataSource={rows}
+          onRow={(row) => ({
+            onClick: () => openDetail(row.storefront.productId),
+            style: { cursor: "pointer" },
+          })}
           loading={tableLoading}
           scroll={{ x: 1600 }}
           locale={{ emptyText: <Empty description="No storefront products" /> }}

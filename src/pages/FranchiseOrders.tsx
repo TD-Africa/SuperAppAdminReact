@@ -200,6 +200,16 @@ export default function FranchiseOrdersPage() {
         ),
     },
     {
+      title: "Super admin commission",
+      dataIndex: "superAdminCommissionAmount",
+      align: "right",
+      render: (_, row) =>
+        formatCurrency(
+          Number(row.superAdminCommissionAmount ?? 0),
+          "NGN",
+        ),
+    },
+    {
       title: "Commission status",
       dataIndex: "commissionStatus",
       render: (v) => <Tag>{v ?? "—"}</Tag>,
@@ -226,7 +236,8 @@ export default function FranchiseOrdersPage() {
         <Button
           size="small"
           icon={<EyeOutlined />}
-          onClick={() => {
+          onClick={(e) => {
+            e.stopPropagation();
             setSelectedOrderId(row.orderId);
             setDetailOpen(true);
           }}
@@ -326,6 +337,13 @@ export default function FranchiseOrdersPage() {
             rowKey="orderId"
             dataSource={rows}
             columns={columns}
+            onRow={(row) => ({
+              onClick: () => {
+                setSelectedOrderId(row.orderId);
+                setDetailOpen(true);
+              },
+              style: { cursor: "pointer" },
+            })}
             loading={ordersQuery.isLoading || ordersQuery.isFetching}
             pagination={{
               current: page,

@@ -410,7 +410,8 @@ export default function FranchiseStoreOwnerDetailPage() {
         <Button
           type="link"
           className="!px-0"
-          onClick={() => {
+          onClick={(e) => {
+            e.stopPropagation();
             setSelectedOrderId(row.orderId);
             setOrderOpen(true);
           }}
@@ -783,6 +784,13 @@ export default function FranchiseStoreOwnerDetailPage() {
                     rowKey="orderId"
                     columns={ordersColumns}
                     dataSource={ordersQuery.data?.data ?? []}
+                    onRow={(row) => ({
+                      onClick: () => {
+                        setSelectedOrderId(row.orderId);
+                        setOrderOpen(true);
+                      },
+                      style: { cursor: "pointer" },
+                    })}
                     loading={ordersQuery.isLoading || ordersQuery.isFetching}
                     locale={{ emptyText: <Empty description="No orders" /> }}
                     pagination={{

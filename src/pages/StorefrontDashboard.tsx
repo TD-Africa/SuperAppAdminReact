@@ -302,7 +302,11 @@ export default function StorefrontDashboard() {
     {
       title: "Description",
       dataIndex: "description",
-      render: (v) => v ?? "—",
+      render: (v) => (
+        <Typography.Text ellipsis={{ tooltip: v ?? "—" }}>
+          {v ?? "—"}
+        </Typography.Text>
+      ),
     },
     {
       title: "Amount",

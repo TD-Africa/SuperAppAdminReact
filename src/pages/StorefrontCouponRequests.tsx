@@ -139,7 +139,8 @@ export default function StorefrontCouponRequestsPage() {
         <Button
           size="small"
           icon={<EyeOutlined />}
-          onClick={() => {
+          onClick={(e) => {
+            e.stopPropagation();
             setSelectedId(row.id);
             setDetailOpen(true);
           }}
@@ -191,6 +192,13 @@ export default function StorefrontCouponRequestsPage() {
           rowKey="id"
           columns={columns}
           dataSource={data?.data ?? []}
+          onRow={(row) => ({
+            onClick: () => {
+              setSelectedId(row.id);
+              setDetailOpen(true);
+            },
+            style: { cursor: "pointer" },
+          })}
           loading={isLoading || isFetching}
           scroll={{ x: 900 }}
           locale={{ emptyText: <Empty description="No coupon requests" /> }}

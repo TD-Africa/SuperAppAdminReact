@@ -226,7 +226,8 @@ export default function FranchiseOrdersPage() {
         <Button
           size="small"
           icon={<EyeOutlined />}
-          onClick={() => {
+          onClick={(e) => {
+            e.stopPropagation();
             setSelectedOrderId(row.orderId);
             setDetailOpen(true);
           }}
@@ -326,6 +327,13 @@ export default function FranchiseOrdersPage() {
             rowKey="orderId"
             dataSource={rows}
             columns={columns}
+            onRow={(row) => ({
+              onClick: () => {
+                setSelectedOrderId(row.orderId);
+                setDetailOpen(true);
+              },
+              style: { cursor: "pointer" },
+            })}
             loading={ordersQuery.isLoading || ordersQuery.isFetching}
             pagination={{
               current: page,

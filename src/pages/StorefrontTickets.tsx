@@ -180,7 +180,8 @@ export default function StorefrontTicketsPage() {
           size="small"
           type={r.hasUnreadComment ? "primary" : "default"}
           icon={<EyeOutlined />}
-          onClick={() => {
+          onClick={(e) => {
+            e.stopPropagation();
             setSelectedTicketId(r.id);
             setDetailOpen(true);
           }}
@@ -288,6 +289,13 @@ export default function StorefrontTicketsPage() {
                   rowKey="id"
                   dataSource={rows}
                   columns={columns}
+                  onRow={(r) => ({
+                    onClick: () => {
+                      setSelectedTicketId(r.id);
+                      setDetailOpen(true);
+                    },
+                    style: { cursor: "pointer" },
+                  })}
                   loading={ticketsQuery.isLoading || ticketsQuery.isFetching}
                   pagination={{
                     current: page,

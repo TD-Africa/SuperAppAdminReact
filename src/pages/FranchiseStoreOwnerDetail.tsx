@@ -1,34 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import {
-  App as AntdApp,
-  Button,
-  Card,
-  Descriptions,
-  Empty,
-  Form,
-  Input,
-  InputNumber,
-  Modal,
-  Select,
-  Space,
-  Statistic,
-  Table,
-  Tabs,
-  Tag,
-  Typography,
-} from "antd";
-import type { TableColumnsType } from "antd";
-import { ArrowLeftOutlined, CalculatorOutlined, DownOutlined, EditOutlined, EyeOutlined, MessageOutlined, ShopOutlined, UpOutlined } from "@ant-design/icons";
+import { OrderDetailModal } from "@/components/orders/OrderDetailModal";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { apiGet } from "@/lib/api";
 import {
   addStorefrontTicketComment,
   configureStorefrontOwner,
   getLegacyStorefrontWalletBalance,
+  getLegacyStorefrontWalletLedger,
   getLegacyStorefrontWalletOrders,
   getLegacyStorefrontWalletStats,
-  getLegacyStorefrontWalletLedger,
   getOwnerProduct,
   getOwnerProducts,
   getOwnerQuote,
@@ -56,9 +35,30 @@ import {
   pickDisplayVariant,
 } from "@/lib/storefrontTypes";
 import type { LocationReturnDTO, TicketResponse } from "@/lib/types";
-import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { formatCurrency, formatDate, formatNumber } from "@/lib/utils";
-import { OrderDetailModal } from "@/components/orders/OrderDetailModal";
+import { ArrowLeftOutlined, CalculatorOutlined, DownOutlined, EditOutlined, EyeOutlined, MessageOutlined, ShopOutlined, UpOutlined } from "@ant-design/icons";
+import { useQuery } from "@tanstack/react-query";
+import type { TableColumnsType } from "antd";
+import {
+  App as AntdApp,
+  Button,
+  Card,
+  Descriptions,
+  Empty,
+  Form,
+  Input,
+  InputNumber,
+  Modal,
+  Select,
+  Space,
+  Statistic,
+  Table,
+  Tabs,
+  Tag,
+  Typography,
+} from "antd";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 const ALL = "__all__";
 
@@ -310,7 +310,6 @@ export default function FranchiseStoreOwnerDetailPage() {
     statsQuery.data?.currency ??
     summaryQuery.data?.currency ??
     "NGN";
-  const superAdminCommissionDebited = statsQuery.data?.superAdminCommissionDebited ?? 0;
 
   const earningsColumns: TableColumnsType<StorefrontEarningDto> = [
     {
@@ -636,13 +635,13 @@ export default function FranchiseStoreOwnerDetailPage() {
           />
         </Card>
 
-        <Card loading={statsQuery.isLoading}>
+        {/* <Card loading={statsQuery.isLoading}>
           <Statistic
             title="Super admin commission"
             value={superAdminCommissionDebited}
             formatter={() => money(superAdminCommissionDebited, currency)}
           />
-        </Card>
+        </Card> */}
       </div>
 
       <Card

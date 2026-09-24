@@ -15,17 +15,11 @@ import type { TableColumnsType } from "antd";
 import {
   getSettlementWallet,
   getSettlementWalletBalance,
-  getSettlementWalletLedger,
-  getSettlementWalletOrders,
   getSettlementWalletStats,
-  getSettlementWalletTransactions,
   getSuperAdminWallet,
   getSuperAdminWalletTransactions,
 } from "@/lib/storefrontApi";
 import type {
-  StorefrontWalletLedgerDto,
-  StorefrontWalletOrderDto,
-  StorefrontWalletTransactionDto,
   SuperAdminWalletTransactionDto,
 } from "@/lib/storefrontTypes";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
@@ -96,33 +90,6 @@ export default function FranchiseSuperAdminWalletPage() {
     },
   });
 
-  const settlementTxQuery = useQuery({
-    queryKey: ["settlement-wallet-tx", queryParams],
-    queryFn: async () => {
-      const res = await getSettlementWalletTransactions(queryParams);
-      if (!res.status) throw new Error(res.message ?? "Failed to load settlement transactions");
-      return res.data;
-    },
-  });
-
-  const settlementLedgerQuery = useQuery({
-    queryKey: ["settlement-wallet-ledger", queryParams],
-    queryFn: async () => {
-      const res = await getSettlementWalletLedger(queryParams);
-      if (!res.status) throw new Error(res.message ?? "Failed to load settlement ledger");
-      return res.data;
-    },
-  });
-
-  const settlementOrdersQuery = useQuery({
-    queryKey: ["settlement-wallet-orders", queryParams],
-    queryFn: async () => {
-      const res = await getSettlementWalletOrders(queryParams);
-      if (!res.status) throw new Error(res.message ?? "Failed to load settlement orders");
-      return res.data;
-    },
-  });
-
   useEffect(() => {
     const err = walletQuery.error ?? txQuery.error;
     if (err) {
@@ -181,54 +148,6 @@ export default function FranchiseSuperAdminWalletPage() {
       render: (_, row) =>
         row.isDeleted ? <Tag>Deleted</Tag> : <Tag color="success">Active</Tag>,
     },
-  ];
-
-  const settlementColumns: TableColumnsType<StorefrontWalletTransactionDto> = [
-    {
-      title: "Date",
-      dataIndex: "transactionDate",
-      width: 140,
-      render: (v) => <span className="text-xs">{formatDate(v)}</span>,
-    },
-    { title: "Type", dataIndex: "type", width: 100, render: (v) => typeTag(v) },
-    {
-      title: "Amount",
-      dataIndex: "amount",
-      align: "right",
-      render: (v) => formatCurrency(v, currencyCode),
-    },
-    {
-      title: "After",
-      dataIndex: "balanceAfter",
-      align: "right",
-      render: (v) => formatCurrency(v, currencyCode),
-    },
-    { title: "Reference", dataIndex: "reference", ellipsis: true, render: (v) => v ?? "—" },
-    { title: "Description", dataIndex: "description", ellipsis: true, render: (v) => v ?? "—" },
-  ];
-
-  const ledgerColumns: TableColumnsType<StorefrontWalletLedgerDto> = [
-    {
-      title: "Date",
-      dataIndex: "transactionDate",
-      width: 140,
-      render: (v) => <span className="text-xs">{formatDate(v)}</span>,
-    },
-    { title: "Type", dataIndex: "type", width: 100, render: (v) => typeTag(v) },
-    {
-      title: "Amount",
-      dataIndex: "amount",
-      align: "right",
-      render: (v) => formatCurrency(v, currencyCode),
-    },
-    {
-      title: "After",
-      dataIndex: "balanceAfter",
-      align: "right",
-      render: (v) => formatCurrency(v, currencyCode),
-    },
-    { title: "Reference", dataIndex: "reference", ellipsis: true, render: (v) => v ?? "—" },
-    { title: "Description", dataIndex: "description", ellipsis: true, render: (v) => v ?? "—" },
   ];
 
   return (

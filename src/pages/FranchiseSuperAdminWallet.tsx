@@ -399,18 +399,18 @@ export default function FranchiseSuperAdminWalletPage() {
                       align: "right" as const,
                       render: (v: number) => formatCurrency(v, currencyCode),
                     },
-                    {
-                      title: "Owner commission",
-                      dataIndex: "storefrontOwnerCommissionAmount",
-                      align: "right" as const,
-                      render: (_, row) =>
-                        formatCurrency(
-                          row.storefrontOwnerCommissionAmount ??
-                            row.commission ??
-                            0,
-                          currencyCode,
-                        ),
-                    },
+                    // {
+                    //   title: "Owner commission",
+                    //   dataIndex: "storefrontOwnerCommissionAmount",
+                    //   align: "right" as const,
+                    //   render: (_, row) =>
+                    //     formatCurrency(
+                    //       row.storefrontOwnerCommissionAmount ??
+                    //         row.commission ??
+                    //         0,
+                    //       currencyCode,
+                    //     ),
+                    // },
                     {
                       title: "OEM commission",
                       dataIndex: "storefrontOemCommissionAmount",

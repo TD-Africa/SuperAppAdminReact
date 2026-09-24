@@ -434,18 +434,18 @@ export default function FranchiseStoreOwnerDetailPage() {
       align: "right",
       render: (v) => money(v, currency),
     },
-    {
-      title: "Owner commission",
-      dataIndex: "storefrontOwnerCommissionAmount",
-      align: "right",
-      render: (_, row) =>
-        money(
-          row.storefrontOwnerCommissionAmount ??
-            row.commission ??
-            0,
-          currency,
-        ),
-    },
+    // {
+    //   title: "Owner commission",
+    //   dataIndex: "storefrontOwnerCommissionAmount",
+    //   align: "right",
+    //   render: (_, row) =>
+    //     money(
+    //       row.storefrontOwnerCommissionAmount ??
+    //         row.commission ??
+    //         0,
+    //       currency,
+    //     ),
+    // },
     {
       title: "OEM commission",
       dataIndex: "storefrontOemCommissionAmount",

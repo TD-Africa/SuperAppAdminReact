@@ -11,8 +11,6 @@ import {
   Input,
   InputNumber,
   Modal,
-  Popconfirm,
-  Select,
   Space,
   Switch,
   Table,
@@ -22,8 +20,6 @@ import {
 import type { TableColumnsType } from "antd";
 import {
   AppstoreOutlined,
-  DeleteOutlined,
-  PlusOutlined,
   SettingOutlined,
   ShopOutlined,
 } from "@ant-design/icons";
@@ -39,8 +35,6 @@ import { Permission } from "@/lib/permissions";
 import { useAuthStore } from "@/stores/auth";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 
-const ALL = "__all__";
-
 function marginLabel(margin: number) {
   if (margin <= 0) return <Tag color="warning">Not set</Tag>;
   return `${margin.toFixed(2)}%`;
@@ -52,93 +46,113 @@ export default function FranchiseBrandsPage() {
   const { message } = AntdApp.useApp();
   const canEdit = useAuthStore((s) => s.hasPermission(Permission.CanEditBrands));
 
-  const [search, setSearch] = useState("");
-  const debouncedSearch = useDebouncedValue(search, 350);
-  const [isActive, setIsActive] = useState<string>(ALL);
+  const [catalogSearch, setCatalogSearch] = useState("");
+  const debouncedCatalogSearch = useDebouncedValue(catalogSearch, 350);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
 
-  const [addOpen, setAddOpen] = useState(false);
+  const [addConfigOpen, setAddConfigOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [catalogSearch, setCatalogSearch] = useState("");
-  const debouncedCatalogSearch = useDebouncedValue(catalogSearch, 350);
+  const [selectedCatalogBrand, setSelectedCatalogBrand] = useState<BrandReturnDTO | null>(null);
+
   const [form] = Form.useForm<{
-    brandId: string;
     storefrontPriceMargin: number;
     isActive: boolean;
   }>();
 
-  const queryParams = useMemo(
+  const catalogQueryParams = useMemo(
     () => ({
       PageSize: pageSize,
       PageNumber: page,
-      SearchString: debouncedSearch.trim() || undefined,
-      isActive: isActive === ALL ? undefined : isActive === "true",
+      SearchString: debouncedCatalogSearch.trim() || undefined,
     }),
-    [pageSize, page, debouncedSearch, isActive],
+    [pageSize, page, debouncedCatalogSearch],
   );
 
-  const { data, isLoading, isFetching, isError, error } = useQuery({
-    queryKey: ["storefront", "brands-admin", queryParams],
-    queryFn: async () => {
-      const res = await getStorefrontBrands(queryParams);
-      if (!res.status) throw new Error(res.message ?? "Failed to load storefront brands");
-      return res.data;
-    },
-  });
-
   const catalogQuery = useQuery({
-    queryKey: ["catalog-brands-for-storefront", debouncedCatalogSearch],
+    queryKey: ["catalog-brands-admin", catalogQueryParams],
     queryFn: async () => {
       const params = new URLSearchParams();
-      params.set("PageSize", "50");
-      params.set("PageNumber", "1");
-      if (debouncedCatalogSearch.trim()) params.set("SearchString", debouncedCatalogSearch.trim());
-      params.set("isActive", "true");
+      params.set("PageSize", String(catalogQueryParams.PageSize));
+      params.set("PageNumber", String(catalogQueryParams.PageNumber));
+      if (catalogQueryParams.SearchString) {
+        params.set("SearchString", catalogQueryParams.SearchString);
+      }
+
+      // Requirement: show all catalog brands, so do not filter by isActive.
       const res = await apiGet<PaginationResponse<BrandReturnDTO>>(
         `brand/getAllBrands?${params.toString()}`,
       );
       if (!res.status) throw new Error(res.message ?? "Failed to load catalog brands");
-      return res.data?.data ?? [];
+      return res.data;
     },
-    enabled: addOpen,
   });
 
+  const storefrontBrandsAllQueryKey = ["storefront", "brands-admin-all"] as const;
+  const storefrontBrandsAllQuery = useQuery({
+    queryKey: storefrontBrandsAllQueryKey,
+    queryFn: async () => {
+      const perPage = 500;
+      let pageNumber = 1;
+      const all: StorefrontBrandAdminDto[] = [];
+
+      while (true) {
+        const res = await getStorefrontBrands({ PageSize: perPage, PageNumber: pageNumber });
+        if (!res.status) throw new Error(res.message ?? "Failed to load storefront brands");
+
+        all.push(...(res.data?.data ?? []));
+        const total = res.data?.count ?? 0;
+        if (pageNumber * perPage >= total) return all;
+        pageNumber += 1;
+      }
+    },
+  });
+
+  const storefrontBrandByBrandId = useMemo(() => {
+    return new Map<string, StorefrontBrandAdminDto>(
+      (storefrontBrandsAllQuery.data ?? []).map((b) => [b.brandId, b]),
+    );
+  }, [storefrontBrandsAllQuery.data]);
+
   useEffect(() => {
-    if (isError) {
+    if (catalogQuery.isError) {
       message.error(
-        error instanceof Error ? error.message : "Unable to load storefront brands.",
+        catalogQuery.error instanceof Error
+          ? catalogQuery.error.message
+          : "Unable to load catalog brands.",
       );
     }
-  }, [isError, error, message]);
+  }, [catalogQuery.isError, catalogQuery.error, message]);
 
-  const rows = data?.data ?? [];
-  const totalItems = Number(data?.count ?? 0);
-  const existingBrandIds = useMemo(
-    () => new Set(rows.map((b) => b.brandId)),
-    [rows],
-  );
-
-  const catalogOptions = useMemo(() => {
-    return (catalogQuery.data ?? [])
-      .filter((b) => !existingBrandIds.has(b.id))
-      .map((b) => ({ value: b.id, label: b.name, brand: b }));
-  }, [catalogQuery.data, existingBrandIds]);
-
-  async function createBrand() {
-    const values = await form.validateFields();
-    const selected = catalogQuery.data?.find((b) => b.id === values.brandId);
-    if (!selected) {
-      message.error("Select a catalog brand");
-      return;
+  useEffect(() => {
+    if (storefrontBrandsAllQuery.isError) {
+      message.error(
+        storefrontBrandsAllQuery.error instanceof Error
+          ? storefrontBrandsAllQuery.error.message
+          : "Unable to load storefront brands.",
+      );
     }
+  }, [storefrontBrandsAllQuery.isError, storefrontBrandsAllQuery.error, message]);
+
+  function openAddConfig(catalogBrand: BrandReturnDTO) {
+    setSelectedCatalogBrand(catalogBrand);
+    form.setFieldsValue({
+      storefrontPriceMargin: 0,
+      isActive: true,
+    });
+    setAddConfigOpen(true);
+  }
+
+  async function addFromConfig() {
+    if (!selectedCatalogBrand) return;
+    const values = await form.validateFields();
     setSaving(true);
     try {
       const res = await addStorefrontBrand({
-        brandId: selected.id,
-        brandImageUrl: selected.brandImageUrl ?? "",
-        name: selected.name,
-        dynamicsId: selected.dynamicsId ?? "",
+        brandId: selectedCatalogBrand.id,
+        brandImageUrl: selectedCatalogBrand.brandImageUrl ?? "",
+        name: selectedCatalogBrand.name,
+        dynamicsId: selectedCatalogBrand.dynamicsId ?? "",
         storefrontPriceMargin: values.storefrontPriceMargin,
         isActive: values.isActive,
       });
@@ -146,9 +160,13 @@ export default function FranchiseBrandsPage() {
         message.error(res.message ?? "Failed to add storefront brand");
         return;
       }
+
       message.success(res.message ?? "Storefront brand added");
-      setAddOpen(false);
+      setAddConfigOpen(false);
+      setSelectedCatalogBrand(null);
       form.resetFields();
+
+      void queryClient.invalidateQueries({ queryKey: storefrontBrandsAllQueryKey });
       void queryClient.invalidateQueries({ queryKey: ["storefront", "brands-admin"] });
       void queryClient.invalidateQueries({ queryKey: ["storefront", "brands"] });
     } finally {
@@ -156,102 +174,152 @@ export default function FranchiseBrandsPage() {
     }
   }
 
-  async function removeBrand(brand: StorefrontBrandAdminDto) {
-    const res = await deleteStorefrontBrand(brand.id);
+  async function removeStorefrontBrand(brandAdmin: StorefrontBrandAdminDto) {
+    const res = await deleteStorefrontBrand(brandAdmin.id);
     if (!res.status) {
       message.error(res.message ?? "Failed to delete brand");
       return;
     }
+
     message.success(res.message ?? "Brand deleted");
+    void queryClient.invalidateQueries({ queryKey: storefrontBrandsAllQueryKey });
     void queryClient.invalidateQueries({ queryKey: ["storefront", "brands-admin"] });
     void queryClient.invalidateQueries({ queryKey: ["storefront", "brands"] });
   }
 
-  const columns: TableColumnsType<StorefrontBrandAdminDto> = [
+  type CatalogRow = {
+    catalog: BrandReturnDTO;
+    storefront: StorefrontBrandAdminDto | null;
+  };
+
+  const rows: CatalogRow[] = useMemo(() => {
+    const catalogRows = catalogQuery.data?.data ?? [];
+    return catalogRows.map((catalog) => ({
+      catalog,
+      storefront: storefrontBrandByBrandId.get(catalog.id) ?? null,
+    }));
+  }, [catalogQuery.data, storefrontBrandByBrandId]);
+
+  const totalItems = Number(catalogQuery.data?.count ?? 0);
+
+  const columns: TableColumnsType<CatalogRow> = [
     {
       title: "",
-      dataIndex: "brandImageUrl",
+      key: "image",
       width: 64,
-      render: (url: string | null, brand) => (
+      render: (_, row) => (
         <Avatar
           shape="square"
-          src={url ?? undefined}
-          icon={!url ? <ShopOutlined /> : undefined}
+          src={row.catalog.brandImageUrl ?? undefined}
+          icon={!row.catalog.brandImageUrl ? <ShopOutlined /> : undefined}
         >
-          {!url ? brand.name.slice(0, 1) : null}
+          {!row.catalog.brandImageUrl ? row.catalog.name.slice(0, 1) : null}
         </Avatar>
       ),
     },
     {
       title: "Brand",
-      dataIndex: "name",
-      render: (name: string) => <span className="font-medium">{name}</span>,
+      key: "name",
+      render: (_, row) => <span className="font-medium">{row.catalog.name}</span>,
     },
     {
-      title: "Margin",
-      dataIndex: "storefrontPriceMargin",
+      title: "Added",
+      key: "added",
       width: 120,
-      render: (margin: number) => marginLabel(margin),
-    },
-    {
-      title: "Status",
-      dataIndex: "isActive",
-      width: 100,
-      render: (active: boolean) => (
-        <Tag color={active ? "success" : "default"}>{active ? "Active" : "Inactive"}</Tag>
+      render: (_, row) => (
+        <Switch
+          checked={row.storefront != null}
+          disabled={!canEdit}
+          onChange={(checked) => {
+            if (checked) {
+              if (row.storefront) return;
+              openAddConfig(row.catalog);
+              return;
+            }
+
+            if (!row.storefront) return;
+            void Modal.confirm({
+              title: "Remove this storefront brand?",
+              okText: "Remove",
+              okButtonProps: { danger: true },
+              onOk: async () => {
+                await removeStorefrontBrand(row.storefront!);
+              },
+            });
+          }}
+        />
       ),
     },
     {
-      title: "Dynamics ID",
-      dataIndex: "dynamicsId",
+      title: "Margin",
+      key: "margin",
       width: 140,
-      render: (value: string) => (
-        <span className="text-xs text-muted-foreground">{value || "—"}</span>
+      render: (_, row) => (row.storefront ? marginLabel(row.storefront.storefrontPriceMargin) : "—"),
+    },
+    {
+      title: "Status",
+      key: "status",
+      width: 110,
+      render: (_, row) =>
+        row.storefront ? (
+          <Tag color={row.storefront.isActive ? "success" : "default"}>
+            {row.storefront.isActive ? "Active" : "Inactive"}
+          </Tag>
+        ) : (
+          <Tag>—</Tag>
+        ),
+    },
+    {
+      title: "Dynamics ID",
+      key: "dynamicsId",
+      width: 160,
+      render: (_, row) => (
+        <span className="text-xs text-muted-foreground">{row.catalog.dynamicsId ?? "—"}</span>
       ),
     },
     {
       title: "Created",
-      dataIndex: "dateCreated",
-      width: 120,
-      render: (value: string) => new Date(value).toLocaleDateString(),
+      key: "created",
+      width: 140,
+      render: (_, row) => (row.storefront ? new Date(row.storefront.dateCreated).toLocaleDateString() : "—"),
     },
     {
       title: "",
       key: "actions",
       align: "right",
       width: 260,
-      render: (_, brand) => (
+      render: (_, row) => (
         <Space size={4}>
-          <Button
-            type="primary"
-            size="small"
-            icon={<SettingOutlined />}
-            onClick={() =>
-              navigate(`/franchise-brands/${brand.id}`, { state: { brand } })
-            }
-          >
-            Set margin
-          </Button>
-          <Button
-            size="small"
-            icon={<AppstoreOutlined />}
-            onClick={() =>
-              navigate(
-                `/franchise-products?brandId=${encodeURIComponent(brand.id)}&brand=${encodeURIComponent(brand.name)}`,
-              )
-            }
-          >
-            Products
-          </Button>
-          {canEdit && (
-            <Popconfirm
-              title="Delete this storefront brand?"
-              okText="Delete"
-              okButtonProps={{ danger: true }}
-              onConfirm={() => void removeBrand(brand)}
-            >
-              <Button size="small" danger icon={<DeleteOutlined />} />
-            </Popconfirm>
+          {row.storefront ? (
+            <>
+              <Button
+                type="primary"
+                size="small"
+                icon={<SettingOutlined />}
+                onClick={() =>
+                  navigate(`/franchise-brands/${row.storefront!.id}`, {
+                    state: { brand: row.storefront! },
+                  })
+                }
+              >
+                Set margin
+              </Button>
+              <Button
+                size="small"
+                icon={<AppstoreOutlined />}
+                onClick={() =>
+                  navigate(
+                    `/franchise-products?brandId=${encodeURIComponent(
+                      row.storefront!.id,
+                    )}&brand=${encodeURIComponent(row.storefront!.name)}`,
+                  )
+                }
+              >
+                Products
+              </Button>
+            </>
+          ) : (
+            <Tag color="default">Not added</Tag>
           )}
         </Space>
       ),
@@ -266,22 +334,9 @@ export default function FranchiseBrandsPage() {
             Franchise brands
           </Typography.Title>
           <Typography.Text type="secondary">
-            Manage storefront brands and default price margins. TD Customers pay product price + margin.
+            Manage storefront brand associations and default price margins. TD Customers pay product price + margin.
           </Typography.Text>
         </div>
-        {canEdit && (
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={() => {
-              form.setFieldsValue({ storefrontPriceMargin: 0, isActive: true });
-              setCatalogSearch("");
-              setAddOpen(true);
-            }}
-          >
-            Add brand
-          </Button>
-        )}
       </div>
 
       <Card styles={{ body: { padding: 16 } }}>
@@ -289,37 +344,29 @@ export default function FranchiseBrandsPage() {
           <Input
             allowClear
             placeholder="Search brand…"
-            value={search}
+            value={catalogSearch}
             onChange={(event) => {
-              setSearch(event.target.value);
               setPage(1);
+              setCatalogSearch(event.target.value);
             }}
             prefix={<ShopOutlined className="text-muted-foreground" />}
             className="min-w-[220px] flex-1"
-          />
-          <Select
-            value={isActive}
-            onChange={(value) => {
-              setIsActive(value);
-              setPage(1);
-            }}
-            className="min-w-[140px]"
-            options={[
-              { value: ALL, label: "All statuses" },
-              { value: "true", label: "Active" },
-              { value: "false", label: "Inactive" },
-            ]}
           />
         </div>
       </Card>
 
       <Card styles={{ body: { padding: 0 } }}>
-        <Table<StorefrontBrandAdminDto>
-          rowKey="id"
+        <Table<CatalogRow>
+          rowKey={(row) => row.catalog.id}
           columns={columns}
           dataSource={rows}
-          loading={isLoading || isFetching}
-          locale={{ emptyText: <Empty description="No storefront brands" /> }}
+          loading={
+            catalogQuery.isLoading ||
+            catalogQuery.isFetching ||
+            storefrontBrandsAllQuery.isLoading ||
+            storefrontBrandsAllQuery.isFetching
+          }
+          locale={{ emptyText: <Empty description="No catalog brands found" /> }}
           pagination={{
             current: page,
             pageSize,
@@ -335,40 +382,39 @@ export default function FranchiseBrandsPage() {
       </Card>
 
       <Modal
-        open={addOpen}
+        open={addConfigOpen}
         title="Add storefront brand"
-        onCancel={() => setAddOpen(false)}
-        onOk={() => void createBrand()}
+        onCancel={() => {
+          setAddConfigOpen(false);
+          setSelectedCatalogBrand(null);
+          form.resetFields();
+        }}
+        onOk={() => void addFromConfig()}
         confirmLoading={saving}
         destroyOnClose
+        okText="Add brand"
       >
-        <Form form={form} layout="vertical" className="mt-4">
-          <Form.Item
-            name="brandId"
-            label="Catalog brand"
-            rules={[{ required: true, message: "Select a brand" }]}
-          >
-            <Select
-              showSearch
-              placeholder="Search catalog brands…"
-              options={catalogOptions}
-              loading={catalogQuery.isFetching}
-              optionFilterProp="label"
-              onSearch={setCatalogSearch}
-              filterOption={false}
-            />
-          </Form.Item>
-          <Form.Item
-            name="storefrontPriceMargin"
-            label="Default margin %"
-            rules={[{ required: true, message: "Enter a margin" }]}
-          >
-            <InputNumber min={0} max={100} precision={2} addonAfter="%" className="w-full" />
-          </Form.Item>
-          <Form.Item name="isActive" label="Active" valuePropName="checked">
-            <Switch checkedChildren="Active" unCheckedChildren="Inactive" />
-          </Form.Item>
-        </Form>
+        <div className="space-y-2">
+          {selectedCatalogBrand ? (
+            <div className="text-sm text-muted-foreground">
+              Adding: <span className="font-medium text-foreground">{selectedCatalogBrand.name}</span>
+            </div>
+          ) : null}
+
+          <Form form={form} layout="vertical">
+            <Form.Item
+              name="storefrontPriceMargin"
+              label="Default margin %"
+              rules={[{ required: true, message: "Enter a margin" }]}
+            >
+              <InputNumber min={0} max={100} precision={2} addonAfter="%" className="w-full" />
+            </Form.Item>
+
+            <Form.Item name="isActive" label="Active" valuePropName="checked">
+              <Switch checkedChildren="Active" unCheckedChildren="Inactive" />
+            </Form.Item>
+          </Form>
+        </div>
       </Modal>
     </div>
   );

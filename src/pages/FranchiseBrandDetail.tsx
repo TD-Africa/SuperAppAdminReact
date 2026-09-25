@@ -225,7 +225,9 @@ export default function FranchiseBrandDetailPage() {
         return;
       }
       setPricing(res.data);
-      setDraftStorefront(res.data.storefrontPrice);
+      // Product storefront pricing is displayed/edited as integer Naira, but backend values may be fractional.
+      // Round here so margin % derivation matches the UI input precision.
+      setDraftStorefront(Math.round(res.data.storefrontPrice));
 
       const variants = (product.variants ?? []).filter((v) => v.isActive && v.priceInNaira > 0);
       if (variants.length > 1) {
@@ -239,7 +241,7 @@ export default function FranchiseBrandDetailPage() {
         const nextDrafts: Record<string, number | null> = {};
         for (const [id, data] of entries) {
           nextPricing[id] = data;
-          nextDrafts[id] = data?.storefrontPrice ?? null;
+          nextDrafts[id] = data?.storefrontPrice !== undefined ? Math.round(data.storefrontPrice) : null;
         }
         setVariantPricing(nextPricing);
         setVariantDrafts(nextDrafts);
@@ -257,11 +259,12 @@ export default function FranchiseBrandDetailPage() {
       if (revertToBrand) {
         margin = pricing.brandMargin;
       } else {
-        if (draftStorefront === null || draftStorefront < pricing.priceInNaira) {
+        const baseForMargin = Math.round(pricing.priceInNaira);
+        if (draftStorefront === null || draftStorefront < baseForMargin) {
           message.error("Storefront price must be at least the product price.");
           return;
         }
-        const derived = storefrontMarkupPercent(pricing.priceInNaira, draftStorefront);
+        const derived = storefrontMarkupPercent(baseForMargin, draftStorefront);
         if (derived === null) {
           message.error("Unable to derive margin from storefront price.");
           return;
@@ -288,11 +291,12 @@ export default function FranchiseBrandDetailPage() {
   async function saveVariantPricing(variant: StorefrontVariantDto) {
     const draft = variantDrafts[variant.id];
     if (draft === null || draft === undefined) return;
-    if (draft < variant.priceInNaira) {
+    const baseForMargin = Math.round(variant.priceInNaira);
+    if (draft < baseForMargin) {
       message.error("Storefront price must be at least the variant price.");
       return;
     }
-    const derived = storefrontMarkupPercent(variant.priceInNaira, draft);
+    const derived = storefrontMarkupPercent(baseForMargin, draft);
     if (derived === null) {
       message.error("Unable to derive margin from storefront price.");
       return;
@@ -411,12 +415,14 @@ export default function FranchiseBrandDetailPage() {
 
   const brandDefaultStorefront =
     pricing && brand
-      ? storefrontPriceFromMargin(pricing.priceInNaira, brand.storefrontPriceMargin)
+      ? Math.round(
+          storefrontPriceFromMargin(Math.round(pricing.priceInNaira), brand.storefrontPriceMargin),
+        )
       : null;
 
   const derivedMarkup =
     pricing && draftStorefront !== null && !revertToBrand
-      ? storefrontMarkupPercent(pricing.priceInNaira, draftStorefront)
+      ? storefrontMarkupPercent(Math.round(pricing.priceInNaira), draftStorefront)
       : null;
 
   return (
@@ -581,7 +587,7 @@ export default function FranchiseBrandDetailPage() {
                 extra="Only this field is editable. Margin is calculated automatically."
               >
                 <InputNumber
-                  min={pricing.priceInNaira}
+                  min={Math.round(pricing.priceInNaira)}
                   precision={0}
                   addonBefore="₦"
                   className="w-full"
@@ -607,7 +613,7 @@ export default function FranchiseBrandDetailPage() {
                     : `Will revert to brand margin → storefront ${formatStorefrontNaira(brandDefaultStorefront!)} · ${brand.storefrontPriceMargin.toFixed(2)}%`
                   : derivedMarkup === null
                     ? "Enter a storefront price at or above the product price."
-                    : `${formatStorefrontNaira(pricing.priceInNaira)} → ${formatStorefrontNaira(draftStorefront!)} = ${derivedMarkup.toFixed(2)}% margin`
+                    : `${formatStorefrontNaira(Math.round(pricing.priceInNaira))} → ${formatStorefrontNaira(draftStorefront!)} = ${derivedMarkup.toFixed(2)}% margin`
               }
             />
 
@@ -635,7 +641,7 @@ export default function FranchiseBrandDetailPage() {
                     const draft = variantDrafts[variant.id];
                     const derived =
                       draft !== null && draft !== undefined
-                        ? storefrontMarkupPercent(variant.priceInNaira, draft)
+                        ? storefrontMarkupPercent(Math.round(variant.priceInNaira), draft)
                         : null;
                     return (
                       <Card key={variant.id} size="small" title={variantLabel(variant, index)}>
@@ -647,7 +653,7 @@ export default function FranchiseBrandDetailPage() {
                         </div>
                         <Space.Compact className="w-full">
                           <InputNumber
-                            min={variant.priceInNaira}
+                            min={Math.round(variant.priceInNaira)}
                             precision={0}
                             addonBefore="₦"
                             className="w-full"

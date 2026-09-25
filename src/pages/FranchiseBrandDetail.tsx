@@ -597,6 +597,14 @@ export default function FranchiseBrandDetailPage() {
                     setRevertToBrand(false);
                     setDraftStorefront(value);
                   }}
+                  onBlur={(e) => {
+                    // Antd InputNumber can keep a “pending” typed value until blur.
+                    // On Enter, the control may reset to the last controlled value if we didn't commit.
+                    const raw = (e.target as HTMLInputElement).value;
+                    const next = raw === "" ? null : Number(raw.replace(/,/g, ""));
+                    setRevertToBrand(false);
+                    setDraftStorefront(next);
+                  }}
                 />
               </Form.Item>
             </Form>
@@ -662,6 +670,11 @@ export default function FranchiseBrandDetailPage() {
                             onChange={(value) =>
                               setVariantDrafts((prev) => ({ ...prev, [variant.id]: value }))
                             }
+                            onBlur={(e) => {
+                              const raw = (e.target as HTMLInputElement).value;
+                              const next = raw === "" ? null : Number(raw.replace(/,/g, ""));
+                              setVariantDrafts((prev) => ({ ...prev, [variant.id]: next }));
+                            }}
                           />
                           <Button
                             type="primary"

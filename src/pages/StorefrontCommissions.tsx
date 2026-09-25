@@ -72,7 +72,7 @@ export default function StorefrontCommissionsPage() {
           Storefront Commissions
         </Typography.Title>
         <Typography.Text type="secondary">
-          Configure the OEM commission percentage applied to storefront orders.
+          Configure the Global store front commission percentage applied to storefront orders.
         </Typography.Text>
       </div>
 
@@ -95,10 +95,10 @@ export default function StorefrontCommissionsPage() {
           <div className="space-y-6">
             <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
               <div className="max-w-xl">
-                <Typography.Text strong>OEM commission percent</Typography.Text>
+                <Typography.Text strong>Global store front commission percent</Typography.Text>
                 <Typography.Paragraph type="secondary" className="!mb-0 !mt-1">
                   The percentage of each paid storefront order that is
-                  attributed to the OEM as commission.
+                  attributed to the Global store front as commission.
                 </Typography.Paragraph>
               </div>
               <InputNumber

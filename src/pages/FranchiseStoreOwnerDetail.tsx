@@ -443,7 +443,7 @@ export default function FranchiseStoreOwnerDetailPage() {
     //     ),
     // },
     {
-      title: "OEM commission",
+      title: "Global store front commission",
       dataIndex: "storefrontOemCommissionAmount",
       align: "right",
       render: (_, row) =>

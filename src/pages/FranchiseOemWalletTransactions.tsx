@@ -65,7 +65,7 @@ export default function FranchiseOemWalletTransactionsPage() {
     queryKey: ["oem-wallet"],
     queryFn: async () => {
       const res = await getAdminStorefrontOemWallet();
-      if (!res.status) throw new Error(res.message ?? "Failed to load OEM wallet");
+      if (!res.status) throw new Error(res.message ?? "Failed to load Global store front wallet");
       return res.data;
     },
   });
@@ -84,7 +84,7 @@ export default function FranchiseOemWalletTransactionsPage() {
     queryFn: async () => {
       const res = await getAdminStorefrontOemWalletTransactions(queryParams);
       if (!res.status)
-        throw new Error(res.message ?? "Failed to load OEM wallet transactions");
+        throw new Error(res.message ?? "Failed to load Global store front wallet transactions");
       return res.data;
     },
   });
@@ -92,7 +92,7 @@ export default function FranchiseOemWalletTransactionsPage() {
   const err = walletQuery.error ?? txQuery.error;
   useEffect(() => {
     if (!err) return;
-    message.error(err instanceof Error ? err.message : "Unable to load OEM wallet.");
+    message.error(err instanceof Error ? err.message : "Unable to load Global store front wallet.");
   }, [err, message]);
 
   const wallet: OemWalletDto | null = walletQuery.data ?? null;
@@ -191,10 +191,10 @@ export default function FranchiseOemWalletTransactionsPage() {
     <div className="space-y-6">
       <div>
         <Typography.Title level={3} className="!m-0">
-          OEM wallet transactions
+          Global store front wallet transactions
         </Typography.Title>
         <Typography.Text type="secondary">
-          OEM commission wallet balance and transaction history.
+          Global store front commission wallet balance and transaction history.
         </Typography.Text>
       </div>
 
@@ -283,7 +283,7 @@ export default function FranchiseOemWalletTransactionsPage() {
 
       <Modal
         open={adjustOpen}
-        title={adjustMode === "credit" ? "Credit OEM wallet" : "Debit OEM wallet"}
+        title={adjustMode === "credit" ? "Credit Global store front wallet" : "Debit Global store front wallet"}
         onCancel={() => setAdjustOpen(false)}
         okText={adjustMode === "credit" ? "Credit" : "Debit"}
         onOk={async () => {
@@ -293,7 +293,7 @@ export default function FranchiseOemWalletTransactionsPage() {
               ? await creditAdminStorefrontOemWallet(values)
               : await debitAdminStorefrontOemWallet(values);
           if (!res.status) {
-            message.error(res.message ?? "Unable to adjust OEM wallet");
+            message.error(res.message ?? "Unable to adjust Global store front wallet");
             return;
           }
           setAdjustOpen(false);
@@ -324,7 +324,7 @@ export default function FranchiseOemWalletTransactionsPage() {
 
       <Modal
         open={editOpen}
-        title="Edit OEM wallet transaction"
+        title="Edit Global store front wallet transaction"
         onCancel={() => setEditOpen(false)}
         okText="Save"
         onOk={async () => {
@@ -374,7 +374,7 @@ export default function FranchiseOemWalletTransactionsPage() {
 
       <Modal
         open={deleteOpen}
-        title="Delete OEM wallet transaction"
+        title="Delete Global store front wallet transaction"
         okText="Delete"
         okButtonProps={{ danger: true }}
         onCancel={() => setDeleteOpen(false)}

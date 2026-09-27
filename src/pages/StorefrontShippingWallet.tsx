@@ -177,13 +177,7 @@ export default function StorefrontShippingWalletPage() {
           valueStyle={{ color: "#800020", fontWeight: 600 }}
         />
 
-        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-         
-          <Statistic
-            title="Updated at"
-            value={wallet?.updatedAt ? formatDateTime(wallet.updatedAt) : "—"}
-          />
-        </div>
+
       </Card>
 
       <Card styles={{ body: { padding: 16 } }}>

@@ -1,4 +1,15 @@
-import { useEffect, useMemo, useState } from "react";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import {
+  getAdminStorefrontShippingWallet,
+  getAdminStorefrontShippingWalletTransaction,
+  getAdminStorefrontShippingWalletTransactions,
+} from "@/lib/storefrontApi";
+import type {
+  StorefrontPagedShippingWalletTransactions,
+  StorefrontShippingWalletDto,
+  StorefrontShippingWalletTransactionDto,
+} from "@/lib/storefrontTypes";
+import { formatCurrency, formatDateTime } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import type { TableColumnsType } from "antd";
 import {
@@ -13,18 +24,7 @@ import {
   Tag,
   Typography,
 } from "antd";
-import type {
-  StorefrontShippingWalletDto,
-  StorefrontShippingWalletTransactionDto,
-  StorefrontPagedShippingWalletTransactions,
-} from "@/lib/storefrontTypes";
-import {
-  getAdminStorefrontShippingWallet,
-  getAdminStorefrontShippingWalletTransaction,
-  getAdminStorefrontShippingWalletTransactions,
-} from "@/lib/storefrontApi";
-import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { formatCurrency, formatDateTime } from "@/lib/utils";
+import { useEffect, useMemo, useState } from "react";
 
 function currencyCode(currency: string | null | undefined): "USD" | "NGN" {
   return currency === "USD" ? "USD" : "NGN";
@@ -179,7 +179,6 @@ export default function StorefrontShippingWalletPage() {
 
         <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
          
-          <Statistic title="Currency" value={wallet?.currency ?? "—"} />
           <Statistic
             title="Updated at"
             value={wallet?.updatedAt ? formatDateTime(wallet.updatedAt) : "—"}

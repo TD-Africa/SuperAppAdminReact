@@ -952,3 +952,39 @@ export interface StorefrontCouponRequestResponse {
 }
 
 export type StorefrontPagedCouponRequests = PaginationResponse<StorefrontCouponRequestResponse>;
+
+// —— Shipping wallet (admin/storefront/shipping-wallet) ——
+// Swagger schema (read-only UI uses GET only):
+// - GET /api/v1/admin/storefront/shipping-wallet
+// - GET /api/v1/admin/storefront/shipping-wallet/transactions
+// - GET /api/v1/admin/storefront/shipping-wallet/transactions/{transactionId}
+export interface StorefrontShippingWalletDto {
+  walletId: string | null;
+  walletKey: string | null;
+  balance: number;
+  shippingFeeTotal: number;
+  currency: string | null;
+  updatedAt: string | null;
+}
+
+export interface StorefrontShippingWalletTransactionDto {
+  id: string;
+  orderId: string | null;
+  storefrontOwnerId: string | null;
+  amount: number;
+  balanceBefore: number;
+  balanceAfter: number;
+  type: string | null;
+  transactionKind: string | null;
+  reference: string | null;
+  description: string | null;
+  status: string | null;
+  transactionDate: string;
+  externalOrderId: string | null;
+  paymentReference: string | null;
+  createdByUserId: string | null;
+  metadataJson: string | null;
+}
+
+export type StorefrontPagedShippingWalletTransactions =
+  PaginationResponse<StorefrontShippingWalletTransactionDto>;

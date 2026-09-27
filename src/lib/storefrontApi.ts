@@ -68,6 +68,9 @@ import type {
   StorefrontWalletBalanceDto,
   StorefrontWalletStatsDto,
   StorefrontWalletTransactionDto,
+  StorefrontShippingWalletDto,
+  StorefrontPagedShippingWalletTransactions,
+  StorefrontShippingWalletTransactionDto,
   OemWalletAdjustmentRequest,
   OemWalletDto,
   OemWalletPagedTransactions,
@@ -646,6 +649,27 @@ export function debitAdminStorefrontWallet(
   return apiPost<StorefrontWalletTransactionDto>(
     `admin/storefront/wallets/${encodeURIComponent(ownerId)}/debit`,
     body,
+  );
+}
+
+// —— AdminStorefrontShippingWallet (admin/storefront/shipping-wallet) ——
+export function getAdminStorefrontShippingWallet() {
+  return apiGet<StorefrontShippingWalletDto>(
+    "admin/storefront/shipping-wallet",
+  );
+}
+
+export function getAdminStorefrontShippingWalletTransactions(
+  params: PagedParams = {},
+) {
+  return apiGet<StorefrontPagedShippingWalletTransactions>(
+    `admin/storefront/shipping-wallet/transactions${toQuery(params)}`,
+  );
+}
+
+export function getAdminStorefrontShippingWalletTransaction(transactionId: string) {
+  return apiGet<StorefrontShippingWalletTransactionDto>(
+    `admin/storefront/shipping-wallet/transactions/${encodeURIComponent(transactionId)}`,
   );
 }
 

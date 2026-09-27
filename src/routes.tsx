@@ -32,6 +32,9 @@ const StorefrontCouponRequestsPage = lazy(() => import("@/pages/StorefrontCoupon
 const StorefrontTicketsPage = lazy(() => import("@/pages/StorefrontTickets"));
 const StorefrontDashboardPage = lazy(() => import("@/pages/StorefrontDashboard"));
 const StorefrontShippingPage = lazy(() => import("@/pages/StorefrontShipping"));
+const StorefrontShippingWalletPage = lazy(
+  () => import("@/pages/StorefrontShippingWallet"),
+);
 const StorefrontCommissionsPage = lazy(() => import("@/pages/StorefrontCommissions"));
 const BrandRestrictionsPage = lazy(() => import("@/pages/BrandRestrictions"));
 const WarehousesPage = lazy(() => import("@/pages/Warehouses"));
@@ -368,6 +371,14 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute permission={Permission.CanViewDeliveryMethod}>
             {withSuspense(<StorefrontShippingPage />)}
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "storefront-shipping-wallet",
+        element: (
+          <ProtectedRoute permission={Permission.CanViewDeliveryMethod}>
+            {withSuspense(<StorefrontShippingWalletPage />)}
           </ProtectedRoute>
         ),
       },

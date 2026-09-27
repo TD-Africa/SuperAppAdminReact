@@ -178,16 +178,8 @@ export default function StorefrontShippingWalletPage() {
         />
 
         <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <Statistic
-            title="Shipping fee total"
-            value={wallet?.shippingFeeTotal ?? 0}
-            formatter={() => formatCurrency(wallet?.shippingFeeTotal ?? 0, code)}
-          />
+         
           <Statistic title="Currency" value={wallet?.currency ?? "—"} />
-          <Statistic
-            title="Wallet ID"
-            value={wallet?.walletId ?? "—"}
-          />
           <Statistic
             title="Updated at"
             value={wallet?.updatedAt ? formatDateTime(wallet.updatedAt) : "—"}
@@ -236,6 +228,7 @@ export default function StorefrontShippingWalletPage() {
       <Modal
         open={openDetail}
         title="Transaction details"
+        width={980}
         onCancel={() => setSelectedId(null)}
         footer={null}
         destroyOnClose
@@ -247,12 +240,12 @@ export default function StorefrontShippingWalletPage() {
         ) : (
           <div className="space-y-4">
             <Descriptions
-              column={{ xs: 1, sm: 2 }}
+              column={{ xs: 1, sm: 2, md: 3 }}
               size="small"
               bordered
             >
               <Descriptions.Item label="Transaction ID">
-                <span className="font-mono">{detailQuery.data.id}</span>
+                <span className="font-mono break-all">{detailQuery.data.id}</span>
               </Descriptions.Item>
               <Descriptions.Item label="Date">
                 {formatDateTime(detailQuery.data.transactionDate)}
@@ -267,7 +260,11 @@ export default function StorefrontShippingWalletPage() {
                 {detailQuery.data.status ?? "—"}
               </Descriptions.Item>
               <Descriptions.Item label="Reference">
-                {detailQuery.data.paymentReference ?? detailQuery.data.reference ?? "—"}
+                <span className="font-mono break-all">
+                  {detailQuery.data.paymentReference ??
+                    detailQuery.data.reference ??
+                    "—"}
+                </span>
               </Descriptions.Item>
               <Descriptions.Item label="Amount">
                 {formatCurrency(detailQuery.data.amount, code)}
@@ -282,16 +279,24 @@ export default function StorefrontShippingWalletPage() {
                 {detailQuery.data.description ?? "—"}
               </Descriptions.Item>
               <Descriptions.Item label="Order ID">
-                {detailQuery.data.orderId ?? "—"}
+                <span className="font-mono break-all">
+                  {detailQuery.data.orderId ?? "—"}
+                </span>
               </Descriptions.Item>
               <Descriptions.Item label="External order ID">
-                {detailQuery.data.externalOrderId ?? "—"}
+                <span className="font-mono break-all">
+                  {detailQuery.data.externalOrderId ?? "—"}
+                </span>
               </Descriptions.Item>
               <Descriptions.Item label="Storefront owner ID">
-                {detailQuery.data.storefrontOwnerId ?? "—"}
+                <span className="font-mono break-all">
+                  {detailQuery.data.storefrontOwnerId ?? "—"}
+                </span>
               </Descriptions.Item>
               <Descriptions.Item label="Created by">
-                {detailQuery.data.createdByUserId ?? "—"}
+                <span className="font-mono break-all">
+                  {detailQuery.data.createdByUserId ?? "—"}
+                </span>
               </Descriptions.Item>
             </Descriptions>
 

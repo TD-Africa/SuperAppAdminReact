@@ -22,12 +22,20 @@ import {
   Statistic,
   Table,
   Tag,
+  Tooltip,
   Typography,
 } from "antd";
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 
 function currencyCode(currency: string | null | undefined): "USD" | "NGN" {
   return currency === "USD" ? "USD" : "NGN";
+}
+
+function truncateUuid(id: string, start = 8, end = 4) {
+  if (!id) return "";
+  if (id.length <= start + end) return id;
+  return `${id.slice(0, start)}…${id.slice(-end)}`;
 }
 
 export default function StorefrontShippingWalletPage() {
@@ -106,12 +114,6 @@ export default function StorefrontShippingWalletPage() {
       render: (v) => <Tag>{v ?? "—"}</Tag>,
     },
     {
-      title: "Kind",
-      dataIndex: "transactionKind",
-      width: 150,
-      render: (v) => <span className="text-xs">{v ?? "—"}</span>,
-    },
-    {
       title: "Amount",
       dataIndex: "amount",
       width: 160,
@@ -149,8 +151,36 @@ export default function StorefrontShippingWalletPage() {
       width: 220,
       render: (_, row) => (
         <div>
-          <div className="text-xs text-muted-foreground">{row.orderId ? `Order: ${row.orderId}` : "Order: —"}</div>
-          <div className="text-xs">{row.storefrontOwnerId ? `Owner: ${row.storefrontOwnerId}` : "Owner: —"}</div>
+          <div className="text-xs text-muted-foreground">
+            {row.orderId ? (
+              <Tooltip title={row.orderId}>
+                <Link
+                  className="font-mono"
+                  to={`/franchise-orders?ownerId=${encodeURIComponent(
+                    row.storefrontOwnerId ?? "",
+                  )}&orderId=${encodeURIComponent(row.orderId)}`}
+                >
+                  Order: {truncateUuid(row.orderId)}
+                </Link>
+              </Tooltip>
+            ) : (
+              "Order: —"
+            )}
+          </div>
+          <div className="text-xs">
+            {row.storefrontOwnerId ? (
+              <Tooltip title={row.storefrontOwnerId}>
+                <Link
+                  className="font-mono"
+                  to={`/franchise-store-owners/${row.storefrontOwnerId}`}
+                >
+                  Owner: {truncateUuid(row.storefrontOwnerId)}
+                </Link>
+              </Tooltip>
+            ) : (
+              "Owner: —"
+            )}
+          </div>
         </div>
       ),
     },
@@ -272,9 +302,20 @@ export default function StorefrontShippingWalletPage() {
                 {detailQuery.data.description ?? "—"}
               </Descriptions.Item>
               <Descriptions.Item label="Order ID">
-                <span className="font-mono break-all">
-                  {detailQuery.data.orderId ?? "—"}
-                </span>
+                {detailQuery.data.orderId ? (
+                  <Tooltip title={detailQuery.data.orderId}>
+                    <Link
+                      className="font-mono break-all"
+                      to={`/franchise-orders?ownerId=${encodeURIComponent(
+                        detailQuery.data.storefrontOwnerId ?? "",
+                      )}&orderId=${encodeURIComponent(detailQuery.data.orderId)}`}
+                    >
+                      {truncateUuid(detailQuery.data.orderId)}
+                    </Link>
+                  </Tooltip>
+                ) : (
+                  "—"
+                )}
               </Descriptions.Item>
               <Descriptions.Item label="External order ID">
                 <span className="font-mono break-all">
@@ -282,9 +323,18 @@ export default function StorefrontShippingWalletPage() {
                 </span>
               </Descriptions.Item>
               <Descriptions.Item label="Storefront owner ID">
-                <span className="font-mono break-all">
-                  {detailQuery.data.storefrontOwnerId ?? "—"}
-                </span>
+                {detailQuery.data.storefrontOwnerId ? (
+                  <Tooltip title={detailQuery.data.storefrontOwnerId}>
+                    <Link
+                      className="font-mono break-all"
+                      to={`/franchise-store-owners/${detailQuery.data.storefrontOwnerId}`}
+                    >
+                      {truncateUuid(detailQuery.data.storefrontOwnerId)}
+                    </Link>
+                  </Tooltip>
+                ) : (
+                  "—"
+                )}
               </Descriptions.Item>
               <Descriptions.Item label="Created by">
                 <span className="font-mono break-all">

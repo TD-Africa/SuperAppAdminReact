@@ -371,37 +371,48 @@ export default function ProductsPage() {
     },
     {
       title: (
-        <Tooltip title="Your on/off switch for this product. A product is live only when it is switched on here and is also active in Dynamics.">
+        <Tooltip title="Active status from Dynamics. The catalog sync overwrites it every 20 minutes, so to take a product off sale use Admin disabled.">
           <span>Active</span>
         </Tooltip>
       ),
-      key: "active",
-      render: (_, r) => {
-        // Where the API returns `adminDisabled`, the switch drives that flag.
-        // It is the one the catalog sync leaves alone, so an admin "off"
-        // actually stays off. Where it doesn't (prod today), fall back to
-        // `IsActive`, which the older backend maps onto the same column.
-        const hasOverride = r.adminDisabled !== undefined;
-        const enabled = hasOverride ? !r.adminDisabled : r.isActive;
-        return (
-          <Space size={4}>
-            <Switch
-              checked={enabled}
-              disabled={!canEdit}
-              onChange={(val) =>
-                hasOverride
-                  ? editProduct(r.id, { AdminDisabled: !val }, { adminDisabled: !val })
-                  : editProduct(r.id, { IsActive: val }, { isActive: val })
-              }
-            />
-            {hasOverride && enabled && !r.isActive && (
-              <Tooltip title="Switched on here, but marked inactive in Dynamics, so it still isn't live.">
-                <Tag className="!m-0">Off in Dynamics</Tag>
-              </Tooltip>
-            )}
-          </Space>
-        );
-      },
+      dataIndex: "isActive",
+      render: (v: boolean, r) =>
+        // Read-only when the API returns `adminDisabled`: an `isActive` edit
+        // would be reverted by the next sync. Without that field (prod today),
+        // keep the old switch, since the older backend maps `IsActive` onto
+        // the admin flag.
+        r.adminDisabled !== undefined ? (
+          <Tag color={v ? "success" : "default"}>{v ? "Active" : "Inactive"}</Tag>
+        ) : (
+          <Switch
+            checked={v}
+            disabled={!canEdit}
+            onChange={(val) => editProduct(r.id, { IsActive: val }, { isActive: val })}
+          />
+        ),
+    },
+    {
+      title: (
+        <Tooltip title="Switch on to take the product off sale. The catalog sync doesn't change this, so it stays off until you switch it back. A product is live only when it is Active and not Admin disabled.">
+          <span>Admin disabled</span>
+        </Tooltip>
+      ),
+      dataIndex: "adminDisabled",
+      width: 110,
+      render: (v: boolean | undefined, r) =>
+        v === undefined ? (
+          <Tooltip title="Not returned by this API yet.">
+            <span className="text-muted-foreground">—</span>
+          </Tooltip>
+        ) : (
+          <Switch
+            checked={v}
+            disabled={!canEdit}
+            onChange={(val) =>
+              editProduct(r.id, { AdminDisabled: val }, { adminDisabled: val })
+            }
+          />
+        ),
     },
     {
       title: "Featured",

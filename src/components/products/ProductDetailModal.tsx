@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Modal,
   Button,
+  InputNumber,
+  Space,
   Skeleton,
   Tag,
   Descriptions,
@@ -20,8 +22,9 @@ import {
   SyncOutlined,
   FileImageOutlined,
 } from "@ant-design/icons";
-import { apiGet, apiPost } from "@/lib/api";
+import { apiGet, apiPatch, apiPost } from "@/lib/api";
 import type {
+  EditProductRequest,
   LocationWithQuantityResponse,
   ProductReturnDto,
   ProductVariantReturnDto,
@@ -55,9 +58,13 @@ function variantStock(v: ProductVariantReturnDto): number {
 
 export function ProductDetailModal({ productId, open, onOpenChange }: Props) {
   const { message } = AntdApp.useApp();
+  const queryClient = useQueryClient();
   const canEdit = useAuthStore((s) => s.hasPermission(Permission.CanEditProducts));
   const [imageIndex, setImageIndex] = useState(0);
   const [syncing, setSyncing] = useState(false);
+  // null means no unsaved edit, so the input shows the saved value.
+  const [moqDraft, setMoqDraft] = useState<number | null>(null);
+  const [moqSaving, setMoqSaving] = useState(false);
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["product", productId],
@@ -75,10 +82,28 @@ export function ProductDetailModal({ productId, open, onOpenChange }: Props) {
 
   useEffect(() => {
     setImageIndex(0);
+    setMoqDraft(null);
   }, [productId]);
 
   const images = data?.productImageUrls ?? [];
   const activeImage = images[imageIndex];
+
+  async function handleSaveMoq() {
+    if (!productId || moqDraft === null || moqDraft === data?.minOrderQuantity) return;
+    setMoqSaving(true);
+    const body: EditProductRequest = { MinOrderQuantity: moqDraft };
+    const res = await apiPatch<boolean>(`product/editProduct/${productId}`, body);
+    setMoqSaving(false);
+    if (res.status) {
+      message.success(res.message ?? "Minimum order quantity updated");
+      setMoqDraft(null);
+      refetch();
+      // The catalog grid shows MOQ as well, so refresh it too.
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+    } else {
+      message.error(res.message ?? "Failed to update minimum order quantity");
+    }
+  }
 
   async function handleSyncImages() {
     if (!data?.dynamicsId) return;
@@ -326,12 +351,55 @@ export function ProductDetailModal({ productId, open, onOpenChange }: Props) {
                 <Descriptions.Item label="Dynamics ID">
                   {data.dynamicsId ?? "—"}
                 </Descriptions.Item>
+                {/* Hidden if the API doesn't return the field (prod today), since
+                    an older backend would ignore a save. */}
+                {data.minOrderQuantity !== undefined && (
+                  <Descriptions.Item label="Min. order qty">
+                    {canEdit ? (
+                      <Space.Compact size="small">
+                        <InputNumber
+                          min={0}
+                          precision={0}
+                          value={moqDraft ?? data.minOrderQuantity}
+                          onChange={(v) => setMoqDraft(v ?? 0)}
+                          onPressEnter={handleSaveMoq}
+                          style={{ width: 90 }}
+                          aria-label="Minimum order quantity"
+                        />
+                        <Button
+                          type="primary"
+                          loading={moqSaving}
+                          disabled={moqDraft === null || moqDraft === data.minOrderQuantity}
+                          onClick={handleSaveMoq}
+                        >
+                          Save
+                        </Button>
+                      </Space.Compact>
+                    ) : data.minOrderQuantity ? (
+                      formatNumber(data.minOrderQuantity)
+                    ) : (
+                      "No minimum"
+                    )}
+                  </Descriptions.Item>
+                )}
               </Descriptions>
               <Divider className="!my-2" />
               <div className="flex flex-wrap gap-2">
-                <Tag color={data.isActive ? "success" : "default"}>
-                  {data.isActive ? "Active" : "Inactive"}
-                </Tag>
+                {/* If the API returns `adminDisabled`, say which side turned the
+                    product off. "Inactive" alone doesn't tell the admin whether
+                    flipping their switch would bring it back. */}
+                {data.adminDisabled === undefined ? (
+                  <Tag color={data.isActive ? "success" : "default"}>
+                    {data.isActive ? "Active" : "Inactive"}
+                  </Tag>
+                ) : data.isActive && !data.adminDisabled ? (
+                  <Tag color="success">Active</Tag>
+                ) : (
+                  <>
+                    {data.adminDisabled && <Tag color="red">Disabled by admin</Tag>}
+                    {!data.isActive && <Tag>Inactive in Dynamics</Tag>}
+                  </>
+                )}
                 <Tag color={data.isVisible ? "blue" : "default"}>
                   {data.isVisible ? "Visible" : "Hidden"}
                 </Tag>

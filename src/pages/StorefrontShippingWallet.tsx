@@ -155,7 +155,7 @@ export default function StorefrontShippingWalletPage() {
             {row.orderId ? (
               <Tooltip title={row.orderId}>
                 <Link
-                  className="font-mono"
+                  className="font-mono text-[#800020] hover:underline"
                   to={`/franchise-orders?ownerId=${encodeURIComponent(
                     row.storefrontOwnerId ?? "",
                   )}&orderId=${encodeURIComponent(row.orderId)}`}
@@ -170,7 +170,7 @@ export default function StorefrontShippingWalletPage() {
           <div className="text-xs">
             {row.storefrontOwnerId ? (
               <Link
-                className="font-mono"
+                className="font-mono text-[#800020] hover:underline"
                 to={`/franchise-store-owners/${row.storefrontOwnerId}`}
               >
                 Owner
@@ -303,7 +303,7 @@ export default function StorefrontShippingWalletPage() {
                 {detailQuery.data.orderId ? (
                   <Tooltip title={detailQuery.data.orderId}>
                     <Link
-                      className="font-mono break-all"
+                      className="font-mono break-all text-[#800020] hover:underline"
                       to={`/franchise-orders?ownerId=${encodeURIComponent(
                         detailQuery.data.storefrontOwnerId ?? "",
                       )}&orderId=${encodeURIComponent(detailQuery.data.orderId)}`}
@@ -323,7 +323,7 @@ export default function StorefrontShippingWalletPage() {
               <Descriptions.Item label="Store owner">
                 {detailQuery.data.storefrontOwnerId ? (
                   <Link
-                    className="font-mono"
+                    className="font-mono text-[#800020] hover:underline"
                     to={`/franchise-store-owners/${detailQuery.data.storefrontOwnerId}`}
                   >
                     Store owner

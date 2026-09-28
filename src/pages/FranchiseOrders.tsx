@@ -41,6 +41,7 @@ export default function FranchiseOrdersPage() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [ownerId, setOwnerId] = useState(searchParams.get("ownerId") ?? "");
+  const orderIdFromUrl = searchParams.get("orderId");
   const [ownerSearch, setOwnerSearch] = useState("");
   const debouncedOwnerSearch = useDebouncedValue(ownerSearch, 350);
 
@@ -55,8 +56,16 @@ export default function FranchiseOrdersPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
 
-  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
-  const [detailOpen, setDetailOpen] = useState(false);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(
+    orderIdFromUrl ?? null,
+  );
+  const [detailOpen, setDetailOpen] = useState<boolean>(!!orderIdFromUrl);
+
+  useEffect(() => {
+    const nextOrderId = searchParams.get("orderId");
+    setSelectedOrderId(nextOrderId ?? null);
+    setDetailOpen(Boolean(nextOrderId));
+  }, [searchParams, setSelectedOrderId]);
 
   function selectOwner(id: string) {
     setOwnerId(id);
@@ -64,6 +73,7 @@ export default function FranchiseOrdersPage() {
     const next = new URLSearchParams(searchParams);
     if (id) next.set("ownerId", id);
     else next.delete("ownerId");
+    next.delete("orderId");
     setSearchParams(next, { replace: true });
   }
 
@@ -154,8 +164,10 @@ export default function FranchiseOrdersPage() {
           type="link"
           className="!px-0"
           onClick={() => {
-            setSelectedOrderId(row.orderId);
-            setDetailOpen(true);
+            const next = new URLSearchParams(searchParams);
+            if (ownerId) next.set("ownerId", ownerId);
+            next.set("orderId", row.orderId);
+            setSearchParams(next, { replace: true });
           }}
         >
           {v ?? row.externalOrderId ?? row.orderId.slice(0, 8)}
@@ -238,8 +250,10 @@ export default function FranchiseOrdersPage() {
           icon={<EyeOutlined />}
           onClick={(e) => {
             e.stopPropagation();
-            setSelectedOrderId(row.orderId);
-            setDetailOpen(true);
+            const next = new URLSearchParams(searchParams);
+            if (ownerId) next.set("ownerId", ownerId);
+            next.set("orderId", row.orderId);
+            setSearchParams(next, { replace: true });
           }}
         />
       ),
@@ -339,8 +353,10 @@ export default function FranchiseOrdersPage() {
             columns={columns}
             onRow={(row) => ({
               onClick: () => {
-                setSelectedOrderId(row.orderId);
-                setDetailOpen(true);
+                const next = new URLSearchParams(searchParams);
+                if (ownerId) next.set("ownerId", ownerId);
+                next.set("orderId", row.orderId);
+                setSearchParams(next, { replace: true });
               },
               style: { cursor: "pointer" },
             })}
@@ -367,7 +383,12 @@ export default function FranchiseOrdersPage() {
         open={detailOpen}
         onOpenChange={(v) => {
           setDetailOpen(v);
-          if (!v) setSelectedOrderId(null);
+          if (!v) {
+            const next = new URLSearchParams(searchParams);
+            next.delete("orderId");
+            setSelectedOrderId(null);
+            setSearchParams(next, { replace: true });
+          }
         }}
         onUpdated={() => ordersQuery.refetch()}
       />

@@ -173,14 +173,33 @@ export interface BaseProductReturnDto {
   // switch, so the effective answer is this AND `brand.isDollarPurchasable` —
   // never read this alone to decide whether dollars are accepted.
   //
-  // Optional because the flag is currently write-only on the API: PATCH
-  // Product/EditProduct/{id} accepts it, but no response DTO returns it
-  // (checked exhaustively against prod and test swagger, 2026-09-10 — the only
-  // schemas mentioning it are EditProductRequest, SetBrandDollarPurchasableRequest
-  // and ExchangeRateSummaryDto). So expect `undefined` on every row until the
-  // backend adds it to BaseProductReturnDto; treat that as "unknown", not
-  // "off", and the UI lights up on its own once the field starts arriving.
+  // Present on BaseProductReturnDto in both prod and test swagger as of
+  // 2026-09-28. Still optional so an older deploy that omits it reads as
+  // "unknown", not "off".
   isDollarPurchasable?: boolean;
+  // The admin's own on/off switch, kept apart from `isActive`. `isActive` is
+  // Dynamics' value and the catalog sync overwrites it every 20 min;
+  // `adminDisabled` is never touched by the sync, so it is the only way an
+  // admin "off" survives. Storefront and checkout treat a product as live only
+  // when `isActive && !adminDisabled`.
+  //
+  // Optional because only the test API returns it (2026-09-28). Prod swagger
+  // has neither this field nor `minOrderQuantity` yet.
+  adminDisabled?: boolean;
+  // Minimum order quantity. 0 means no minimum. Test API only, as above.
+  minOrderQuantity?: number;
+}
+
+// PATCH Product/EditProduct/{id}. Every field is nullable, so leaving one out
+// leaves it unchanged. The response is a plain BooleanResult, not the updated
+// product. `AdminDisabled` and `MinOrderQuantity` are only accepted by the test
+// API for now.
+export interface EditProductRequest {
+  IsActive?: boolean;
+  AdminDisabled?: boolean;
+  IsFeaturedProduct?: boolean;
+  IsDollarPurchasable?: boolean;
+  MinOrderQuantity?: number;
 }
 
 export interface ProductVariantReturnDto {

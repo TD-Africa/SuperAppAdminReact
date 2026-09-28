@@ -114,12 +114,6 @@ export default function StorefrontShippingWalletPage() {
       render: (v) => <Tag>{v ?? "—"}</Tag>,
     },
     {
-      title: "Kind",
-      dataIndex: "transactionKind",
-      width: 150,
-      render: (v) => <span className="text-xs">{v ?? "—"}</span>,
-    },
-    {
       title: "Amount",
       dataIndex: "amount",
       width: 160,

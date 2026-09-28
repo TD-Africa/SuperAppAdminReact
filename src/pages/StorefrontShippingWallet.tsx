@@ -169,14 +169,12 @@ export default function StorefrontShippingWalletPage() {
           </div>
           <div className="text-xs">
             {row.storefrontOwnerId ? (
-              <Tooltip title={row.storefrontOwnerId}>
-                <Link
-                  className="font-mono"
-                  to={`/franchise-store-owners/${row.storefrontOwnerId}`}
-                >
-                  Owner: {truncateUuid(row.storefrontOwnerId)}
-                </Link>
-              </Tooltip>
+              <Link
+                className="font-mono"
+                to={`/franchise-store-owners/${row.storefrontOwnerId}`}
+              >
+                Owner
+              </Link>
             ) : (
               "Owner: —"
             )}
@@ -322,16 +320,14 @@ export default function StorefrontShippingWalletPage() {
                   {detailQuery.data.externalOrderId ?? "—"}
                 </span>
               </Descriptions.Item>
-              <Descriptions.Item label="Storefront owner ID">
+              <Descriptions.Item label="Store owner">
                 {detailQuery.data.storefrontOwnerId ? (
-                  <Tooltip title={detailQuery.data.storefrontOwnerId}>
-                    <Link
-                      className="font-mono break-all"
-                      to={`/franchise-store-owners/${detailQuery.data.storefrontOwnerId}`}
-                    >
-                      {truncateUuid(detailQuery.data.storefrontOwnerId)}
-                    </Link>
-                  </Tooltip>
+                  <Link
+                    className="font-mono"
+                    to={`/franchise-store-owners/${detailQuery.data.storefrontOwnerId}`}
+                  >
+                    Store owner
+                  </Link>
                 ) : (
                   "—"
                 )}

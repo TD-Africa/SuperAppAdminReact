@@ -988,3 +988,33 @@ export interface StorefrontShippingWalletTransactionDto {
 
 export type StorefrontPagedShippingWalletTransactions =
   PaginationResponse<StorefrontShippingWalletTransactionDto>;
+
+// —— Storefront promotions (StorefrontPromotion) ——
+
+export interface StorefrontPromotionImageResponse {
+  url: string;
+  position: number;
+}
+
+export interface StorefrontPromotionProductResponse {
+  id: string;
+  productName: string;
+  slug: string;
+  priceInNaira: number;
+  specialPrice: number;
+  productImageUrls: StorefrontPromotionImageResponse[] | null;
+}
+
+export interface StorefrontPromotionResponse {
+  id: string;
+  name: string;
+  percentOff: number;
+  dateCreated: string;
+  startDate: string | null;
+  validUntil: string | null;
+  isActive: boolean;
+  imageUrl: string | null;
+  products: StorefrontPromotionProductResponse[] | null;
+}
+
+export type StorefrontPagedPromotions = PaginationResponse<StorefrontPromotionResponse>;

@@ -71,6 +71,8 @@ import type {
   StorefrontShippingWalletDto,
   StorefrontPagedShippingWalletTransactions,
   StorefrontShippingWalletTransactionDto,
+  StorefrontPagedPromotions,
+  StorefrontPromotionResponse,
   OemWalletAdjustmentRequest,
   OemWalletDto,
   OemWalletPagedTransactions,
@@ -670,6 +672,79 @@ export function getAdminStorefrontShippingWalletTransactions(
 export function getAdminStorefrontShippingWalletTransaction(transactionId: string) {
   return apiGet<StorefrontShippingWalletTransactionDto>(
     `admin/storefront/shipping-wallet/transactions/${encodeURIComponent(transactionId)}`,
+  );
+}
+
+// —— Storefront promotions (StorefrontPromotion) ——
+
+export interface StorefrontPromotionCreateRequest {
+  name: string;
+  percentOff: number;
+  startDate: string; // ISO
+  endDate: string; // ISO
+  productIds: string[];
+  imageFile?: File | null;
+}
+
+export interface StorefrontPromotionUpdateRequest extends StorefrontPromotionCreateRequest {
+  isActive: boolean;
+}
+
+function appendIndexedArray(fd: FormData, key: string, values: string[]) {
+  values.forEach((v, i) => fd.append(`${key}[${i}]`, v));
+}
+
+function buildStorefrontPromotionFormData(
+  body: StorefrontPromotionCreateRequest | StorefrontPromotionUpdateRequest,
+  includeIsActive: boolean,
+) {
+  const fd = new FormData();
+  if (body.imageFile) fd.append("ImageFile", body.imageFile, body.imageFile.name);
+  fd.append("Name", body.name);
+  fd.append("PercentOff", String(body.percentOff));
+  fd.append("StartDate", body.startDate);
+  fd.append("EndDate", body.endDate);
+  appendIndexedArray(fd, "ProductIds", body.productIds);
+  if (includeIsActive) fd.append("IsActive", String((body as StorefrontPromotionUpdateRequest).isActive));
+  return fd;
+}
+
+export function getStorefrontPromotions(params: {
+  PageSize?: number;
+  PageNumber?: number;
+  SearchString?: string;
+  isActive?: boolean;
+} = {}) {
+  return apiGet<StorefrontPagedPromotions>(
+    `Storefront/GetStorefrontPromotions${toQuery(params)}`,
+  );
+}
+
+export function getStorefrontPromotion(promotionId: string) {
+  return apiGet<StorefrontPromotionResponse>(
+    `Storefront/GetStorefrontPromotion/${encodeURIComponent(promotionId)}`,
+  );
+}
+
+export function createStorefrontPromotion(body: StorefrontPromotionCreateRequest) {
+  const fd = buildStorefrontPromotionFormData(body, false);
+  return apiPost<boolean>("Storefront/CreateStorefrontPromotion", fd);
+}
+
+export function updateStorefrontPromotion(
+  promotionId: string,
+  body: StorefrontPromotionUpdateRequest,
+) {
+  const fd = buildStorefrontPromotionFormData(body, true);
+  return apiPut<boolean>(
+    `Storefront/UpdateStorefrontPromotion/${encodeURIComponent(promotionId)}`,
+    fd,
+  );
+}
+
+export function deleteStorefrontPromotion(promotionId: string) {
+  return apiDelete<boolean>(
+    `Storefront/DeleteStorefrontPromotion/${encodeURIComponent(promotionId)}`,
   );
 }
 

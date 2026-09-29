@@ -89,6 +89,7 @@ const NAV_TREE: NavNode[] = [
       { type: "leaf", to: "/storefront-shipping", label: "Shipping", icon: <CarOutlined />, permission: Permission.CanViewDeliveryMethod },
       { type: "leaf", to: "/storefront-shipping-wallet", label: "Shipping Wallet", icon: <WalletOutlined />, permission: Permission.CanViewDeliveryMethod },
       { type: "leaf", to: "/storefront-commissions", label: "Commissions", icon: <PercentageOutlined />, permission: Permission.CanChangeSettings },
+      { type: "leaf", to: "/storefront-promotions", label: "Promotions", icon: <PercentageOutlined />, permission: Permission.CanViewPromos },
       { type: "leaf", to: "/franchise-brands", label: "Brands", icon: <ShopOutlined />, permission: Permission.CanViewBrands },
       { type: "leaf", to: "/franchise-categories", label: "Categories", icon: <TagsOutlined />, permission: Permission.CanViewBrands },
       { type: "leaf", to: "/franchise-store-owner-invites", label: "Owner Invites", icon: <MailOutlined />, permission: Permission.CanViewUser },

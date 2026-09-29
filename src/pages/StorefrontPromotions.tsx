@@ -315,7 +315,7 @@ function StorefrontPromotionFormModal({
   onDone: () => void;
 }) {
   const { message } = AntdApp.useApp();
-  const queryClient = useQueryClient();
+
   const canEdit = useAuthStore((s) => s.hasPermission(Permission.CanEditPromos));
 
   const [state, setState] = useState<StorefrontPromotionFormState>(emptyState);

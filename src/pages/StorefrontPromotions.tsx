@@ -35,14 +35,13 @@ import { useAuthStore } from "@/stores/auth";
 import { Permission } from "@/lib/permissions";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { formatDate } from "@/lib/utils";
-import { ProductSearchMultiSelect } from "@/components/ProductSearchMultiSelect";
 import { ProductDetailModal } from "@/components/products/ProductDetailModal";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import {
   createStorefrontPromotion,
   deleteStorefrontPromotion,
   getAllBrands,
-  getBrandProducts,
+  getStorefrontProducts,
   getStorefrontPromotion,
   getStorefrontPromotions,
   updateStorefrontPromotion,
@@ -51,9 +50,8 @@ import type {
   StorefrontPagedPromotions,
   StorefrontPromotionProductResponse,
   StorefrontPromotionResponse,
+  StorefrontProductDto,
 } from "@/lib/storefrontTypes";
-import type { MiniProductResponse } from "@/lib/types";
-import type { BrandProductDto } from "@/lib/storefrontApi";
 
 const ALL = "__all__";
 
@@ -322,7 +320,6 @@ function StorefrontPromotionFormModal({
   const canEdit = useAuthStore((s) => s.hasPermission(Permission.CanEditPromos));
 
   const [state, setState] = useState<StorefrontPromotionFormState>(emptyState);
-  const [initialSelection, setInitialSelection] = useState<MiniProductResponse[]>([]);
 
   const { data: existing, isLoading } = useQuery({
     queryKey: ["storefront-promotion", promotionId],
@@ -356,32 +353,33 @@ function StorefrontPromotionFormModal({
     staleTime: 5 * 60_000,
   });
 
-  const { data: brandProductsPageData, isFetching: brandProductsFetching } = useQuery({
-    queryKey: [
-      "storefront-promo-brand-products",
-      selectedBrandId,
-      brandProductPage,
-      brandProductPageSize,
-      debouncedProductSearch,
-    ],
-    queryFn: async () => {
-      if (!selectedBrandId) return null;
-      const res = await getBrandProducts(selectedBrandId, {
-        PageSize: brandProductPageSize,
-        PageNumber: brandProductPage,
-        SearchString: debouncedProductSearch.trim() || undefined,
-      });
-      if (!res.status) throw new Error(res.message ?? "Failed to load brand products");
-      return res.data ?? null;
+  const { data: storefrontProductsPageData, isFetching: storefrontProductsFetching } = useQuery(
+    {
+      queryKey: [
+        "storefront-promo-products",
+        selectedBrandId ?? "__all__",
+        brandProductPage,
+        brandProductPageSize,
+        debouncedProductSearch,
+      ],
+      queryFn: async () => {
+        const res = await getStorefrontProducts({
+          PageSize: brandProductPageSize,
+          PageNumber: brandProductPage,
+          SearchString: debouncedProductSearch.trim() || undefined,
+          storefrontBrandId: selectedBrandId ?? undefined,
+        });
+        if (!res.status) throw new Error(res.message ?? "Failed to load storefront products");
+        return res.data;
+      },
+      enabled: open,
     },
-    enabled: open && !!selectedBrandId,
-  });
+  );
 
   useEffect(() => {
     if (!open) return;
     if (mode === "create") {
       setState(emptyState());
-      setInitialSelection([]);
       setSelectedBrandId(null);
       setProductSearch("");
       setBrandProductPage(1);
@@ -403,13 +401,6 @@ function StorefrontPromotionFormModal({
       file: null,
       isActive: existing.isActive,
     });
-    setInitialSelection(
-      (existing.products ?? []).map((p) => ({
-        id: p.id,
-        productName: p.productName,
-        dynamicsId: undefined,
-      })),
-    );
   }, [open, mode, existing]);
 
   const mutation = useMutation({
@@ -566,64 +557,52 @@ function StorefrontPromotionFormModal({
                 />
               </div>
 
-              {selectedBrandId ? (
-                <div className="space-y-3">
-                  <Input
-                    allowClear
-                    placeholder="Search within this brand…"
-                    value={productSearch}
-                    onChange={(e) => setProductSearch(e.target.value)}
-                  />
+              <div className="space-y-3">
+                <Input
+                  allowClear
+                  placeholder={selectedBrandId ? "Search within this brand…" : "Search storefront products…"}
+                  value={productSearch}
+                  onChange={(e) => setProductSearch(e.target.value)}
+                />
 
-                  <Table<BrandProductDto>
-                    rowKey="id"
-                    size="small"
-                    dataSource={brandProductsPageData?.data ?? []}
-                    loading={brandProductsFetching}
-                    columns={[
-                      {
-                        title: "Product",
-                        dataIndex: "productName",
-                        render: (v) => <span className="font-medium">{v}</span>,
-                      },
-                      {
-                        title: "Price (NGN)",
-                        dataIndex: "priceInNaira",
-                        align: "right",
-                        render: (v: number) =>
-                          v > 0 ? `₦${Math.round(v).toLocaleString()}` : "—",
-                      },
-                    ]}
-                    rowSelection={{
-                      selectedRowKeys: state.productIds,
-                      onChange: (keys) => setState((p) => ({ ...p, productIds: keys as string[] })),
-                    }}
-                    pagination={{
-                      current: brandProductPage,
-                      pageSize: brandProductPageSize,
-                      total: Number(brandProductsPageData?.count ?? 0),
-                      showSizeChanger: true,
-                      onChange: (p, ps) => {
-                        setBrandProductPage(p);
-                        setBrandProductPageSize(ps);
-                      },
-                    }}
-                  />
-
-                  <Typography.Text type="secondary" className="block text-sm">
-                    Selected: {state.productIds.length} product(s)
-                  </Typography.Text>
-                </div>
-              ) : (
-                <ProductSearchMultiSelect
-                  value={state.productIds}
-                  onChange={(v) => setState((p) => ({ ...p, productIds: v }))}
-                  initialSelection={initialSelection}
-                  extraParams={{
-                    hasPromo: "false",
+                <Table<StorefrontProductDto>
+                  rowKey="productId"
+                  size="small"
+                  dataSource={(storefrontProductsPageData?.data ?? []).filter((p) => p.isStorefrontPublished)}
+                  loading={storefrontProductsFetching}
+                  columns={[
+                    {
+                      title: "Product",
+                      dataIndex: "productName",
+                      render: (v) => <span className="font-medium">{v}</span>,
+                    },
+                    {
+                      title: "Brand",
+                      dataIndex: "brandName",
+                      render: (v: string | null) => v ?? "—",
+                    },
+                  ]}
+                  rowSelection={{
+                    selectedRowKeys: state.productIds,
+                    onChange: (keys) =>
+                      setState((p) => ({ ...p, productIds: keys as string[] })),
+                  }}
+                  pagination={{
+                    current: brandProductPage,
+                    pageSize: brandProductPageSize,
+                    total: Number(storefrontProductsPageData?.count ?? 0),
+                    showSizeChanger: true,
+                    onChange: (p, ps) => {
+                      setBrandProductPage(p);
+                      setBrandProductPageSize(ps);
+                    },
                   }}
                 />
-              )}
+
+                <Typography.Text type="secondary" className="block text-sm">
+                  Selected: {state.productIds.length} product(s)
+                </Typography.Text>
+              </div>
             </div>
           </Form.Item>
         </Form>

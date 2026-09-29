@@ -41,6 +41,8 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import {
   createStorefrontPromotion,
   deleteStorefrontPromotion,
+  getAllBrands,
+  getBrandProducts,
   getStorefrontPromotion,
   getStorefrontPromotions,
   updateStorefrontPromotion,
@@ -51,6 +53,7 @@ import type {
   StorefrontPromotionResponse,
 } from "@/lib/storefrontTypes";
 import type { MiniProductResponse } from "@/lib/types";
+import type { BrandProductDto } from "@/lib/storefrontApi";
 
 const ALL = "__all__";
 
@@ -332,15 +335,63 @@ function StorefrontPromotionFormModal({
     enabled: mode === "edit" && !!promotionId && open,
   });
 
+  const [selectedBrandId, setSelectedBrandId] = useState<string | null>(null);
+  const [productSearch, setProductSearch] = useState("");
+  const debouncedProductSearch = useDebouncedValue(productSearch, 350);
+  const [brandProductPage, setBrandProductPage] = useState(1);
+  const [brandProductPageSize, setBrandProductPageSize] = useState(20);
+
+  const { data: brands, isLoading: brandsLoading } = useQuery({
+    queryKey: ["storefront-promo-brands", "active"],
+    queryFn: async () => {
+      const res = await getAllBrands({
+        PageSize: 100,
+        PageNumber: 1,
+        isActive: true,
+      });
+      if (!res.status) throw new Error(res.message ?? "Failed to load brands");
+      return res.data?.data ?? [];
+    },
+    enabled: open,
+    staleTime: 5 * 60_000,
+  });
+
+  const { data: brandProductsPageData, isFetching: brandProductsFetching } = useQuery({
+    queryKey: [
+      "storefront-promo-brand-products",
+      selectedBrandId,
+      brandProductPage,
+      brandProductPageSize,
+      debouncedProductSearch,
+    ],
+    queryFn: async () => {
+      if (!selectedBrandId) return null;
+      const res = await getBrandProducts(selectedBrandId, {
+        PageSize: brandProductPageSize,
+        PageNumber: brandProductPage,
+        SearchString: debouncedProductSearch.trim() || undefined,
+      });
+      if (!res.status) throw new Error(res.message ?? "Failed to load brand products");
+      return res.data ?? null;
+    },
+    enabled: open && !!selectedBrandId,
+  });
+
   useEffect(() => {
     if (!open) return;
     if (mode === "create") {
       setState(emptyState());
       setInitialSelection([]);
+      setSelectedBrandId(null);
+      setProductSearch("");
+      setBrandProductPage(1);
       return;
     }
 
     if (!existing) return;
+    setSelectedBrandId(null);
+    setProductSearch("");
+    setBrandProductPage(1);
     setState({
       name: existing.name,
       percentOff: existing.percentOff,
@@ -495,14 +546,85 @@ function StorefrontPromotionFormModal({
           </Form.Item>
 
           <Form.Item label="Products" required>
-            <ProductSearchMultiSelect
-              value={state.productIds}
-              onChange={(v) => setState((p) => ({ ...p, productIds: v }))}
-              initialSelection={initialSelection}
-              extraParams={{
-                hasPromo: "false",
-              }}
-            />
+            <div className="space-y-3">
+              <div className="flex flex-col gap-2">
+                <Select
+                  className="w-full"
+                  placeholder="Select by brand (optional)"
+                  allowClear
+                  value={selectedBrandId ?? undefined}
+                  loading={brandsLoading}
+                  onChange={(v) => {
+                    setSelectedBrandId(v ?? null);
+                    setProductSearch("");
+                    setBrandProductPage(1);
+                  }}
+                  options={(brands ?? []).map((b) => ({
+                    value: b.id,
+                    label: b.name,
+                  }))}
+                />
+              </div>
+
+              {selectedBrandId ? (
+                <div className="space-y-3">
+                  <Input
+                    allowClear
+                    placeholder="Search within this brand…"
+                    value={productSearch}
+                    onChange={(e) => setProductSearch(e.target.value)}
+                  />
+
+                  <Table<BrandProductDto>
+                    rowKey="id"
+                    size="small"
+                    dataSource={brandProductsPageData?.data ?? []}
+                    loading={brandProductsFetching}
+                    columns={[
+                      {
+                        title: "Product",
+                        dataIndex: "productName",
+                        render: (v) => <span className="font-medium">{v}</span>,
+                      },
+                      {
+                        title: "Price (NGN)",
+                        dataIndex: "priceInNaira",
+                        align: "right",
+                        render: (v: number) =>
+                          v > 0 ? `₦${Math.round(v).toLocaleString()}` : "—",
+                      },
+                    ]}
+                    rowSelection={{
+                      selectedRowKeys: state.productIds,
+                      onChange: (keys) => setState((p) => ({ ...p, productIds: keys as string[] })),
+                    }}
+                    pagination={{
+                      current: brandProductPage,
+                      pageSize: brandProductPageSize,
+                      total: Number(brandProductsPageData?.count ?? 0),
+                      showSizeChanger: true,
+                      onChange: (p, ps) => {
+                        setBrandProductPage(p);
+                        setBrandProductPageSize(ps);
+                      },
+                    }}
+                  />
+
+                  <Typography.Text type="secondary" className="block text-sm">
+                    Selected: {state.productIds.length} product(s)
+                  </Typography.Text>
+                </div>
+              ) : (
+                <ProductSearchMultiSelect
+                  value={state.productIds}
+                  onChange={(v) => setState((p) => ({ ...p, productIds: v }))}
+                  initialSelection={initialSelection}
+                  extraParams={{
+                    hasPromo: "false",
+                  }}
+                />
+              )}
+            </div>
           </Form.Item>
         </Form>
       )}

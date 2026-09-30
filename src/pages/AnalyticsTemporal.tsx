@@ -5,12 +5,14 @@ import {
   Card,
   Empty,
   Radio,
+  Select,
   Table,
   Tag,
   Typography,
 } from "antd";
 import type { TableColumnsType } from "antd";
 import { ComparisonBars } from "@/components/analytics/ComparisonBars";
+import { MoneyValue } from "@/components/analytics/MoneyValue";
 import type {
   AnalyticsTemporal,
   AnalyticsTemporalCadence,
@@ -89,7 +91,9 @@ const weekdayColumns: TableColumnsType<AnalyticsTemporalWeekday> = [
     title: "Net order value",
     dataIndex: "revenueNaira",
     align: "right",
-    render: money,
+    render: (_, row) => (
+      <MoneyValue naira={row.revenueNaira} usd={row.revenueUsd} />
+    ),
   },
 ];
 
@@ -199,6 +203,8 @@ function cadenceColumns(
 // Heatmap
 // ---------------------------------------------------------------------------
 
+type HeatmapMetric = "average" | "total";
+
 /** Burgundy scaled by activity; grey where the slot was never observed. */
 function heatCellStyle(slot: AnalyticsTemporalSlot, strength: number) {
   return {
@@ -211,18 +217,26 @@ function heatCellStyle(slot: AnalyticsTemporalSlot, strength: number) {
 
 function OrderHeatmap({
   slots,
+  metric,
   onSelect,
 }: {
   slots: AnalyticsTemporalSlot[];
+  metric: HeatmapMetric;
   onSelect: (slot: AnalyticsTemporalSlot) => void;
 }) {
-  const maximum = Math.max(0, ...slots.map((slot) => slot.averageOrders ?? 0));
+  const valueFor = (slot: AnalyticsTemporalSlot) =>
+    slot.observedDays === 0
+      ? null
+      : metric === "total"
+        ? slot.orders
+        : slot.averageOrders;
+  const maximum = Math.max(0, ...slots.map((slot) => valueFor(slot) ?? 0));
 
   return (
     <div className="overflow-x-auto">
       <table
         className="w-full min-w-[1000px] border-separate border-spacing-1 text-sm"
-        aria-label="Average orders by weekday and hour in WAT"
+        aria-label={`${metric === "total" ? "Total" : "Average"} orders by weekday and hour in WAT`}
       >
         <thead>
           <tr>
@@ -247,9 +261,8 @@ function OrderHeatmap({
                 </th>
 
                 {daySlots.map((slot) => {
-                  const strength = maximum
-                    ? (slot.averageOrders ?? 0) / maximum
-                    : 0;
+                  const value = valueFor(slot);
+                  const strength = maximum ? (value ?? 0) / maximum : 0;
 
                   const label =
                     `${day}, ${slot.hour}:00 WAT: ` +
@@ -266,9 +279,11 @@ function OrderHeatmap({
                         style={heatCellStyle(slot, strength)}
                         onClick={() => onSelect(slot)}
                       >
-                        {slot.averageOrders == null
+                        {value == null
                           ? "—"
-                          : decimal(slot.averageOrders)}
+                          : metric === "total"
+                            ? count(value)
+                            : decimal(value)}
                       </button>
                     </td>
                   );
@@ -315,6 +330,7 @@ export default function AnalyticsTemporalPanel({
   openPartner: (id: string) => void;
 }) {
   const [period, setPeriod] = useState<"month" | "quarter">("month");
+  const [heatmapMetric, setHeatmapMetric] = useState<HeatmapMetric>("average");
   const [selected, setSelected] = useState<AnalyticsTemporalSlot | null>(null);
 
   const { summary, completedDays } = data;
@@ -373,16 +389,37 @@ export default function AnalyticsTemporalPanel({
       </div>
 
       {/* Weekday × hour heatmap */}
-      <Card title="When partners place orders">
+      <Card
+        title="When partners place orders"
+        className="[&_.ant-card-head-wrapper]:flex-wrap [&_.ant-card-head-wrapper]:gap-3 [&_.ant-card-head-wrapper]:py-3 [&_.ant-card-head-title]:min-w-48 [&_.ant-card-head-title]:whitespace-normal"
+        extra={
+          <Select<HeatmapMetric>
+            aria-label="Heatmap order measure"
+            className="w-40"
+            value={heatmapMetric}
+            onChange={setHeatmapMetric}
+            options={[
+              { value: "average", label: "Average orders" },
+              { value: "total", label: "Total orders" },
+            ]}
+          />
+        }
+      >
         <Typography.Paragraph type="secondary">
-          Average orders in each one-hour slot, divided by the number of that
-          weekday observed. Darker cells mean more activity. Select a cell for
+          {heatmapMetric === "average"
+            ? "Average orders in each one-hour slot, divided by the number of that weekday observed."
+            : "Total orders in each weekday and one-hour slot across the completed days in the selected range."}{" "}
+          Darker cells mean more activity. Select a cell for
           its totals. These are candidate promotion windows; conversion impact
           needs campaign measurement.
         </Typography.Paragraph>
 
         {completedDays ? (
-          <OrderHeatmap slots={data.heatmap} onSelect={setSelected} />
+          <OrderHeatmap
+            slots={data.heatmap}
+            metric={heatmapMetric}
+            onSelect={setSelected}
+          />
         ) : (
           <Empty description="Choose a range containing completed days" />
         )}

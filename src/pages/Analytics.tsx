@@ -23,6 +23,7 @@ import { AnalyticsWorkspace } from "@/components/analytics/AnalyticsWorkspace";
 import { ActiveFilter, Lookup } from "@/components/analytics/Lookup";
 import { useAnalyticsReports } from "@/hooks/useAnalyticsReports";
 import { analyticsError, downloadAnalytics } from "@/lib/analytics";
+import { resolveAnalyticsBucket, updateAnalyticsSearch } from "@/lib/analyticsNavigation";
 import type {
   AnalyticsExportFormat,
   AnalyticsParams,
@@ -53,25 +54,8 @@ import AnalyticsVolumePanel from "./AnalyticsVolume";
 
 const DEFAULT_RANGE_DAYS = 89;
 
-/** URL keys holding a page number; cleared whenever the result set changes. */
-const PAGE_KEYS = [
-  "page",
-  "brandPage",
-  "categoryPage",
-  "growthPage",
-  "detailPage",
-  "cancellationPage",
-  "cartPage",
-  "geoCategoryPage",
-  "productPage",
-  "stockPage",
-  "creditPartnerPage",
-  "debtPage",
-  "debtOrderPage",
-];
-
 /** Tabs whose "Group by" select only sets the allowed date-range length. */
-const RANGE_ONLY_TABS: string[] = ["geography", "temporal", "credit"];
+const RANGE_ONLY_TABS: string[] = ["temporal", "credit"];
 
 /** Tabs without the shared "Sort by" control. */
 const UNSORTED_TABS: string[] = ["behaviour", "products", "temporal", "credit"];
@@ -151,7 +135,6 @@ export default function AnalyticsPageView() {
   const [search, setSearch] = useSearchParams({
     from: defaultFrom,
     to: today,
-    bucket: "Month",
     tab: "executive",
   });
 
@@ -170,11 +153,22 @@ export default function AnalyticsPageView() {
 
   // ----- URL state -----
 
+  const section =
+    ANALYTICS_SECTIONS.find((item) => item.key === search.get("tab")) ??
+    ANALYTICS_SECTIONS[0];
+
+  const tab = section.key;
+
   const params = useMemo<AnalyticsParams>(
     () => ({
       from: search.get("from") ?? defaultFrom,
       to: search.get("to") ?? today,
-      bucket: search.get("bucket") ?? "Month",
+      bucket: resolveAnalyticsBucket(
+        search.get("from") ?? defaultFrom,
+        search.get("to") ?? today,
+        search.get("bucket"),
+        tab === "geography",
+      ),
       brandId: search.get("brandId") || undefined,
       categoryId: search.get("categoryId") || undefined,
       partnerId: search.get("partnerId") || undefined,
@@ -184,7 +178,7 @@ export default function AnalyticsPageView() {
       top: search.get("top") ?? "10",
       inactiveDays: search.get("inactiveDays") ?? "60",
     }),
-    [search, today, defaultFrom],
+    [search, today, defaultFrom, tab],
   );
 
   const productParams = useMemo<AnalyticsParams>(
@@ -192,17 +186,14 @@ export default function AnalyticsPageView() {
       ...params,
       search: search.get("skuSearch") || undefined,
       warehouseId: search.get("warehouseId") || undefined,
-      productSort: search.get("productSort") ?? "units",
+      productSort: search.get("productSort") ?? "revenue",
+      productDirection: search.get("productDirection") ?? "desc",
+      stockSort: search.get("stockSort") ?? "ordered",
+      stockDirection: search.get("stockDirection") ?? "asc",
       stockView: search.get("stockView") ?? "all",
     }),
     [params, search],
   );
-
-  const section =
-    ANALYTICS_SECTIONS.find((item) => item.key === search.get("tab")) ??
-    ANALYTICS_SECTIONS[0];
-
-  const tab = section.key;
 
   const viewParam = search.get("view") ?? "";
   const view = PARTNER_VIEWS.includes(viewParam) ? viewParam : "partners";
@@ -212,24 +203,14 @@ export default function AnalyticsPageView() {
     Math.max(1, Math.min(401, Math.floor(Number(search.get(key))) || 1));
 
   const update: UpdateSearch = (values, reset = true) => {
-    setSearch((previous) => {
-      const next = new URLSearchParams(previous);
-
-      if (!next.has("from")) next.set("from", String(params.from));
-      if (!next.has("to")) next.set("to", String(params.to));
-
-      if (reset) {
-        PAGE_KEYS.forEach((key) => next.delete(key));
-        next.delete("debtPartner");
-      }
-
-      Object.entries(values).forEach(([key, value]) => {
-        if (value == null || value === "") next.delete(key);
-        else next.set(key, value);
-      });
-
-      return next;
-    });
+    setSearch((previous) =>
+      updateAnalyticsSearch(
+        previous,
+        values,
+        { from: String(params.from), to: String(params.to), tab },
+        reset,
+      ),
+    );
   };
 
   const openPartner = (partnerId: string) =>
@@ -291,7 +272,7 @@ export default function AnalyticsPageView() {
     if (!dates?.[0] || !dates[1]) return;
 
     const [start, end] = dates;
-    const yearly = params.bucket === "Year";
+    const yearly = tab === "geography" || params.bucket === "Year";
     const earliest = yearly
       ? end.subtract(5, "year").add(1, "day")
       : end.subtract(365, "day");
@@ -305,7 +286,11 @@ export default function AnalyticsPageView() {
       return;
     }
 
-    update({ from: start.format("YYYY-MM-DD"), to: end.format("YYYY-MM-DD") });
+    update({
+      from: start.format("YYYY-MM-DD"),
+      to: end.format("YYYY-MM-DD"),
+      ...(tab === "geography" ? { bucket: undefined } : {}),
+    });
   }
 
   function handleBucketChange(value: string) {
@@ -463,7 +448,7 @@ export default function AnalyticsPageView() {
         </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-3">
-          {tab !== "partners" && (
+          {tab !== "partners" && tab !== "geography" && (
             <>
               <span>
                 {RANGE_ONLY_TABS.includes(tab) ? "Date-range mode" : "Group by"}
@@ -624,7 +609,15 @@ export default function AnalyticsPageView() {
                   : "product"
               }
               cancellationPage={page("cancellationPage")}
+              cancellationSort={search.get("cancellationSort") === "rate" ? "rate" : "cancelled"}
+              cancellationDirection={search.get("cancellationDirection") === "asc" ? "asc" : "desc"}
               cartPage={page("cartPage")}
+              cartSort={
+                search.get("cartSort") === "latest_asc" ? "latest_asc"
+                  : search.get("cartSort") === "latest_desc" ? "latest_desc"
+                  : search.get("cartSort") === "days_asc" ? "days_asc"
+                  : "days_desc"
+              }
               update={update}
             />
           )
@@ -717,9 +710,9 @@ export default function AnalyticsPageView() {
   return (
     <AnalyticsWorkspace
       section={tab}
-      onChange={(value) =>
-        update({ tab: value, detail: undefined, skuDetail: undefined })
-      }
+      onChange={(value) => {
+        if (value !== tab) update({ tab: value });
+      }}
     >
       {renderHeader()}
 

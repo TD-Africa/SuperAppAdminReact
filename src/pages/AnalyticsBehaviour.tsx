@@ -62,14 +62,26 @@ const DIMENSION_OPTIONS = [
 
 const cancellationColumns = (
   dimension: "product" | "partner",
+  sort: "cancelled" | "rate",
+  direction: "asc" | "desc",
 ): TableColumnsType<AnalyticsCancellation> => [
   { title: dimension === "product" ? "Product" : "Partner", dataIndex: "name" },
   { title: "Orders placed", dataIndex: "ordersPlaced", align: "right" },
-  { title: "Cancelled", dataIndex: "cancelledOrders", align: "right" },
+  {
+    title: "Cancelled",
+    dataIndex: "cancelledOrders",
+    key: "cancelled",
+    align: "right",
+    sorter: true,
+    sortOrder: sort === "cancelled" ? (direction === "asc" ? "ascend" : "descend") : null,
+  },
   {
     title: "Cancellation rate",
     dataIndex: "cancellationRate",
+    key: "rate",
     align: "right",
+    sorter: true,
+    sortOrder: sort === "rate" ? (direction === "asc" ? "ascend" : "descend") : null,
     render: percent,
   },
 ];
@@ -93,21 +105,36 @@ const paymentTimingColumns: TableColumnsType<AnalyticsPaymentTiming> = [
   { title: "90th percentile", dataIndex: "p90Hours", render: duration },
 ];
 
-const cartColumns: TableColumnsType<AnalyticsCart> = [
-  { title: "Partner", dataIndex: "companyName" },
+type CartSort = "latest_asc" | "latest_desc" | "days_asc" | "days_desc";
+
+const cartColumns = (sort: CartSort): TableColumnsType<AnalyticsCart> => [
+  {
+    title: "Partner",
+    dataIndex: "companyName",
+    width: "30%",
+    onCell: () => ({ style: { overflowWrap: "anywhere" } }),
+  },
   {
     title: "Latest item addition (WAT)",
     dataIndex: "lastItemAddedAt",
+    width: "24%",
+    key: "latest",
+    sorter: true,
+    sortOrder: sort === "latest_asc" ? "ascend" : sort === "latest_desc" ? "descend" : null,
     render: watTimestamp,
   },
   {
     title: "Days since addition",
     dataIndex: "daysSinceLastAddition",
+    width: "18%",
+    key: "days",
+    sorter: true,
+    sortOrder: sort === "days_asc" ? "ascend" : sort === "days_desc" ? "descend" : null,
     align: "right",
     render: (value: number) => value.toFixed(1),
   },
-  { title: "Matching products", dataIndex: "productCount", align: "right" },
-  { title: "Matching units", dataIndex: "units", align: "right" },
+  { title: "Matching products", dataIndex: "productCount", width: "15%", align: "right" },
+  { title: "Matching units", dataIndex: "units", width: "13%", align: "right" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -124,7 +151,10 @@ interface Props {
   scope: string;
   dimension: "product" | "partner";
   cancellationPage: number;
+  cancellationSort: "cancelled" | "rate";
+  cancellationDirection: "asc" | "desc";
   cartPage: number;
+  cartSort: CartSort;
   update: UpdateSearch;
 }
 
@@ -134,7 +164,10 @@ export default function AnalyticsBehaviourPanel({
   scope,
   dimension,
   cancellationPage,
+  cancellationSort,
+  cancellationDirection,
   cartPage,
+  cartSort,
   update,
 }: Props) {
   const cancellations = useQuery({
@@ -145,23 +178,26 @@ export default function AnalyticsBehaviourPanel({
       params,
       dimension,
       cancellationPage,
+      cancellationSort,
+      cancellationDirection,
     ],
     queryFn: ({ signal }) =>
       getAnalytics<AnalyticsReport<AnalyticsPage<AnalyticsCancellation>>>(
         `cancellations/${dimension}`,
-        { ...params, page: cancellationPage },
+        { ...params, page: cancellationPage, cancellationSort, cancellationDirection },
         signal,
       ),
     staleTime: ANALYTICS_STALE_TIME,
     retry: false,
   });
 
+  const cartOrder = cartSort === "latest_desc" || cartSort === "days_asc" ? "newest" : "oldest";
   const carts = useQuery({
-    queryKey: ["analytics", scope, "cart-snapshot", params, cartPage],
+    queryKey: ["analytics", scope, "cart-snapshot", params, cartPage, cartOrder],
     queryFn: ({ signal }) =>
       getAnalytics<AnalyticsReport<AnalyticsCartSnapshot>>(
         "cart-snapshot",
-        { ...params, page: cartPage },
+        { ...params, page: cartPage, cartOrder },
         signal,
       ),
     staleTime: ANALYTICS_STALE_TIME,
@@ -169,6 +205,8 @@ export default function AnalyticsBehaviourPanel({
   });
 
   const summary = data.summary;
+  const remainingOrders = summary.otherOrders - summary.creditUnpaidOrders -
+    summary.inProgressOrders - summary.approvedOrders - summary.pendingOrders;
   const cartReport = carts.data?.data;
 
   const measuredPayments = data.paymentTiming.reduce(
@@ -202,6 +240,22 @@ export default function AnalyticsBehaviourPanel({
         </StatCard>
 
         <StatCard>
+          <Statistic title="Credit / unpaid" value={summary.creditUnpaidOrders} />
+        </StatCard>
+
+        <StatCard>
+          <Statistic title="In progress" value={summary.inProgressOrders} />
+        </StatCard>
+
+        <StatCard>
+          <Statistic title="Approved" value={summary.approvedOrders} />
+        </StatCard>
+
+        <StatCard>
+          <Statistic title="Pending" value={summary.pendingOrders} />
+        </StatCard>
+
+        <StatCard>
           <Statistic title="Cancelled orders" value={summary.cancelledOrders} />
         </StatCard>
 
@@ -214,8 +268,9 @@ export default function AnalyticsBehaviourPanel({
       </Row>
 
       <Typography.Paragraph type="secondary">
-        {summary.otherOrders.toLocaleString()} orders have another status,
-        including pending, unpaid, in progress or failed. Completed status can
+        Credit / unpaid includes unpaid and partially paid credit orders that
+        are not marked fully paid. {remainingOrders.toLocaleString()} orders have
+        other current statuses, such as failed or shipped. Completed status can
         reflect invoicing or settlement and does not confirm physical delivery.
       </Typography.Paragraph>
 
@@ -231,7 +286,11 @@ export default function AnalyticsBehaviourPanel({
                   otherOrders:
                     point.ordersPlaced -
                     point.completedOrders -
-                    point.cancelledOrders,
+                    point.cancelledOrders -
+                    point.creditUnpaidOrders -
+                    point.inProgressOrders -
+                    point.approvedOrders -
+                    point.pendingOrders,
                 }))}
               >
                 <CartesianGrid strokeDasharray="3 3" />
@@ -251,6 +310,34 @@ export default function AnalyticsBehaviourPanel({
                   dataKey="completedOrders"
                   name="Completed status"
                   fill="#15803d"
+                  isAnimationActive={false}
+                />
+                <Bar
+                  stackId="outcomes"
+                  dataKey="creditUnpaidOrders"
+                  name="Credit / unpaid"
+                  fill="#2563eb"
+                  isAnimationActive={false}
+                />
+                <Bar
+                  stackId="outcomes"
+                  dataKey="inProgressOrders"
+                  name="In progress"
+                  fill="#d97706"
+                  isAnimationActive={false}
+                />
+                <Bar
+                  stackId="outcomes"
+                  dataKey="approvedOrders"
+                  name="Approved"
+                  fill="#7c3aed"
+                  isAnimationActive={false}
+                />
+                <Bar
+                  stackId="outcomes"
+                  dataKey="pendingOrders"
+                  name="Pending"
+                  fill="#ca8a04"
                   isAnimationActive={false}
                 />
                 <Bar
@@ -286,7 +373,9 @@ export default function AnalyticsBehaviourPanel({
         }
       >
         <Typography.Paragraph type="secondary">
-          Groups with cancellations, ordered by cancelled-order count. Each rate
+          Groups with cancellations, ordered by{" "}
+          {cancellationSort === "rate" ? "cancellation rate" : "cancelled-order count"}{" "}
+          ({cancellationDirection === "desc" ? "highest first" : "lowest first"}). Each rate
           compares cancelled orders with all orders in that group under the
           selected filters. One order can contain several products.
         </Typography.Paragraph>
@@ -302,7 +391,20 @@ export default function AnalyticsBehaviourPanel({
           <>
             <Table<AnalyticsCancellation>
               rowKey="id"
-              columns={cancellationColumns(dimension)}
+              columns={cancellationColumns(dimension, cancellationSort, cancellationDirection)}
+              sortDirections={["descend", "ascend", "descend"]}
+              onChange={(_, __, sorter, extra) => {
+                if (extra.action !== "sort") return;
+                const selected = Array.isArray(sorter) ? sorter[0] : sorter;
+                update(
+                  {
+                    cancellationSort: selected.columnKey === "rate" ? "rate" : "cancelled",
+                    cancellationDirection: selected.order === "ascend" ? "asc" : "desc",
+                    cancellationPage: undefined,
+                  },
+                  false,
+                );
+              }}
               dataSource={cancellations.data.data.items}
               pagination={false}
               scroll={{ x: 650 }}
@@ -408,15 +510,25 @@ export default function AnalyticsBehaviourPanel({
 
               <Typography.Paragraph type="secondary">
                 Snapshot generated {watTimestamp(carts.data.generatedAtUtc)}{" "}
-                WAT. Showing potentially abandoned carts, oldest first.
+                WAT. Showing potentially abandoned carts,{" "}
+                {cartOrder === "oldest" ? "oldest first" : "newest first"}.
               </Typography.Paragraph>
 
               <Table<AnalyticsCart>
                 rowKey="cartId"
-                columns={cartColumns}
+                columns={cartColumns(cartSort)}
+                tableLayout="fixed"
+                sortDirections={["descend", "ascend", "descend"]}
+                onChange={(_, __, sorter, extra) => {
+                  if (extra.action !== "sort") return;
+                  const selected = Array.isArray(sorter) ? sorter[0] : sorter;
+                  const column = selected.columnKey === "latest" ? "latest" : "days";
+                  const direction = selected.order === "ascend" ? "asc" : "desc";
+                  update({ cartSort: `${column}_${direction}`, cartPage: undefined }, false);
+                }}
                 dataSource={cartReport.carts.items}
                 pagination={false}
-                scroll={{ x: 750 }}
+                scroll={{ x: 1000 }}
                 locale={{
                   emptyText: "No potentially abandoned carts in this scope",
                 }}

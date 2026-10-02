@@ -516,11 +516,9 @@ export default function AnalyticsExecutivePanel({
           />
 
           <div className="text-xs text-muted-foreground">
-            {data.completedDays} of {data.daysInMonth} days completed. Simple
-            pace projection, not a demand forecast.
+            {data.completedDays} of {data.daysInMonth} days completed. Projected
+            from the daily pace so far, not a fixed target or a demand forecast.
           </div>
-
-          <Tag>Target not set</Tag>
         </Metric>
       </div>
 

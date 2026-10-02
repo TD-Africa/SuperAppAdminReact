@@ -294,6 +294,9 @@ export default function AnalyticsGeographyPanel({
   const { summary, zones, states } = data;
 
   const visibleStates = states.filter((row) => !zone || row.zone === zone);
+  const selectedZone = zones.find((row) => row.key === zone);
+  // Server totals cover the whole selected zone, including states on other pages.
+  const stateTotals = zone ? selectedZone : summary;
   const mappedStates = states.filter((row) => row.key !== "unmapped");
   const growthGroups = buildGrowthGroups(mappedStates);
 
@@ -524,7 +527,9 @@ export default function AnalyticsGeographyPanel({
           category filters apply to order activity; the partner filter applies
           to both activity and the current network. Ordering rate is ordering
           partners divided by registered partners. Sort Registered partners
-          ascending to inspect the smallest networks.
+          ascending to inspect the smallest networks. The total covers all states
+          in the selected zone across every page; value share is relative to all
+          locations under the current filters.
         </Typography.Paragraph>
 
         <Table<AnalyticsRegion>
@@ -532,6 +537,32 @@ export default function AnalyticsGeographyPanel({
           rowKey="key"
           columns={regionColumns("State / FCT", params.sortBy, selectState)}
           dataSource={visibleStates}
+          summary={stateTotals ? () => (
+            <Table.Summary>
+              <Table.Summary.Row className="font-semibold">
+                <Table.Summary.Cell index={0}>
+                  Total
+                  <div className="text-xs font-normal">
+                    {selectedZone?.name ?? "All locations"}
+                  </div>
+                </Table.Summary.Cell>
+                <Table.Summary.Cell index={1} align="right">
+                  {count(stateTotals.orderCount)}
+                </Table.Summary.Cell>
+                <Table.Summary.Cell index={2} align="right">
+                  <MoneyValue naira={stateTotals.revenueNaira} usd={stateTotals.revenueUsd} />
+                </Table.Summary.Cell>
+                <Table.Summary.Cell index={3} />
+                <Table.Summary.Cell index={4} align="right">
+                  {count(stateTotals.registeredPartners)}
+                </Table.Summary.Cell>
+                <Table.Summary.Cell index={5} align="right">
+                  {count(stateTotals.orderingPartners)}
+                </Table.Summary.Cell>
+                <Table.Summary.Cell index={6} />
+              </Table.Summary.Row>
+            </Table.Summary>
+          ) : undefined}
           pagination={{
             pageSize: 10,
             showSizeChanger: false,

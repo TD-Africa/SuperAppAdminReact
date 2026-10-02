@@ -153,6 +153,10 @@ export type UpdateSearch = (
 ) => void;
 
 export interface AnalyticsBehaviourSummary {
+  creditUnpaidOrders: number;
+  inProgressOrders: number;
+  approvedOrders: number;
+  pendingOrders: number;
   ordersPlaced: number;
   completedOrders: number;
   cancelledOrders: number;
@@ -162,6 +166,10 @@ export interface AnalyticsBehaviourSummary {
 }
 
 export interface AnalyticsBehaviourPoint {
+  creditUnpaidOrders: number;
+  inProgressOrders: number;
+  approvedOrders: number;
+  pendingOrders: number;
   periodStart: string;
   ordersPlaced: number;
   completedOrders: number;

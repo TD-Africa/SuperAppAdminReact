@@ -64,6 +64,14 @@ const STOCK_LABELS: Record<AnalyticsProductRow["stockStatus"], string> = {
 
 /** What the bestseller chart plots for each "Rank bestsellers by" choice. */
 const RANKINGS = {
+  ordered_units: {
+    label: "Ordered units",
+    value: (row: AnalyticsProductRow) => row.orderedUnits,
+  },
+  partners: {
+    label: "Buying partners",
+    value: (row: AnalyticsProductRow) => row.orderingPartners,
+  },
   units: {
     label: "Charged units",
     value: (row: AnalyticsProductRow) => row.chargedUnits,
@@ -79,12 +87,15 @@ const RANKINGS = {
 };
 
 const rankingFor = (sort: unknown) =>
-  sort === "revenue" || sort === "orders" ? RANKINGS[sort] : RANKINGS.units;
+  sort === "units" || sort === "orders" || sort === "ordered_units" || sort === "partners"
+    ? RANKINGS[sort] : RANKINGS.revenue;
 
 const RANK_OPTIONS = [
-  { value: "units", label: "Charged units" },
   { value: "revenue", label: "Net order value" },
+  { value: "units", label: "Charged units" },
+  { value: "ordered_units", label: "Ordered units" },
   { value: "orders", label: "Order count" },
+  { value: "partners", label: "Buying partners" },
 ];
 
 const STOCK_VIEW_OPTIONS = [
@@ -119,7 +130,18 @@ function Stock({
 
 function productColumns(
   open: (key: string) => void,
+  view: "performance" | "stock",
+  sort: string,
+  direction: string,
 ): TableColumnsType<AnalyticsProductRow> {
+  const activeKey = view === "stock" && sort === "ordered" ? "ordered_units" : sort;
+  const allowed = view === "performance"
+    ? ["ordered_units", "units", "orders", "partners", "revenue"]
+    : ["ordered_units", "remaining"];
+  const order: "ascend" | "descend" = direction === "asc" ? "ascend" : "descend";
+  const sorting = (key: string) => allowed.includes(key)
+    ? { sorter: true, sortOrder: activeKey === key ? order : null }
+    : {};
   return [
     {
       title: "Product / SKU",
@@ -129,7 +151,7 @@ function productColumns(
         <div>
           <Button
             type="link"
-            className="!h-auto !whitespace-normal !p-0 !text-left"
+            className="!h-auto !whitespace-normal !p-0 !text-left [overflow-wrap:anywhere]"
             onClick={() => open(row.key)}
           >
             {row.name}
@@ -146,36 +168,51 @@ function productColumns(
     {
       title: "Ordered units",
       dataIndex: "orderedUnits",
+      key: "ordered_units",
+      width: 140,
+      ...sorting("ordered_units"),
       align: "right",
       render: count,
     },
     {
       title: "Charged units",
       dataIndex: "chargedUnits",
+      key: "units",
+      width: 140,
+      ...sorting("units"),
       align: "right",
       render: count,
     },
     {
       title: "Free units",
       dataIndex: "freeUnits",
+      width: 100,
       align: "right",
       render: count,
     },
     {
       title: "Orders",
       dataIndex: "orderCount",
+      key: "orders",
+      width: 100,
+      ...sorting("orders"),
       align: "right",
       render: count,
     },
     {
       title: "Buying partners",
       dataIndex: "orderingPartners",
+      key: "partners",
+      width: 160,
+      ...sorting("partners"),
       align: "right",
       render: count,
     },
     {
       title: "Net order value",
       key: "revenue",
+      width: 220,
+      ...sorting("revenue"),
       align: "right",
       render: (_, row) => (
         <MoneyValue naira={row.revenueNaira} usd={row.revenueUsd} />
@@ -183,13 +220,16 @@ function productColumns(
     },
     {
       title: "Remaining stock",
-      key: "stock",
+      key: "remaining",
+      width: 200,
+      ...sorting("remaining"),
       align: "right",
       render: (_, row) => <Stock row={row} />,
     },
     {
       title: "Last order in window",
       dataIndex: "lastOrderedAt",
+      width: 190,
       render: (value: string | null) =>
         value ? watTimestamp(value) : "No orders",
     },
@@ -519,7 +559,14 @@ export default function AnalyticsProductsPanel({
   const stockObservedAt =
     stockPage === 1 ? generatedAt : stock.data?.generatedAtUtc;
 
-  const ranking = rankingFor(params.productSort);
+  const productSort = String(params.productSort ?? "revenue");
+  const productDirection = String(params.productDirection ?? "desc");
+  const stockSort = String(params.stockSort ?? "ordered");
+  const stockDirection = String(params.stockDirection ?? "asc");
+  const ranking = rankingFor(productSort);
+
+  const changeRanking = (sort: string, direction = "desc") =>
+    update({ productSort: sort, productDirection: direction, productPage: undefined }, false);
 
   const open = (key: string) => update({ skuDetail: key }, false);
 
@@ -553,7 +600,7 @@ export default function AnalyticsProductsPanel({
     return (
       <>
         <Typography.Paragraph type="secondary">
-          First 10 SKUs on this page · current ranking
+          First 10 SKUs on this page · {ranking.label} · {productDirection === "asc" ? "lowest first" : "highest first"}
         </Typography.Paragraph>
 
         <ComparisonBars
@@ -564,10 +611,17 @@ export default function AnalyticsProductsPanel({
 
         <Table<AnalyticsProductRow>
           rowKey="key"
-          columns={productColumns(open)}
+          columns={productColumns(open, "performance", productSort, productDirection)}
+          tableLayout="fixed"
+          sortDirections={["descend", "ascend", "descend"]}
+          onChange={(_, __, sorter, extra) => {
+            if (extra.action !== "sort") return;
+            const selected = Array.isArray(sorter) ? sorter[0] : sorter;
+            changeRanking(String(selected.columnKey ?? "revenue"), selected.order === "ascend" ? "asc" : "desc");
+          }}
           dataSource={performanceData.items}
           pagination={false}
-          scroll={{ x: 1400 }}
+          scroll={{ x: 1520 }}
           locale={{ emptyText: "No eligible SKU orders under these filters" }}
         />
 
@@ -616,10 +670,21 @@ export default function AnalyticsProductsPanel({
 
         <Table<AnalyticsProductRow>
           rowKey="key"
-          columns={productColumns(open)}
+          columns={productColumns(open, "stock", stockSort, stockDirection)}
+          tableLayout="fixed"
+          sortDirections={["descend", "ascend", "descend"]}
+          onChange={(_, __, sorter, extra) => {
+            if (extra.action !== "sort") return;
+            const selected = Array.isArray(sorter) ? sorter[0] : sorter;
+            update({
+              stockSort: selected.columnKey === "remaining" ? "remaining" : "ordered",
+              stockDirection: selected.order === "ascend" ? "asc" : "desc",
+              stockPage: undefined,
+            }, false);
+          }}
           dataSource={stockData.items}
           pagination={false}
-          scroll={{ x: 1400 }}
+          scroll={{ x: 1520 }}
           locale={{ emptyText: "No stocked SKUs match this view" }}
         />
 
@@ -712,9 +777,9 @@ export default function AnalyticsProductsPanel({
             <Select
               aria-label="SKU ranking"
               className="w-full"
-              value={params.productSort}
+              value={productSort}
               onChange={(value) =>
-                changeFilters({ productSort: String(value) })
+                changeRanking(String(value))
               }
               options={RANK_OPTIONS}
             />
@@ -765,8 +830,9 @@ export default function AnalyticsProductsPanel({
       {/* Stock */}
       <Card title="Ordered units versus remaining stock">
         <Typography.Paragraph type="secondary">
-          Stocked SKUs with the fewest ordered units appear first, then the
-          largest remaining balances. This compares orders in the selected
+          Stocked SKUs are sorted by {stockSort === "remaining" ? "remaining stock" : "ordered units"},{" "}
+          {stockDirection === "asc" ? "lowest first" : "highest first"}.
+          Equal values use remaining stock, highest first. This compares orders in the selected
           window with current recorded stock. It does not measure inventory age
           or sell-through. Date and partner filters affect orders; stock is the
           warehouse balance, not a partner allocation.

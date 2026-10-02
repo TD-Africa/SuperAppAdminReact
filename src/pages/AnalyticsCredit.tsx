@@ -738,7 +738,7 @@ export default function AnalyticsCreditPanel({
       </div>
 
       {/* Payment mix */}
-      <Card title="Credit versus instant payment">
+      <Card title="Orders by payment method">
         <Typography.Paragraph type="secondary">
           Payment method is the recorded checkout selection. Credit orders can
           include an upfront payment. POA is an overlapping flag, not another

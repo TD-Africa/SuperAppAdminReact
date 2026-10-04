@@ -1,8 +1,8 @@
-import { useQuery } from "@tanstack/react-query";
-import { Modal, Descriptions, Tag, Skeleton, Alert } from "antd";
-import { apiGet, API_ORIGIN } from "@/lib/api";
+import { API_ORIGIN, apiGet } from "@/lib/api";
 import type { WorkerSalesStats } from "@/lib/types";
 import { formatCurrency, formatDate, formatNumber } from "@/lib/utils";
+import { useQuery } from "@tanstack/react-query";
+import { Alert, Descriptions, Modal, Skeleton, Tag } from "antd";
 
 interface WorkerDetailModalProps {
   referralId: string | null;

@@ -59,6 +59,15 @@ import {
 // Coupons live under the bare `/api/...` route, not the versioned `/api/v1/` base.
 const COUPON_BASE = `${API_ORIGIN}/api/Coupon`;
 
+// A null maxRedemptions means no cap, so spell that out rather than printing the
+// bare count — "1" next to a capped coupon's "4 / 4" reads like a cap of its own.
+function formatRedemptions(c: CouponResponse) {
+  const used = c.redemptionCount ?? 0;
+  return c.maxRedemptions != null
+    ? `${used} of ${c.maxRedemptions} used`
+    : `${used} used · no limit`;
+}
+
 export default function CouponsPage() {
   const queryClient = useQueryClient();
   const { message } = AntdApp.useApp();
@@ -140,9 +149,8 @@ export default function CouponsPage() {
       key: "redemptions",
       align: "right",
       render: (_, r) => (
-        <span className="text-xs text-muted-foreground">
-          {r.redemptionCount}
-          {r.maxRedemptions != null ? ` / ${r.maxRedemptions}` : ""}
+        <span className="whitespace-nowrap text-xs text-muted-foreground">
+          {formatRedemptions(r)}
         </span>
       ),
     },
@@ -1012,8 +1020,7 @@ function DetailCouponModal({
               {data.validUntil ? formatDate(data.validUntil) : "—"}
             </Descriptions.Item>
             <Descriptions.Item label="Redemptions">
-              {data.redemptionCount}
-              {data.maxRedemptions != null ? ` / ${data.maxRedemptions}` : " (unlimited)"}
+              {formatRedemptions(data)}
             </Descriptions.Item>
           </Descriptions>
 

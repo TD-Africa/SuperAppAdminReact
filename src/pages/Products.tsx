@@ -24,6 +24,7 @@ import {
 } from "@ant-design/icons";
 import { apiGet, apiPatch, apiPut, apiPost, API_BASE_URL, API_ORIGIN } from "@/lib/api";
 import type {
+  EditProductRequest,
   LocationWithQuantityResponse,
   PaginationResponse,
   ProductReturnDto,
@@ -31,22 +32,10 @@ import type {
 import { Permission } from "@/lib/permissions";
 import { useAuthStore } from "@/stores/auth";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { formatCurrency, formatNumber } from "@/lib/utils";
+import { formatCategory, formatCurrency, formatNumber } from "@/lib/utils";
 import { ProductDetailModal } from "@/components/products/ProductDetailModal";
 
 const ALL = "__all__";
-
-// The flags EditProduct can patch, mapped from the PascalCase name the request
-// body uses to the camelCase key the same flag arrives under in the list
-// response. EditProductRequest is deserialized case-insensitively, so the
-// PascalCase keys are what the existing calls already send.
-const TOGGLE_FIELDS = {
-  IsActive: "isActive",
-  IsFeaturedProduct: "isFeaturedProduct",
-  IsDollarPurchasable: "isDollarPurchasable",
-} as const;
-
-type ToggleField = keyof typeof TOGGLE_FIELDS;
 
 const warehouseBreakdownColumns: TableColumnsType<LocationWithQuantityResponse> = [
   {
@@ -168,18 +157,22 @@ export default function ProductsPage() {
     },
   });
 
-  async function toggleField(id: string, field: ToggleField, value: boolean) {
-    const key = TOGGLE_FIELDS[field];
+  // `body` is what gets sent, and `patch` is the same change applied to the
+  // cached row straight away. EditProduct only returns a boolean, so the row
+  // stays on this optimistic value until the next refetch.
+  async function editProduct(
+    id: string,
+    body: EditProductRequest,
+    patch: Partial<ProductReturnDto>,
+  ) {
     const prev = queryClient.getQueryData<PaginationResponse<ProductReturnDto>>(queryKey);
     if (prev?.data) {
       queryClient.setQueryData<PaginationResponse<ProductReturnDto>>(queryKey, {
         ...prev,
-        data: prev.data.map((p) => (p.id === id ? { ...p, [key]: value } : p)),
+        data: prev.data.map((p) => (p.id === id ? { ...p, ...patch } : p)),
       });
     }
-    const res = await apiPatch<boolean>(`product/editProduct/${id}`, {
-      [field]: value,
-    });
+    const res = await apiPatch<boolean>(`product/editProduct/${id}`, body);
     if (!res.status) {
       message.error(res.message ?? "Update failed");
       queryClient.setQueryData(queryKey, prev);
@@ -340,7 +333,7 @@ export default function ProductsPage() {
         <div className="max-w-[260px]">
           <div className="truncate font-medium">{v}</div>
           <div className="truncate text-xs text-muted-foreground">
-            {r.category ?? "—"}
+            {formatCategory(r.category)}
           </div>
         </div>
       ),
@@ -377,17 +370,61 @@ export default function ProductsPage() {
       render: (v: boolean) => <Tag color={v ? "blue" : "default"}>{v ? "Yes" : "No"}</Tag>,
     },
     {
-      title: "Active",
-      dataIndex: "isActive",
-      render: (v: boolean, r) => (
-        <Switch checked={v} disabled={!canEdit} onChange={(val) => toggleField(r.id, "IsActive", val)} />
+      title: (
+        <Tooltip title="Active status from Dynamics. The catalog sync overwrites it every 20 minutes, so to take a product off sale use Admin disabled.">
+          <span>Active</span>
+        </Tooltip>
       ),
+      dataIndex: "isActive",
+      render: (v: boolean, r) =>
+        // Read-only when the API returns `adminDisabled`: an `isActive` edit
+        // would be reverted by the next sync. Without that field (prod today),
+        // keep the old switch, since the older backend maps `IsActive` onto
+        // the admin flag.
+        r.adminDisabled !== undefined ? (
+          <Tag color={v ? "success" : "default"}>{v ? "Active" : "Inactive"}</Tag>
+        ) : (
+          <Switch
+            checked={v}
+            disabled={!canEdit}
+            onChange={(val) => editProduct(r.id, { IsActive: val }, { isActive: val })}
+          />
+        ),
+    },
+    {
+      title: (
+        <Tooltip title="Switch on to take the product off sale. The catalog sync doesn't change this, so it stays off until you switch it back. A product is live only when it is Active and not Admin disabled.">
+          <span>Admin disabled</span>
+        </Tooltip>
+      ),
+      dataIndex: "adminDisabled",
+      width: 110,
+      render: (v: boolean | undefined, r) =>
+        v === undefined ? (
+          <Tooltip title="Not returned by this API yet.">
+            <span className="text-muted-foreground">—</span>
+          </Tooltip>
+        ) : (
+          <Switch
+            checked={v}
+            disabled={!canEdit}
+            onChange={(val) =>
+              editProduct(r.id, { AdminDisabled: val }, { adminDisabled: val })
+            }
+          />
+        ),
     },
     {
       title: "Featured",
       dataIndex: "isFeaturedProduct",
       render: (v: boolean, r) => (
-        <Switch checked={v} disabled={!canEdit} onChange={(val) => toggleField(r.id, "IsFeaturedProduct", val)} />
+        <Switch
+          checked={v}
+          disabled={!canEdit}
+          onChange={(val) =>
+            editProduct(r.id, { IsFeaturedProduct: val }, { isFeaturedProduct: val })
+          }
+        />
       ),
     },
     {
@@ -399,18 +436,14 @@ export default function ProductsPage() {
       dataIndex: "isDollarPurchasable",
       width: 100,
       render: (v: boolean | undefined, r) => {
-        // The catalog response doesn't carry this flag yet, so on a freshly
-        // loaded page every row is `undefined` — unknown, not off. Say that
-        // rather than letting an off-looking switch pass for the real value.
-        // Toggling still saves, and the optimistic write makes the row known
-        // from then on. Once the API returns the field this branch stops
-        // firing on its own.
+        // Both APIs return this flag now. The `undefined` branch only covers a
+        // deploy that predates it, so an unknown value isn't shown as "off".
         const unknown = v === undefined;
         return (
           <Tooltip
             title={
               unknown
-                ? "Current value isn't returned by the catalog API yet. Toggling saves the new value."
+                ? "The API didn't return the current value. Toggling saves the new value."
                 : undefined
             }
           >
@@ -418,12 +451,26 @@ export default function ProductsPage() {
               <Switch
                 checked={v ?? false}
                 disabled={!canEdit}
-                onChange={(val) => toggleField(r.id, "IsDollarPurchasable", val)}
+                onChange={(val) =>
+                  editProduct(r.id, { IsDollarPurchasable: val }, { isDollarPurchasable: val })
+                }
               />
             </span>
           </Tooltip>
         );
       },
+    },
+    {
+      title: (
+        <Tooltip title="Minimum order quantity. Edit it from the product's detail view.">
+          <span>MOQ</span>
+        </Tooltip>
+      ),
+      dataIndex: "minOrderQuantity",
+      align: "right",
+      width: 80,
+      // Blank for "no minimum" (0) and for an API that doesn't return the field.
+      render: (v: number | undefined) => (v ? formatNumber(v) : "—"),
     },
     {
       title: "",

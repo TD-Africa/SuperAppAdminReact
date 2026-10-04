@@ -12,6 +12,7 @@ function LegacyCommissionDetailRedirect() {
   return <Navigate to={brandId ? `/franchise-brands/${brandId}` : "/franchise-brands"} replace />;
 }
 const DashboardPage = lazy(() => import("@/pages/Dashboard"));
+const AnalyticsPage = lazy(() => import("@/pages/Analytics"));
 const ProductsPage = lazy(() => import("@/pages/Products"));
 const FranchiseProductsPage = lazy(() => import("@/pages/FranchiseProducts"));
 const OrdersPage = lazy(() => import("@/pages/Orders"));
@@ -128,6 +129,14 @@ export const router = createBrowserRouter([
         ),
       },
       { path: "forbidden", element: withSuspense(<ForbiddenPage />) },
+      {
+        path: "analytics",
+        element: (
+          <ProtectedRoute permission={Permission.CanViewAnalytics}>
+            {withSuspense(<AnalyticsPage />)}
+          </ProtectedRoute>
+        ),
+      },
       {
         path: "products",
         element: (

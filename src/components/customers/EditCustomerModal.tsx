@@ -9,6 +9,7 @@ import {
   App as AntdApp,
   Tag,
   Button,
+  Select,
   Space,
 } from "antd";
 import { ApiOutlined } from "@ant-design/icons";
@@ -17,7 +18,9 @@ import type {
   CustomerResponse,
   EditCustomerRequest,
   LocationReturnDTO,
+  UserStatus,
 } from "@/lib/types";
+import { UserStatusValues } from "@/lib/types";
 import { formatCurrency, formatDate, formatNumber } from "@/lib/utils";
 import { MultiSelect } from "@/components/MultiSelect";
 import { DynamicsLinkModal } from "@/components/customers/DynamicsLinkModal";
@@ -50,6 +53,7 @@ interface FormState {
   state: string;
   enableCreditTransactions: boolean;
   locationIds: string[];
+  userStatus: UserStatus;
 }
 
 function fromCustomer(c: CustomerResponse): FormState {
@@ -65,6 +69,7 @@ function fromCustomer(c: CustomerResponse): FormState {
     state: c.state ?? "",
     enableCreditTransactions: c.isCreditTransactionEnabled,
     locationIds: c.userWarehouses?.map((w) => w.id) ?? [],
+    userStatus: c.userStatus,
   };
 }
 
@@ -89,6 +94,9 @@ function diffPayload(state: FormState, initial: FormState): EditCustomerRequest 
   });
   if (state.enableCreditTransactions !== initial.enableCreditTransactions) {
     payload.enableCreditTransactions = state.enableCreditTransactions;
+  }
+  if (state.userStatus !== initial.userStatus) {
+    payload.userStatus = state.userStatus;
   }
   const a = [...state.locationIds].sort();
   const b = [...initial.locationIds].sort();
@@ -408,6 +416,20 @@ export function EditCustomerModal({
             <section>
               <SectionLabel>Access &amp; credit</SectionLabel>
               <div className="space-y-4">
+                <Form.Item
+                  className="!mb-0"
+                  label="Account status"
+                  tooltip="Changing this can suspend or reactivate the account."
+                >
+                  <Select
+                    value={state.userStatus}
+                    onChange={(v) => update("userStatus", v)}
+                    options={UserStatusValues.map((s) => ({
+                      value: s,
+                      label: s,
+                    }))}
+                  />
+                </Form.Item>
                 <Form.Item className="!mb-0" label="Warehouses">
                   {loadingWarehouses ? (
                     <Skeleton active paragraph={{ rows: 2 }} title={false} />

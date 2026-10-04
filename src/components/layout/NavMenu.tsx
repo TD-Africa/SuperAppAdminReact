@@ -29,6 +29,8 @@ import {
   LockOutlined,
   DollarOutlined,
   AuditOutlined,
+  HistoryOutlined,
+  CarOutlined,
 } from "@ant-design/icons";
 import { useAuthStore } from "@/stores/auth";
 import { Permission } from "@/lib/permissions";
@@ -77,6 +79,30 @@ const NAV_TREE: NavNode[] = [
       { type: "leaf", to: "/brand-restrictions", label: "Restrictions", icon: <LockOutlined />, permission: Permission.CanViewBrands },
     ],
   },
+  {
+    type: "group",
+    key: "storefront",
+    label: "Storefront",
+    icon: <ShopOutlined />,
+    children: [
+      { type: "leaf", to: "/storefront-dashboard", label: "Dashboard", icon: <DashboardOutlined />, permission: Permission.CanViewDashboard },
+      { type: "leaf", to: "/franchise-products", label: "Products", icon: <AppstoreOutlined />, permission: Permission.CanViewProducts },
+      { type: "leaf", to: "/franchise-orders", label: "Orders", icon: <ShoppingCartOutlined />, permission: Permission.CanViewOrders },
+      { type: "leaf", to: "/storefront-shipping", label: "Shipping", icon: <CarOutlined />, permission: Permission.CanViewDeliveryMethod },
+      { type: "leaf", to: "/storefront-shipping-wallet", label: "Shipping Wallet", icon: <WalletOutlined />, permission: Permission.CanViewDeliveryMethod },
+      { type: "leaf", to: "/storefront-commissions", label: "Commissions", icon: <PercentageOutlined />, permission: Permission.CanChangeSettings },
+      { type: "leaf", to: "/storefront-promotions", label: "Promotions", icon: <PercentageOutlined />, permission: Permission.CanViewPromos },
+      { type: "leaf", to: "/franchise-brands", label: "Brands", icon: <ShopOutlined />, permission: Permission.CanViewBrands },
+      { type: "leaf", to: "/franchise-categories", label: "Categories", icon: <TagsOutlined />, permission: Permission.CanViewBrands },
+      { type: "leaf", to: "/franchise-store-owner-invites", label: "Owner Invites", icon: <MailOutlined />, permission: Permission.CanViewUser },
+      { type: "leaf", to: "/franchise-store-owners", label: "Store Owners", icon: <TeamOutlined />, permission: Permission.CanViewUser },
+      { type: "leaf", to: "/franchise-superadmin-wallet", label: "Settlement Wallet", icon: <AccountBookOutlined />, permission: Permission.CanViewUser },
+      // { type: "leaf", to: "/franchise-oem-wallet-transactions", label: "OEM Wallet Transactions", icon: <WalletOutlined />, permission: Permission.CanViewUser },
+      { type: "leaf", to: "/settlement-recovery", label: "Settlement Recovery", icon: <HistoryOutlined />, permission: Permission.CanViewUser },
+      { type: "leaf", to: "/storefront-coupon-requests", label: "Coupon Requests", icon: <GiftOutlined />, permission: Permission.CanViewPromos },
+      { type: "leaf", to: "/storefront-tickets", label: "Tickets", icon: <CustomerServiceOutlined />, permission: Permission.CanViewTicket },
+    ],
+  },
   { type: "leaf", to: "/deals", label: "Deals", icon: <TagsOutlined />, permission: Permission.CanManageDeals },
   { type: "leaf", to: "/warehouses", label: "Warehouses", icon: <ContainerOutlined />, permission: Permission.CanViewWarehouses },
   { type: "leaf", to: "/tickets", label: "Tickets", icon: <CustomerServiceOutlined />, permission: Permission.CanViewTicket },
@@ -89,6 +115,20 @@ const NAV_TREE: NavNode[] = [
   { type: "leaf", to: "/exchange-rates", label: "Exchange Rates", icon: <DollarOutlined />, permission: Permission.ManageExchangeRate },
   { type: "leaf", to: "/audit-trail", label: "Audit Trail", icon: <AuditOutlined />, permission: Permission.CanViewAuditTrail },
 ];
+
+// Storefront-related paths for reference
+// const STOREFRONT_PATHS = [
+//   "/franchise-products",
+//   "/franchise-orders",
+//   "/franchise-brands",
+//   "/franchise-categories",
+//   "/franchise-store-owner-invites",
+//   "/franchise-store-owners",
+//   "/franchise-superadmin-wallet",
+//   "/settlement-recovery",
+//   "/storefront-coupon-requests",
+//   "/storefront-tickets",
+// ];
 
 function collectLeaves(nodes: NavNode[]): NavLeaf[] {
   return nodes.flatMap((node) => (node.type === "leaf" ? [node] : node.children));

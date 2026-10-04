@@ -1,16 +1,43 @@
-import { lazy, Suspense } from "react";
-import { Navigate, createBrowserRouter } from "react-router-dom";
-import { Skeleton, Card, Row, Col } from "antd";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { Permission } from "@/lib/permissions";
+import { Card, Col, Row, Skeleton } from "antd";
+import { lazy, Suspense } from "react";
+import { createBrowserRouter, Navigate, useParams } from "react-router-dom";
 
 const LoginPage = lazy(() => import("@/pages/Login"));
+
+function LegacyCommissionDetailRedirect() {
+  const { brandId } = useParams();
+  return <Navigate to={brandId ? `/franchise-brands/${brandId}` : "/franchise-brands"} replace />;
+}
 const DashboardPage = lazy(() => import("@/pages/Dashboard"));
 const AnalyticsPage = lazy(() => import("@/pages/Analytics"));
 const ProductsPage = lazy(() => import("@/pages/Products"));
+const FranchiseProductsPage = lazy(() => import("@/pages/FranchiseProducts"));
 const OrdersPage = lazy(() => import("@/pages/Orders"));
+const FranchiseOrdersPage = lazy(() => import("@/pages/FranchiseOrders"));
 const BrandsPage = lazy(() => import("@/pages/Brands"));
+const FranchiseBrandsPage = lazy(() => import("@/pages/FranchiseBrands"));
+const FranchiseBrandDetailPage = lazy(() => import("@/pages/FranchiseBrandDetail"));
+const FranchiseCategoriesPage = lazy(() => import("@/pages/FranchiseCategories"));
+const FranchiseCategoryDetailPage = lazy(() => import("@/pages/FranchiseCategoryDetail"));
+const FranchiseStoreOwnerInvitesPage = lazy(() => import("@/pages/FranchiseStoreOwnerInvites"));
+const FranchiseStoreOwnersPage = lazy(() => import("@/pages/FranchiseStoreOwners"));
+const FranchiseStoreOwnerDetailPage = lazy(() => import("@/pages/FranchiseStoreOwnerDetail"));
+const FranchisePayoutsPage = lazy(() => import("@/pages/FranchisePayouts"));
+const FranchiseSuperAdminWalletPage = lazy(() => import("@/pages/FranchiseSuperAdminWallet"));
+const FranchiseOemWalletTransactionsPage = lazy(() => import("@/pages/FranchiseOemWalletTransactions"));
+const SettlementRecoveryPage = lazy(() => import("@/pages/SettlementRecovery"));
+const StorefrontCouponRequestsPage = lazy(() => import("@/pages/StorefrontCouponRequests"));
+const StorefrontTicketsPage = lazy(() => import("@/pages/StorefrontTickets"));
+const StorefrontDashboardPage = lazy(() => import("@/pages/StorefrontDashboard"));
+const StorefrontShippingPage = lazy(() => import("@/pages/StorefrontShipping"));
+const StorefrontShippingWalletPage = lazy(
+  () => import("@/pages/StorefrontShippingWallet"),
+);
+const StorefrontPromotionsPage = lazy(() => import("@/pages/StorefrontPromotions"));
+const StorefrontCommissionsPage = lazy(() => import("@/pages/StorefrontCommissions"));
 const BrandRestrictionsPage = lazy(() => import("@/pages/BrandRestrictions"));
 const WarehousesPage = lazy(() => import("@/pages/Warehouses"));
 const TicketsPage = lazy(() => import("@/pages/Tickets"));
@@ -119,10 +146,26 @@ export const router = createBrowserRouter([
         ),
       },
       {
+        path: "franchise-products",
+        element: (
+          <ProtectedRoute permission={Permission.CanViewProducts}>
+            {withSuspense(<FranchiseProductsPage />)}
+          </ProtectedRoute>
+        ),
+      },
+      {
         path: "orders",
         element: (
           <ProtectedRoute permission={Permission.CanViewOrders}>
             {withSuspense(<OrdersPage />)}
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "franchise-orders",
+        element: (
+          <ProtectedRoute permission={Permission.CanViewOrders}>
+            {withSuspense(<FranchiseOrdersPage />)}
           </ProtectedRoute>
         ),
       },
@@ -214,12 +257,164 @@ export const router = createBrowserRouter([
         ),
       },
       {
+        path: "franchise-brands",
+        element: (
+          <ProtectedRoute permission={Permission.CanViewBrands}>
+            {withSuspense(<FranchiseBrandsPage />)}
+          </ProtectedRoute>
+        ),
+      },
+      {
         path: "brand-restrictions",
         element: (
           <ProtectedRoute permission={Permission.CanViewBrands}>
             {withSuspense(<BrandRestrictionsPage />)}
           </ProtectedRoute>
         ),
+      },
+      {
+        path: "franchise-brands/:storefrontBrandId",
+        element: (
+          <ProtectedRoute permission={Permission.CanViewBrands}>
+            {withSuspense(<FranchiseBrandDetailPage />)}
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "franchise-categories",
+        element: (
+          <ProtectedRoute permission={Permission.CanViewBrands}>
+            {withSuspense(<FranchiseCategoriesPage />)}
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "franchise-categories/:storefrontCategoryId",
+        element: (
+          <ProtectedRoute permission={Permission.CanViewBrands}>
+            {withSuspense(<FranchiseCategoryDetailPage />)}
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "franchise-store-owner-invites",
+        element: (
+          <ProtectedRoute permission={Permission.CanViewUser}>
+            {withSuspense(<FranchiseStoreOwnerInvitesPage />)}
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "franchise-store-owners",
+        element: (
+          <ProtectedRoute permission={Permission.CanViewUser}>
+            {withSuspense(<FranchiseStoreOwnersPage />)}
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "franchise-store-owners/:storeOwnerId",
+        element: (
+          <ProtectedRoute permission={Permission.CanViewUser}>
+            {withSuspense(<FranchiseStoreOwnerDetailPage />)}
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "franchise-payouts",
+        element: (
+          <ProtectedRoute permission={Permission.CanViewUser}>
+            {withSuspense(<FranchisePayoutsPage />)}
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "franchise-superadmin-wallet",
+        element: (
+          <ProtectedRoute permission={Permission.CanViewUser}>
+            {withSuspense(<FranchiseSuperAdminWalletPage />)}
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "franchise-oem-wallet-transactions",
+        element: (
+          <ProtectedRoute permission={Permission.CanViewUser}>
+            {withSuspense(<FranchiseOemWalletTransactionsPage />)}
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "settlement-recovery",
+        element: (
+          <ProtectedRoute permission={Permission.CanViewUser}>
+            {withSuspense(<SettlementRecoveryPage />)}
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "storefront-coupon-requests",
+        element: (
+          <ProtectedRoute permission={Permission.CanViewPromos}>
+            {withSuspense(<StorefrontCouponRequestsPage />)}
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "storefront-tickets",
+        element: (
+          <ProtectedRoute permission={Permission.CanViewTicket}>
+            {withSuspense(<StorefrontTicketsPage />)}
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "storefront-dashboard",
+        element: (
+          <ProtectedRoute permission={Permission.CanViewDashboard}>
+            {withSuspense(<StorefrontDashboardPage />)}
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "storefront-shipping",
+        element: (
+          <ProtectedRoute permission={Permission.CanViewDeliveryMethod}>
+            {withSuspense(<StorefrontShippingPage />)}
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "storefront-shipping-wallet",
+        element: (
+          <ProtectedRoute permission={Permission.CanViewDeliveryMethod}>
+            {withSuspense(<StorefrontShippingWalletPage />)}
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "storefront-promotions",
+        element: (
+          <ProtectedRoute permission={Permission.CanViewPromos}>
+            {withSuspense(<StorefrontPromotionsPage />)}
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "storefront-commissions",
+        element: (
+          <ProtectedRoute permission={Permission.CanChangeSettings}>
+            {withSuspense(<StorefrontCommissionsPage />)}
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "franchise-brand-commissions",
+        element: <Navigate to="/franchise-brands" replace />,
+      },
+      {
+        path: "franchise-brand-commissions/:brandId",
+        element: <LegacyCommissionDetailRedirect />,
       },
       {
         path: "deals",

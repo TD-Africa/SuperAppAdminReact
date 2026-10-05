@@ -26,6 +26,7 @@ import type {
 } from "@/lib/types";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { DebtCollectionDetailModal } from "@/components/debt/DebtCollectionDetailModal";
+import { SettlementSweepCard } from "@/components/debt/SettlementSweepCard";
 
 export default function DebtCollectionPage() {
   const { message } = AntdApp.useApp();
@@ -254,6 +255,8 @@ export default function DebtCollectionPage() {
           </Card>
         </Col>
       </Row>
+
+      <SettlementSweepCard onOrdersChanged={() => refetch()} />
 
       <Card styles={{ body: { padding: 0 } }}>
         <Table<AlmostDueOrderResponse>

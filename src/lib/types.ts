@@ -811,6 +811,30 @@ export interface DebtCollectionSummaryResponse {
   overdueOrders: number;
 }
 
+// Mirror of TDSuperApp.DTOs.Response.SettlementDiscrepancy — an order D365 reports
+// as fully settled, but for an amount that disagrees with SuperApp's expected charge.
+// The sweep never closes these.
+export interface SettlementDiscrepancy {
+  orderId: string;
+  orderReference: string | null;
+  companyName: string | null;
+  dynamicsId: string | null;
+  detail: string | null;
+}
+
+// Mirror of TDSuperApp.DTOs.Response.OrderSettlementSweepResult
+export interface OrderSettlementSweepResult {
+  dryRun: boolean;
+  ordersExamined: number;
+  salesOrdersQueried: number;
+  batchesFailed: number;
+  ordersClosed: number;
+  ordersStillOutstanding: number;
+  ordersUnmatched: number;
+  ordersSkipped: number;
+  discrepancies: SettlementDiscrepancy[] | null;
+}
+
 // ---- Abandoned cart ----
 export interface CartProductDTO {
   productId: string;

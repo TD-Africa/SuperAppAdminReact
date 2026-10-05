@@ -22,7 +22,7 @@ import {
   Typography,
 } from "antd";
 import type { TableColumnsType } from "antd";
-import { ArrowLeftOutlined, DeleteOutlined, EditOutlined } from "@ant-design/icons";
+import { ArrowLeftOutlined, DeleteOutlined, EditOutlined, SettingOutlined } from "@ant-design/icons";
 import {
   deleteStorefrontBrand,
   getProductStorefrontPricing,
@@ -446,12 +446,25 @@ export default function FranchiseBrandDetailPage() {
       </div>
 
       <div>
-        <Typography.Title level={3} className="!m-0">
-          {brand.name} — storefront margin
-        </Typography.Title>
-        <Typography.Text type="secondary">
-          Brand default margin applies to products without a product-level override.
-        </Typography.Text>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <Typography.Title level={3} className="!m-0">
+              {brand.name} — storefront margin
+            </Typography.Title>
+            <Typography.Text type="secondary">
+              Brand default margin applies to products without an override.
+            </Typography.Text>
+          </div>
+          {canEdit && storefrontBrandId ? (
+            <Button
+              type="default"
+              icon={<SettingOutlined />}
+              onClick={() => navigate(`/franchise-brands/${storefrontBrandId}/theme`)}
+            >
+              Theme design
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       <Card title="Brand margin settings">

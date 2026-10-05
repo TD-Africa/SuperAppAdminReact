@@ -69,10 +69,10 @@ export default function StorefrontCommissionsPage() {
     <div className="space-y-6">
       <div>
         <Typography.Title level={3} className="!m-0">
-          Storefront Commissions
+          Founder Franchise Margin
         </Typography.Title>
         <Typography.Text type="secondary">
-          Configure the Global store front commission percentage applied to storefront orders.
+          Configure the Founder Franchise Margin percentage applied to franchise orders.
         </Typography.Text>
       </div>
 

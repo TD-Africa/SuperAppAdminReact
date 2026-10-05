@@ -32,6 +32,8 @@ import {
   HistoryOutlined,
   CarOutlined,
   SoundOutlined,
+  ApiOutlined,
+  VerifiedOutlined,
 } from "@ant-design/icons";
 import { useAuthStore } from "@/stores/auth";
 import { Permission } from "@/lib/permissions";
@@ -74,9 +76,9 @@ const NAV_TREE: NavNode[] = [
     type: "group",
     key: "brands",
     label: "Brands",
-    icon: <ShopOutlined />,
+    icon: <VerifiedOutlined />,
     children: [
-      { type: "leaf", to: "/brands", label: "All Brands", icon: <ShopOutlined />, permission: Permission.CanViewBrands },
+      { type: "leaf", to: "/brands", label: "All Brands", icon: <VerifiedOutlined />, permission: Permission.CanViewBrands },
       { type: "leaf", to: "/brand-restrictions", label: "Restrictions", icon: <LockOutlined />, permission: Permission.CanViewBrands },
     ],
   },
@@ -93,7 +95,7 @@ const NAV_TREE: NavNode[] = [
       { type: "leaf", to: "/storefront-shipping-wallet", label: "Shipping Wallet", icon: <WalletOutlined />, permission: Permission.CanViewDeliveryMethod },
       { type: "leaf", to: "/storefront-commissions", label: "Commissions", icon: <PercentageOutlined />, permission: Permission.CanChangeSettings },
       { type: "leaf", to: "/storefront-promotions", label: "Promotions", icon: <SoundOutlined />, permission: Permission.CanViewPromos },
-      { type: "leaf", to: "/franchise-brands", label: "Brands", icon: <ShopOutlined />, permission: Permission.CanViewBrands },
+      { type: "leaf", to: "/franchise-brands", label: "Brands", icon: <VerifiedOutlined />, permission: Permission.CanViewBrands },
       { type: "leaf", to: "/franchise-categories", label: "Categories", icon: <TagsOutlined />, permission: Permission.CanViewBrands },
       { type: "leaf", to: "/franchise-brand-themes", label: "Brand Themes", icon: <SettingOutlined />, permission: Permission.CanEditBrands },
       { type: "leaf", to: "/franchise-store-owner-invites", label: "Owner Invites", icon: <MailOutlined />, permission: Permission.CanViewUser },
@@ -107,6 +109,7 @@ const NAV_TREE: NavNode[] = [
   },
   { type: "leaf", to: "/deals", label: "Deals", icon: <TagsOutlined />, permission: Permission.CanManageDeals },
   { type: "leaf", to: "/warehouses", label: "Warehouses", icon: <ContainerOutlined />, permission: Permission.CanViewWarehouses },
+  { type: "leaf", to: "/middleware-events", label: "Middleware Events", icon: <ApiOutlined />, permission: Permission.CanViewProducts },
   { type: "leaf", to: "/tickets", label: "Tickets", icon: <CustomerServiceOutlined />, permission: Permission.CanViewTicket },
   { type: "leaf", to: "/ratings", label: "Ratings", icon: <StarOutlined />, permission: Permission.CanViewRatings },
   { type: "leaf", to: "/email-requests", label: "Email Change Requests", icon: <MailOutlined />, permission: Permission.CanViewEmailChangeRequests },

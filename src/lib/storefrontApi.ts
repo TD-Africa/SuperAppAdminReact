@@ -958,6 +958,12 @@ export function getStorefrontOwnerBrands(ownerId: string) {
   );
 }
 
+export function getStorefrontOwnerExcludedProducts(ownerId: string) {
+  return apiGet<string[]>(
+    `Storefront/GetStorefrontOwnerExcludedProducts/${encodeURIComponent(ownerId)}`,
+  );
+}
+
 export function getStorefrontOwnerPrimaryBrand(ownerId: string) {
   return apiGet<StorefrontOwnerBrandDto>(
     `Storefront/GetStorefrontOwnerPrimaryBrand/${encodeURIComponent(ownerId)}`,
@@ -1000,9 +1006,27 @@ export function getOwnerProducts(
   );
 }
 
+export function getOwnerProductsForAdmin(
+  ownerId: string,
+  params: PagedOwnerParams & {
+    storefrontCategoryId?: string;
+    storefrontBrandId?: string;
+  } = {},
+) {
+  return apiGet<StorefrontPagedProducts>(
+    `Storefront/GetOwnerProductsForAdmin/${encodeURIComponent(ownerId)}${toQuery(params)}`,
+  );
+}
+
 export function getOwnerProduct(ownerId: string, productId: string) {
   return apiGet<StorefrontProductDto>(
     `Storefront/GetOwnerProduct/${encodeURIComponent(ownerId)}/${encodeURIComponent(productId)}`,
+  );
+}
+
+export function getOwnerProductForAdmin(ownerId: string, productId: string) {
+  return apiGet<StorefrontProductDto>(
+    `Storefront/GetOwnerProductForAdmin/${encodeURIComponent(ownerId)}/${encodeURIComponent(productId)}`,
   );
 }
 

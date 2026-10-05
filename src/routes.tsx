@@ -20,6 +20,8 @@ const FranchiseOrdersPage = lazy(() => import("@/pages/FranchiseOrders"));
 const BrandsPage = lazy(() => import("@/pages/Brands"));
 const FranchiseBrandsPage = lazy(() => import("@/pages/FranchiseBrands"));
 const FranchiseBrandDetailPage = lazy(() => import("@/pages/FranchiseBrandDetail"));
+const StorefrontBrandThemeDesignPage = lazy(() => import("@/pages/StorefrontBrandThemeDesign"));
+const FranchiseBrandThemesPage = lazy(() => import("@/pages/FranchiseBrandThemes"));
 const FranchiseCategoriesPage = lazy(() => import("@/pages/FranchiseCategories"));
 const FranchiseCategoryDetailPage = lazy(() => import("@/pages/FranchiseCategoryDetail"));
 const FranchiseStoreOwnerInvitesPage = lazy(() => import("@/pages/FranchiseStoreOwnerInvites"));
@@ -277,6 +279,22 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute permission={Permission.CanViewBrands}>
             {withSuspense(<FranchiseBrandDetailPage />)}
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "franchise-brand-themes",
+        element: (
+          <ProtectedRoute permission={Permission.CanEditBrands}>
+            {withSuspense(<FranchiseBrandThemesPage />)}
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "franchise-brands/:storefrontBrandId/theme",
+        element: (
+          <ProtectedRoute permission={Permission.CanEditBrands}>
+            {withSuspense(<StorefrontBrandThemeDesignPage />)}
           </ProtectedRoute>
         ),
       },

@@ -32,6 +32,7 @@ import {
   HistoryOutlined,
   CarOutlined,
   SoundOutlined,
+  ApiOutlined,
 } from "@ant-design/icons";
 import { useAuthStore } from "@/stores/auth";
 import { Permission } from "@/lib/permissions";
@@ -107,6 +108,7 @@ const NAV_TREE: NavNode[] = [
   },
   { type: "leaf", to: "/deals", label: "Deals", icon: <TagsOutlined />, permission: Permission.CanManageDeals },
   { type: "leaf", to: "/warehouses", label: "Warehouses", icon: <ContainerOutlined />, permission: Permission.CanViewWarehouses },
+  { type: "leaf", to: "/middleware-events", label: "Middleware Events", icon: <ApiOutlined />, permission: Permission.CanViewProducts },
   { type: "leaf", to: "/tickets", label: "Tickets", icon: <CustomerServiceOutlined />, permission: Permission.CanViewTicket },
   { type: "leaf", to: "/ratings", label: "Ratings", icon: <StarOutlined />, permission: Permission.CanViewRatings },
   { type: "leaf", to: "/email-requests", label: "Email Change Requests", icon: <MailOutlined />, permission: Permission.CanViewEmailChangeRequests },

@@ -52,6 +52,7 @@ const PromosPage = lazy(() => import("@/pages/Promos"));
 const CouponsPage = lazy(() => import("@/pages/Coupons"));
 const DealsPage = lazy(() => import("@/pages/Deals"));
 const AuditTrailPage = lazy(() => import("@/pages/AuditTrail"));
+const MiddlewareEventsPage = lazy(() => import("@/pages/MiddlewareEvents"));
 const RatingsPage = lazy(() => import("@/pages/Ratings"));
 const EmailChangeRequestsPage = lazy(() => import("@/pages/EmailChangeRequests"));
 const RequestAppealsPage = lazy(() => import("@/pages/RequestAppeals"));
@@ -523,6 +524,14 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute permission={Permission.CanViewAuditTrail}>
             {withSuspense(<AuditTrailPage />)}
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "middleware-events",
+        element: (
+          <ProtectedRoute permission={Permission.CanViewProducts}>
+            {withSuspense(<MiddlewareEventsPage />)}
           </ProtectedRoute>
         ),
       },

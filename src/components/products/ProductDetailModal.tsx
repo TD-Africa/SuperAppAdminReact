@@ -32,6 +32,7 @@ import type {
 import { useAuthStore } from "@/stores/auth";
 import { Permission } from "@/lib/permissions";
 import { formatCategory, formatCurrency, formatNumber } from "@/lib/utils";
+import { ProductMiddlewareEvents } from "@/components/middlewareEvents/ProductMiddlewareEvents";
 
 interface Props {
   productId: string | null;
@@ -490,6 +491,13 @@ export function ProductDetailModal({ productId, open, onOpenChange }: Props) {
                 </Typography.Text>
               )}
             </div>
+          )}
+
+          {data.dynamicsId && (
+            <>
+              <Divider className="!my-4" />
+              <ProductMiddlewareEvents dynamicsId={data.dynamicsId} />
+            </>
           )}
         </div>
       )}

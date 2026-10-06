@@ -32,6 +32,8 @@ import {
   getActiveStorefrontCategories,
   getPublishedProduct,
   getPublishedProductCategories,
+  getOwnerProductsForAdmin,
+  getStoreOwners,
   getStorefrontCategories,
   getStorefrontCategoriesByProduct,
   getStorefrontProducts,
@@ -116,8 +118,73 @@ export default function FranchiseProductsPage() {
     queryKey: ["storefront", "products", queryParams],
     queryFn: async () => {
       const res = await getStorefrontProducts(queryParams);
-      if (!res.status) throw new Error(res.message ?? "Failed to load storefront products");
-      return res.data;
+      if (res.status && (res.data?.count ?? 0) > 0) return res.data;
+
+      // The global endpoint may still be the older public-only implementation.
+      // If it returns no products, fall back to the owner catalogs already exposed
+      // by the admin API and merge the owner assortments in the browser.
+      const owners: { id: string }[] = [];
+      let ownerPage = 1;
+      let ownerCount = Number.POSITIVE_INFINITY;
+      while (owners.length < ownerCount) {
+        const ownerRes = await getStoreOwners({ PageSize: 100, PageNumber: ownerPage });
+        if (!ownerRes.status) {
+          throw new Error(
+            ownerRes.message ?? res.message ?? "Failed to load storefront owners",
+          );
+        }
+        const page = ownerRes.data?.data ?? [];
+        owners.push(...page);
+        ownerCount = Number(ownerRes.data?.count ?? owners.length);
+        if (page.length === 0) break;
+        ownerPage += 1;
+      }
+
+      const productsByOwner = await Promise.all(
+        owners.map(async (owner) => {
+          const products: StorefrontProductDto[] = [];
+          let productPage = 1;
+          let productCount = Number.POSITIVE_INFINITY;
+
+          while (products.length < productCount) {
+            const ownerRes = await getOwnerProductsForAdmin(owner.id, {
+              PageSize: 100,
+              PageNumber: productPage,
+              SearchString: queryParams.SearchString,
+              storefrontBrandId: queryParams.storefrontBrandId,
+            });
+            if (!ownerRes.status) break;
+
+            const page = ownerRes.data?.data ?? [];
+            products.push(...page);
+            productCount = Number(ownerRes.data?.count ?? products.length);
+            if (page.length === 0) break;
+            productPage += 1;
+          }
+
+          return products;
+        }),
+      );
+
+      const uniqueProducts = new Map<string, StorefrontProductDto>();
+      for (const products of productsByOwner) {
+        for (const product of products) {
+          uniqueProducts.set(product.productId, product);
+        }
+      }
+
+      const allProducts = [...uniqueProducts.values()].sort((left, right) =>
+        left.productName.localeCompare(right.productName),
+      );
+      const pageSize = queryParams.PageSize ?? 20;
+      const pageNumber = queryParams.PageNumber ?? 1;
+      const start = (pageNumber - 1) * pageSize;
+
+      return {
+        data: allProducts.slice(start, start + pageSize),
+        count: allProducts.length,
+        pageNumber,
+      };
     },
   });
 
@@ -270,7 +337,7 @@ export default function FranchiseProductsPage() {
     }
   }
 
-  async function toggleStorefrontVisibility(productId: string, isVisible: boolean) {
+  async function toggleStorefrontVisibility(productId: string, isPublished: boolean) {
     setVisibilityBusyId(productId);
     const prev = queryClient.getQueryData<typeof productsQuery.data>([
       "storefront",
@@ -281,12 +348,12 @@ export default function FranchiseProductsPage() {
       queryClient.setQueryData(["storefront", "products", queryParams], {
         ...prev,
         data: prev.data.map((p) =>
-          p.productId === productId ? { ...p, isStorefrontPublished: isVisible } : p,
+          p.productId === productId ? { ...p, isStorefrontPublished: isPublished } : p,
         ),
       });
     }
     try {
-      const res = await setProductVisibility({ productId, isVisible });
+      const res = await setProductVisibility({ productId, isPublished });
       if (!res.status) {
         message.error(res.message ?? "Failed to update visibility");
         queryClient.setQueryData(["storefront", "products", queryParams], prev);
@@ -482,12 +549,14 @@ export default function FranchiseProductsPage() {
       key: "published",
       width: 110,
       render: (_, { storefront }) => (
-        <Switch
-          checked={storefront.isStorefrontPublished}
-          disabled={!canEdit}
-          loading={visibilityBusyId === storefront.productId}
-          onChange={(val) => void toggleStorefrontVisibility(storefront.productId, val)}
-        />
+        <span onClick={(event) => event.stopPropagation()}>
+          <Switch
+            checked={storefront.isStorefrontPublished}
+            disabled={!canEdit}
+            loading={visibilityBusyId === storefront.productId}
+            onChange={(val) => void toggleStorefrontVisibility(storefront.productId, val)}
+          />
+        </span>
       ),
     },
     {
@@ -497,11 +566,13 @@ export default function FranchiseProductsPage() {
       render: (_, { storefront, catalog }) => {
         if (!catalog) return "—";
         return (
-          <Switch
-            checked={catalog.isActive}
-            disabled={!canEdit}
-            onChange={(val) => toggleField(storefront.productId, "IsActive", val)}
-          />
+          <span onClick={(event) => event.stopPropagation()}>
+            <Switch
+              checked={catalog.isActive}
+              disabled={!canEdit}
+              onChange={(val) => toggleField(storefront.productId, "IsActive", val)}
+            />
+          </span>
         );
       },
     },
@@ -512,13 +583,15 @@ export default function FranchiseProductsPage() {
       render: (_, { storefront, catalog }) => {
         if (!catalog) return "—";
         return (
-          <Switch
-            checked={catalog.isFeaturedProduct}
-            disabled={!canEdit}
-            onChange={(val) =>
-              toggleField(storefront.productId, "IsFeaturedProduct", val)
-            }
-          />
+          <span onClick={(event) => event.stopPropagation()}>
+            <Switch
+              checked={catalog.isFeaturedProduct}
+              disabled={!canEdit}
+              onChange={(val) =>
+                toggleField(storefront.productId, "IsFeaturedProduct", val)
+              }
+            />
+          </span>
         );
       },
     },
@@ -543,7 +616,10 @@ export default function FranchiseProductsPage() {
             <Button
               size="small"
               icon={<TagsOutlined />}
-              onClick={() => void openCategories(storefront)}
+              onClick={(e) => {
+                e.stopPropagation();
+                void openCategories(storefront);
+              }}
               title="Storefront categories"
             />
           )}
@@ -551,7 +627,10 @@ export default function FranchiseProductsPage() {
             <Button
               size="small"
               icon={<SyncOutlined />}
-              onClick={() => syncPrice(storefront.productId)}
+              onClick={(e) => {
+                e.stopPropagation();
+                void syncPrice(storefront.productId);
+              }}
               title="Sync price"
             />
           )}
@@ -559,7 +638,10 @@ export default function FranchiseProductsPage() {
             <Button
               size="small"
               icon={<FontSizeOutlined />}
-              onClick={() => syncName(storefront.productId)}
+              onClick={(e) => {
+                e.stopPropagation();
+                void syncName(storefront.productId);
+              }}
               title="Sync name"
             />
           )}

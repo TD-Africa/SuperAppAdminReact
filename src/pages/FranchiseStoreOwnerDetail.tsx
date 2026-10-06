@@ -1234,14 +1234,22 @@ function OwnerConfigModal({
       assignedBrandIds
         .map((storefrontBrandId) => {
           const brand = brands.find((item) => item.storefrontBrandId === storefrontBrandId);
-          const brandId =
-            brand?.brandId ??
-            allBrands.find((item) => item.id === storefrontBrandId)?.brandId;
-          return brandId
-            ? { storefrontBrandId, brandId }
+          const sourceBrandIds = brand?.catalogBrandIds?.length
+            ? brand.catalogBrandIds
+            : brand?.brandId
+              ? [brand.brandId]
+              : allBrands.find((item) => item.id === storefrontBrandId)?.brandId
+                ? [allBrands.find((item) => item.id === storefrontBrandId)!.brandId!]
+                : [];
+          return sourceBrandIds.length
+            ? { storefrontBrandId, sourceBrandIds, storefrontBrandName: brand?.name ?? storefrontBrandId }
             : null;
         })
-        .filter((value): value is { storefrontBrandId: string; brandId: string } => Boolean(value)),
+        .filter((value): value is {
+          storefrontBrandId: string;
+          sourceBrandIds: string[];
+          storefrontBrandName: string;
+        } => Boolean(value)),
     [allBrands, assignedBrandIds, brands],
   );
 
@@ -1276,9 +1284,10 @@ function OwnerConfigModal({
         pageNumber += 1;
       }
 
-      return selectedBrandLinks.map(({ storefrontBrandId, brandId }) => ({
+      return selectedBrandLinks.map(({ storefrontBrandId, sourceBrandIds, storefrontBrandName }) => ({
         brandId: storefrontBrandId,
-        products: products.filter((product) => product.brand?.id === brandId),
+        brandName: storefrontBrandName,
+        products: products.filter((product) => sourceBrandIds.includes(product.brand?.id ?? "")),
       }));
     },
     enabled: open && selectedBrandLinks.length > 0,
@@ -1322,12 +1331,11 @@ function OwnerConfigModal({
     label: b.name,
   }));
 
-  const brandNameById = new Map(allBrands.map((b) => [b.id, b.name]));
   const selectedBrandProducts = (selectedBrandProductsQuery.data ?? []).flatMap(
     (group) =>
       group.products.map((product) => ({
         brandId: group.brandId,
-        brandName: brandNameById.get(group.brandId) ?? product.brand?.name ?? "—",
+        brandName: group.brandName ?? product.brand?.name ?? "—",
         excluded: excludedProductIds.includes(product.id),
         product,
       })),

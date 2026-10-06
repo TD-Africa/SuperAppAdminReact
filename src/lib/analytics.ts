@@ -292,7 +292,8 @@ export async function downloadAnalytics(
     }
 
     // The filename is deliberately constructed from allowlisted resource/format and ISO dates.
-    const name = resource === "overview" ? "volume-revenue" : resource;
+    const name =
+      resource === "overview" ? "volume-revenue" : resource.replace(/\//g, "-");
     const url = URL.createObjectURL(response.data);
 
     const anchor = document.createElement("a");
@@ -520,6 +521,7 @@ export interface AnalyticsTemporal {
 }
 
 export interface AnalyticsCreditMix {
+  paymentMethodId: string;
   key: string;
   name: string;
   orders: number;
@@ -537,6 +539,21 @@ export interface AnalyticsCreditMix {
   averageFirstPaymentHours: number | null;
   medianFirstPaymentHours: number | null;
   p90FirstPaymentHours: number | null;
+}
+
+export interface AnalyticsCreditOrder {
+  orderId: string;
+  orderReference: string;
+  partnerId: string;
+  companyName: string;
+  placedAtUtc: string;
+  orderStatus: string;
+  paymentStatus: string;
+  paymentMethod: string;
+  revenueEligible: boolean;
+  revenueNaira: number;
+  revenueUsd: number | null;
+  missingUsdLineCount: number;
 }
 
 export interface AnalyticsCreditPartner {

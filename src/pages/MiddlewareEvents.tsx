@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Alert,
@@ -73,10 +74,19 @@ export default function MiddlewareEventsPage() {
   const queryClient = useQueryClient();
   const canReplay = useAuthStore((s) => s.hasPermission(Permission.CanEditProducts));
 
+  // The product detail modal deep-links here as /middleware-events?dynamicsId=…,
+  // so the URL seeds the SKU (and optionally status) filter and re-applies on change.
+  const [searchParams] = useSearchParams();
+  const urlDynamicsId = searchParams.get("dynamicsId") ?? "";
+  const urlStatus = searchParams.get("status") ?? "";
+  const seededStatus = STATUS_ORDER.includes(urlStatus as MiddlewareEventStatus)
+    ? urlStatus
+    : ALL;
+
   const [windowHours, setWindowHours] = useState(24);
-  const [status, setStatus] = useState<string>(ALL);
+  const [status, setStatus] = useState<string>(seededStatus);
   const [eventType, setEventType] = useState<string>(ALL);
-  const [dynamicsId, setDynamicsId] = useState("");
+  const [dynamicsId, setDynamicsId] = useState(urlDynamicsId);
   const [errorContains, setErrorContains] = useState("");
   const [range, setRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
   const [page, setPage] = useState(1);
@@ -85,6 +95,12 @@ export default function MiddlewareEventsPage() {
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkLimit, setBulkLimit] = useState(100);
   const [bulkRunning, setBulkRunning] = useState(false);
+
+  useEffect(() => {
+    setDynamicsId(urlDynamicsId);
+    setStatus(seededStatus);
+    setPage(1);
+  }, [urlDynamicsId, seededStatus]);
 
   const debouncedDynamicsId = useDebouncedValue(dynamicsId, 350);
   const debouncedError = useDebouncedValue(errorContains, 350);

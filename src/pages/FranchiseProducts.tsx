@@ -32,6 +32,8 @@ import {
   getActiveStorefrontCategories,
   getPublishedProduct,
   getPublishedProductCategories,
+  getOwnerProductsForAdmin,
+  getStoreOwners,
   getStorefrontCategories,
   getStorefrontCategoriesByProduct,
   getStorefrontProducts,
@@ -116,8 +118,73 @@ export default function FranchiseProductsPage() {
     queryKey: ["storefront", "products", queryParams],
     queryFn: async () => {
       const res = await getStorefrontProducts(queryParams);
-      if (!res.status) throw new Error(res.message ?? "Failed to load storefront products");
-      return res.data;
+      if (res.status && (res.data?.count ?? 0) > 0) return res.data;
+
+      // The global endpoint may still be the older public-only implementation.
+      // If it returns no products, fall back to the owner catalogs already exposed
+      // by the admin API and merge the owner assortments in the browser.
+      const owners: { id: string }[] = [];
+      let ownerPage = 1;
+      let ownerCount = Number.POSITIVE_INFINITY;
+      while (owners.length < ownerCount) {
+        const ownerRes = await getStoreOwners({ PageSize: 100, PageNumber: ownerPage });
+        if (!ownerRes.status) {
+          throw new Error(
+            ownerRes.message ?? res.message ?? "Failed to load storefront owners",
+          );
+        }
+        const page = ownerRes.data?.data ?? [];
+        owners.push(...page);
+        ownerCount = Number(ownerRes.data?.count ?? owners.length);
+        if (page.length === 0) break;
+        ownerPage += 1;
+      }
+
+      const productsByOwner = await Promise.all(
+        owners.map(async (owner) => {
+          const products: StorefrontProductDto[] = [];
+          let productPage = 1;
+          let productCount = Number.POSITIVE_INFINITY;
+
+          while (products.length < productCount) {
+            const ownerRes = await getOwnerProductsForAdmin(owner.id, {
+              PageSize: 100,
+              PageNumber: productPage,
+              SearchString: queryParams.SearchString,
+              storefrontBrandId: queryParams.storefrontBrandId,
+            });
+            if (!ownerRes.status) break;
+
+            const page = ownerRes.data?.data ?? [];
+            products.push(...page);
+            productCount = Number(ownerRes.data?.count ?? products.length);
+            if (page.length === 0) break;
+            productPage += 1;
+          }
+
+          return products;
+        }),
+      );
+
+      const uniqueProducts = new Map<string, StorefrontProductDto>();
+      for (const products of productsByOwner) {
+        for (const product of products) {
+          uniqueProducts.set(product.productId, product);
+        }
+      }
+
+      const allProducts = [...uniqueProducts.values()].sort((left, right) =>
+        left.productName.localeCompare(right.productName),
+      );
+      const pageSize = queryParams.PageSize ?? 20;
+      const pageNumber = queryParams.PageNumber ?? 1;
+      const start = (pageNumber - 1) * pageSize;
+
+      return {
+        data: allProducts.slice(start, start + pageSize),
+        count: allProducts.length,
+        pageNumber,
+      };
     },
   });
 

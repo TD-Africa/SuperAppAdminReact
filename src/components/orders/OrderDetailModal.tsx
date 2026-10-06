@@ -44,6 +44,7 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onUpdated?: () => void;
+  readOnly?: boolean;
 }
 
 interface InvoiceRow {
@@ -56,9 +57,18 @@ interface InvoiceRow {
   isFullyPosted: boolean;
 }
 
-export function OrderDetailModal({ orderId, open, onOpenChange, onUpdated }: Props) {
+export function OrderDetailModal({
+  orderId,
+  open,
+  onOpenChange,
+  onUpdated,
+  readOnly = false,
+}: Props) {
   const { message } = AntdApp.useApp();
-  const canEdit = useAuthStore((s) => s.hasPermission(Permission.CanEditOrders));
+  const hasEditPermission = useAuthStore((state) =>
+    state.hasPermission(Permission.CanEditOrders),
+  );
+  const canEdit = hasEditPermission && !readOnly;
   const [isPDCCollected, setIsPDCCollected] = useState(false);
   const [isFullyPaid, setIsFullyPaid] = useState(false);
   const [invoiceEdits, setInvoiceEdits] = useState<Record<string, number>>({});
@@ -229,7 +239,7 @@ export function OrderDetailModal({ orderId, open, onOpenChange, onUpdated }: Pro
   }
 
   async function handleSave() {
-    if (!data) return;
+    if (!data || !canEdit) return;
     setSaving(true);
     const payload = {
       isPDCCollected,
@@ -253,7 +263,7 @@ export function OrderDetailModal({ orderId, open, onOpenChange, onUpdated }: Pro
   // journal, then auto-settle. Only offered while the order is unposted, since
   // the endpoint short-circuits once any line has a sales ID.
   async function handleRetry() {
-    if (!data) return;
+    if (!data || !canEdit) return;
     setRetrying(true);
     try {
       const res = await apiPost<boolean>(`Order/RetrySalesOrder/${data.id}`);
@@ -303,6 +313,8 @@ export function OrderDetailModal({ orderId, open, onOpenChange, onUpdated }: Pro
       key: "amountPaid",
       width: 220,
       render: (_, row) => {
+        if (readOnly) return formatCurrency(row.amountPaid, "NGN");
+
         const locked = row.isFullyPosted && row.isFullySettled;
         const current = invoiceEdits[row.salesId] ?? row.amountPaid;
         return (
@@ -335,7 +347,13 @@ export function OrderDetailModal({ orderId, open, onOpenChange, onUpdated }: Pro
     { title: "Warehouse", dataIndex: ["warehouse", "name"], render: (v) => v ?? "—" },
     { title: "Qty", dataIndex: "quantity", align: "right", render: (v) => formatNumber(v) },
     { title: "Sales ID", dataIndex: "salesID", render: (v) => <span className="text-xs">{v ?? "—"}</span> },
-    { title: "Voucher ID", dataIndex: "voucherID", render: (v) => <span className="text-xs">{v ?? "—"}</span> },
+    {
+      title: "Voucher ID",
+      dataIndex: "voucherID",
+      render: (value: string | null) => (
+        <span className="text-xs">{value ?? "—"}</span>
+      ),
+    },
     {
       title: "USD",
       dataIndex: "amountInDollar",
@@ -569,20 +587,34 @@ export function OrderDetailModal({ orderId, open, onOpenChange, onUpdated }: Pro
                           Flags
                         </Typography.Title>
                         <div className="flex flex-wrap items-center gap-6">
-                          <Checkbox
-                            checked={isPDCCollected}
-                            disabled={!canEdit}
-                            onChange={(e) => setIsPDCCollected(e.target.checked)}
-                          >
-                            Post-dated check collected
-                          </Checkbox>
-                          <Checkbox
-                            checked={isFullyPaid}
-                            disabled={!canEdit}
-                            onChange={(e) => setIsFullyPaid(e.target.checked)}
-                          >
-                            Fully paid
-                          </Checkbox>
+                          {readOnly ? (
+                            <>
+                              <Typography.Text>
+                                Post-dated check collected:{" "}
+                                {data.isPDCCollected ? "Yes" : "No"}
+                              </Typography.Text>
+                              <Typography.Text>
+                                Fully paid: {data.isFullyPaid ? "Yes" : "No"}
+                              </Typography.Text>
+                            </>
+                          ) : (
+                            <>
+                              <Checkbox
+                                checked={isPDCCollected}
+                                disabled={!canEdit}
+                                onChange={(e) => setIsPDCCollected(e.target.checked)}
+                              >
+                                Post-dated check collected
+                              </Checkbox>
+                              <Checkbox
+                                checked={isFullyPaid}
+                                disabled={!canEdit}
+                                onChange={(e) => setIsFullyPaid(e.target.checked)}
+                              >
+                                Fully paid
+                              </Checkbox>
+                            </>
+                          )}
                         </div>
                       </section>
                     </div>
@@ -600,10 +632,14 @@ export function OrderDetailModal({ orderId, open, onOpenChange, onUpdated }: Pro
                       size="small"
                       className="mt-3"
                       scroll={{ x: 1000 }}
-                      onRow={(record) => ({
-                        onClick: () => openProduct(record.product.id),
-                        style: { cursor: "pointer" },
-                      })}
+                      onRow={
+                        readOnly
+                          ? undefined
+                          : (record) => ({
+                              onClick: () => openProduct(record.product.id),
+                              style: { cursor: "pointer" },
+                            })
+                      }
                     />
                   ),
                 },
@@ -632,7 +668,7 @@ export function OrderDetailModal({ orderId, open, onOpenChange, onUpdated }: Pro
       </Modal>
 
       <ConfirmDialog
-        open={retryOpen}
+        open={canEdit && retryOpen}
         onOpenChange={setRetryOpen}
         title="Post this order to Dynamics?"
         description="Creates the sales order, posts the payment journal, and attempts auto-settlement in D365. Records created there cannot be undone from this console."
@@ -642,7 +678,7 @@ export function OrderDetailModal({ orderId, open, onOpenChange, onUpdated }: Pro
 
       <ProductDetailModal
         productId={selectedProductId}
-        open={productOpen}
+        open={!readOnly && productOpen}
         onOpenChange={(v) => {
           setProductOpen(v);
           if (!v) setSelectedProductId(null);

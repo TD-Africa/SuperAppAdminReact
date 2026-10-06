@@ -1249,3 +1249,26 @@ export interface SetExchangeRateRequest {
   rate: number;
   reason?: string | null;
 }
+
+// ---- Staff portal access (ADMIN.API StaffController) ----
+// Mirrors TDSuperApp.Data.Models.StaffStatus / StaffRole (serialized as strings).
+export const StaffStatusValues = ["Pending", "Active", "Rejected", "Deactivated"] as const;
+export type StaffStatus = (typeof StaffStatusValues)[number];
+
+export const StaffRoleValues = ["Staff", "Lead"] as const;
+export type StaffRole = (typeof StaffRoleValues)[number];
+
+export interface StaffAdminResponse {
+  id: string;
+  entraObjectId: string;
+  email: string | null;
+  displayName: string | null;
+  status: StaffStatus;
+  role: StaffRole;
+  statusChangedAt: string | null;
+  /** Email of the admin who last approved/rejected/deactivated/reactivated. */
+  statusChangedBy: string | null;
+  lastLoginAt: string | null;
+  /** For a Pending row this is when access was requested (first sign-in). */
+  dateCreated: string;
+}

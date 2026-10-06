@@ -141,6 +141,11 @@ export const PERMISSION_GROUPS: PermissionGroupDef[] = [
     ],
   },
   {
+    key: "staff",
+    label: "Staff portal",
+    permissions: ["CanViewStaff", "CanManageStaff"],
+  },
+  {
     key: "roles",
     label: "Roles & permissions",
     permissions: [

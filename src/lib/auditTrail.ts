@@ -18,6 +18,7 @@ export const AuditEntityType = {
   PlatformSetting: "PlatformSetting",
   DebtCollection: "DebtCollection",
   ApprovalRequest: "ApprovalRequest",
+  Staff: "Staff",
 } as const;
 
 export type AuditEntityType =
@@ -37,6 +38,8 @@ export const AuditAction = {
   Rejected: "Rejected",
   Executed: "Executed",
   ExecutionFailed: "ExecutionFailed",
+  Deactivated: "Deactivated",
+  Reactivated: "Reactivated",
 } as const;
 
 export type AuditAction = (typeof AuditAction)[keyof typeof AuditAction];
@@ -54,6 +57,7 @@ const ENTITY_TYPE_LABELS: Record<string, string> = {
   [AuditEntityType.PlatformSetting]: "Platform setting",
   [AuditEntityType.DebtCollection]: "Debt collection",
   [AuditEntityType.ApprovalRequest]: "Approval request",
+  [AuditEntityType.Staff]: "Staff",
 };
 
 const ACTION_COLORS: Record<string, string> = {
@@ -61,12 +65,14 @@ const ACTION_COLORS: Record<string, string> = {
   [AuditAction.Granted]: "success",
   [AuditAction.Approved]: "success",
   [AuditAction.Executed]: "success",
+  [AuditAction.Reactivated]: "success",
   [AuditAction.Updated]: "processing",
   [AuditAction.Submitted]: "processing",
   [AuditAction.Deleted]: "error",
   [AuditAction.Revoked]: "error",
   [AuditAction.Rejected]: "error",
   [AuditAction.ExecutionFailed]: "error",
+  [AuditAction.Deactivated]: "error",
   [AuditAction.Reset]: "warning",
   [AuditAction.Forced]: "warning",
 };

@@ -270,7 +270,7 @@ export default function FranchiseProductsPage() {
     }
   }
 
-  async function toggleStorefrontVisibility(productId: string, isVisible: boolean) {
+  async function toggleStorefrontVisibility(productId: string, isPublished: boolean) {
     setVisibilityBusyId(productId);
     const prev = queryClient.getQueryData<typeof productsQuery.data>([
       "storefront",
@@ -281,12 +281,12 @@ export default function FranchiseProductsPage() {
       queryClient.setQueryData(["storefront", "products", queryParams], {
         ...prev,
         data: prev.data.map((p) =>
-          p.productId === productId ? { ...p, isStorefrontPublished: isVisible } : p,
+          p.productId === productId ? { ...p, isStorefrontPublished: isPublished } : p,
         ),
       });
     }
     try {
-      const res = await setProductVisibility({ productId, isVisible });
+      const res = await setProductVisibility({ productId, isPublished });
       if (!res.status) {
         message.error(res.message ?? "Failed to update visibility");
         queryClient.setQueryData(["storefront", "products", queryParams], prev);
@@ -482,12 +482,14 @@ export default function FranchiseProductsPage() {
       key: "published",
       width: 110,
       render: (_, { storefront }) => (
-        <Switch
-          checked={storefront.isStorefrontPublished}
-          disabled={!canEdit}
-          loading={visibilityBusyId === storefront.productId}
-          onChange={(val) => void toggleStorefrontVisibility(storefront.productId, val)}
-        />
+        <span onClick={(event) => event.stopPropagation()}>
+          <Switch
+            checked={storefront.isStorefrontPublished}
+            disabled={!canEdit}
+            loading={visibilityBusyId === storefront.productId}
+            onChange={(val) => void toggleStorefrontVisibility(storefront.productId, val)}
+          />
+        </span>
       ),
     },
     {
@@ -497,11 +499,13 @@ export default function FranchiseProductsPage() {
       render: (_, { storefront, catalog }) => {
         if (!catalog) return "—";
         return (
-          <Switch
-            checked={catalog.isActive}
-            disabled={!canEdit}
-            onChange={(val) => toggleField(storefront.productId, "IsActive", val)}
-          />
+          <span onClick={(event) => event.stopPropagation()}>
+            <Switch
+              checked={catalog.isActive}
+              disabled={!canEdit}
+              onChange={(val) => toggleField(storefront.productId, "IsActive", val)}
+            />
+          </span>
         );
       },
     },
@@ -512,13 +516,15 @@ export default function FranchiseProductsPage() {
       render: (_, { storefront, catalog }) => {
         if (!catalog) return "—";
         return (
-          <Switch
-            checked={catalog.isFeaturedProduct}
-            disabled={!canEdit}
-            onChange={(val) =>
-              toggleField(storefront.productId, "IsFeaturedProduct", val)
-            }
-          />
+          <span onClick={(event) => event.stopPropagation()}>
+            <Switch
+              checked={catalog.isFeaturedProduct}
+              disabled={!canEdit}
+              onChange={(val) =>
+                toggleField(storefront.productId, "IsFeaturedProduct", val)
+              }
+            />
+          </span>
         );
       },
     },
@@ -543,7 +549,10 @@ export default function FranchiseProductsPage() {
             <Button
               size="small"
               icon={<TagsOutlined />}
-              onClick={() => void openCategories(storefront)}
+              onClick={(e) => {
+                e.stopPropagation();
+                void openCategories(storefront);
+              }}
               title="Storefront categories"
             />
           )}
@@ -551,7 +560,10 @@ export default function FranchiseProductsPage() {
             <Button
               size="small"
               icon={<SyncOutlined />}
-              onClick={() => syncPrice(storefront.productId)}
+              onClick={(e) => {
+                e.stopPropagation();
+                void syncPrice(storefront.productId);
+              }}
               title="Sync price"
             />
           )}
@@ -559,7 +571,10 @@ export default function FranchiseProductsPage() {
             <Button
               size="small"
               icon={<FontSizeOutlined />}
-              onClick={() => syncName(storefront.productId)}
+              onClick={(e) => {
+                e.stopPropagation();
+                void syncName(storefront.productId);
+              }}
               title="Sync name"
             />
           )}

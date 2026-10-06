@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Alert,
@@ -12,6 +13,7 @@ import {
   Typography,
 } from "antd";
 import type { TableColumnsType } from "antd";
+import { CreditPaymentOrdersDrawer } from "@/components/analytics/CreditPaymentOrdersDrawer";
 import { AnalyticsError } from "@/components/analytics/AnalyticsError";
 import { CappedPagination } from "@/components/analytics/CappedPagination";
 import { ComparisonBars } from "@/components/analytics/ComparisonBars";
@@ -95,35 +97,54 @@ function Tile({
 // Table columns
 // ---------------------------------------------------------------------------
 
-const mixColumns: TableColumnsType<AnalyticsCreditMix> = [
-  { title: "Payment method", dataIndex: "name" },
-  {
-    title: "Orders placed",
-    dataIndex: "orders",
-    align: "right",
-    render: count,
-  },
-  {
-    title: "Eligible orders",
-    dataIndex: "eligibleOrders",
-    align: "right",
-    render: count,
-  },
-  {
-    title: "Net order value",
-    key: "value",
-    align: "right",
-    render: (_, row) => (
-      <MoneyValue naira={row.revenueNaira} usd={row.revenueUsd} />
-    ),
-  },
-  {
-    title: "POA orders (subset)",
-    dataIndex: "poaOrders",
-    align: "right",
-    render: count,
-  },
-];
+function paymentMixColumns(
+  openOrders: (method: AnalyticsCreditMix) => void,
+): TableColumnsType<AnalyticsCreditMix> {
+  return [
+    {
+      title: "Payment method",
+      dataIndex: "name",
+      render: (name: string, method) => (
+        <Button
+          type="link"
+          className={LINK_BUTTON_CLASS}
+          onClick={() => openOrders(method)}
+        >
+          <span>
+            {name}
+            <span className="mt-1 block text-xs">View orders</span>
+          </span>
+        </Button>
+      ),
+    },
+    {
+      title: "Orders placed",
+      dataIndex: "orders",
+      align: "right",
+      render: count,
+    },
+    {
+      title: "Eligible orders",
+      dataIndex: "eligibleOrders",
+      align: "right",
+      render: count,
+    },
+    {
+      title: "Net order value",
+      key: "value",
+      align: "right",
+      render: (_, row) => (
+        <MoneyValue naira={row.revenueNaira} usd={row.revenueUsd} />
+      ),
+    },
+    {
+      title: "POA orders (subset)",
+      dataIndex: "poaOrders",
+      align: "right",
+      render: count,
+    },
+  ];
+}
 
 const timingColumns: TableColumnsType<AnalyticsCreditMix> = [
   { title: "Payment method", dataIndex: "name" },
@@ -484,6 +505,28 @@ export default function AnalyticsCreditPanel({
   debtOrderPage,
   update,
 }: Props) {
+  const [selection, setSelection] = useState<{
+    methodId: string;
+    reportScope: string;
+  } | null>(null);
+
+  const reportScope = JSON.stringify([
+    scope,
+    params.from,
+    params.to,
+    params.bucket,
+    params.brandId,
+    params.categoryId,
+    params.partnerId,
+    data.asOfUtc,
+  ]);
+  const selectedMethod =
+    selection?.reportScope === reportScope
+      ? data.paymentMix.find(
+          (method) => method.paymentMethodId === selection.methodId,
+        )
+      : undefined;
+
   // Current debt deliberately omits the order-period filters and presentation controls.
   const debtParams: AnalyticsParams = {
     brandId: params.brandId,
@@ -754,7 +797,9 @@ export default function AnalyticsCreditPanel({
 
         <Table
           rowKey="key"
-          columns={mixColumns}
+          columns={paymentMixColumns((method) => {
+            setSelection({ methodId: method.paymentMethodId, reportScope });
+          })}
           dataSource={data.paymentMix}
           pagination={false}
           scroll={{ x: 850 }}
@@ -820,6 +865,17 @@ export default function AnalyticsCreditPanel({
           recommend credit-limit changes.
         </Typography.Paragraph>
       </Card>
+
+      {selectedMethod && (
+        <CreditPaymentOrdersDrawer
+          key={`${reportScope}:${selectedMethod.paymentMethodId}`}
+          method={selectedMethod}
+          params={params}
+          asOfUtc={data.asOfUtc}
+          scope={scope}
+          onClose={() => setSelection(null)}
+        />
+      )}
 
       {debtPartner && (
         <DebtOrders

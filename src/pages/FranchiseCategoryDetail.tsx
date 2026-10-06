@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -24,7 +24,7 @@ import { ArrowLeftOutlined, DeleteOutlined, PlusOutlined } from "@ant-design/ico
 import {
   addProductsToStorefrontCategory,
   getAllBrands,
-  getBrandProducts,
+  getStorefrontEligibleBrandProducts,
   getProductsByStorefrontCategory,
   getPublishedProductsByStorefrontCategory,
   getStorefrontCategoryById,
@@ -43,6 +43,12 @@ import {
 import { Permission } from "@/lib/permissions";
 import { useAuthStore } from "@/stores/auth";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+
+function isStorefrontEligible(product: BrandProductDto) {
+  return product.isActive
+    && !product.adminDisabled
+    && product.showNairaCurrency;
+}
 
 export default function FranchiseCategoryDetailPage() {
   const { storefrontCategoryId } = useParams();
@@ -69,6 +75,7 @@ export default function FranchiseCategoryDetailPage() {
   const [brandProductPage, setBrandProductPage] = useState(1);
   const [brandProductPageSize, setBrandProductPageSize] = useState(20);
   const [viewMode, setViewMode] = useState<"assigned" | "published">("assigned");
+  const brandProductCache = useRef(new Map<string, BrandProductDto>());
 
   const categoryQuery = useQuery({
     queryKey: ["storefront", "category", storefrontCategoryId],
@@ -164,7 +171,7 @@ export default function FranchiseCategoryDetailPage() {
     ],
     queryFn: async () => {
       if (!selectedBrandId) return null;
-      const res = await getBrandProducts(selectedBrandId, {
+      const res = await getStorefrontEligibleBrandProducts(selectedBrandId, {
         PageSize: brandProductPageSize,
         PageNumber: brandProductPage,
         SearchString: debouncedProductSearch.trim() || undefined,
@@ -200,9 +207,16 @@ export default function FranchiseCategoryDetailPage() {
 
   const brandProducts = brandProductsQuery.data?.data ?? [];
   const brandProductTotal = Number(brandProductsQuery.data?.count ?? 0);
-  
+
+  useEffect(() => {
+    if (!addOpen || !selectedBrandId) return;
+    for (const product of brandProducts) {
+      brandProductCache.current.set(product.id, product);
+    }
+  }, [addOpen, selectedBrandId, brandProducts]);
+
   const selectableBrandProducts = useMemo(() => {
-    return brandProducts.filter((p) => !assignedIds.has(p.id));
+    return brandProducts.filter((p) => isStorefrontEligible(p) && !assignedIds.has(p.id));
   }, [brandProducts, assignedIds]);
 
   async function saveCategory() {
@@ -227,11 +241,23 @@ export default function FranchiseCategoryDetailPage() {
 
   async function addProducts() {
     if (!storefrontCategoryId || selectedProductIds.length === 0) return;
+
+    const eligibleIds = selectedProductIds.filter((id) => {
+      const product = brandProductCache.current.get(id);
+      return !product || isStorefrontEligible(product);
+    });
+
+    if (eligibleIds.length !== selectedProductIds.length) {
+      setSelectedProductIds(eligibleIds);
+      message.error("Some selected products are no longer eligible for storefront use.");
+      return;
+    }
+
     setAdding(true);
     try {
       const res = await addProductsToStorefrontCategory({
         storefrontCategoryId,
-        productIds: selectedProductIds,
+        productIds: eligibleIds,
       });
       if (!res.status) {
         message.error(res.message ?? "Failed to add products");
@@ -479,6 +505,7 @@ export default function FranchiseCategoryDetailPage() {
                   setSelectedProductIds([]);
                   setProductSearch("");
                   setSelectedBrandId(null);
+                  brandProductCache.current.clear();
                   setBrandProductPage(1);
                   setAddOpen(true);
                 }}
@@ -547,6 +574,7 @@ export default function FranchiseCategoryDetailPage() {
               onChange={(value) => {
                 setSelectedBrandId(value);
                 setSelectedProductIds([]);
+                brandProductCache.current.clear();
                 setBrandProductPage(1);
               }}
               allowClear
@@ -621,18 +649,18 @@ export default function FranchiseCategoryDetailPage() {
               <Table
                 size="small"
                 rowKey="id"
-                dataSource={brandProducts}
+                dataSource={brandProducts.filter(isStorefrontEligible)}
                 loading={brandProductsQuery.isLoading || brandProductsQuery.isFetching}
                 rowSelection={{
                   selectedRowKeys: selectedProductIds,
                   onChange: (keys) => setSelectedProductIds(keys as string[]),
                   getCheckboxProps: (record) => ({
-                    disabled: assignedIds.has(record.id),
+                    disabled: assignedIds.has(record.id) || !isStorefrontEligible(record),
                   }),
                 }}
                 onRow={(record) => ({
                   onClick: () => {
-                    if (assignedIds.has(record.id)) return; // Don't allow selecting already assigned products
+                    if (assignedIds.has(record.id) || !isStorefrontEligible(record)) return;
                     
                     setSelectedProductIds((prev) => {
                       if (prev.includes(record.id)) {
@@ -642,7 +670,9 @@ export default function FranchiseCategoryDetailPage() {
                     });
                   },
                   style: {
-                    cursor: assignedIds.has(record.id) ? "not-allowed" : "pointer",
+                    cursor: assignedIds.has(record.id) || !isStorefrontEligible(record)
+                      ? "not-allowed"
+                      : "pointer",
                   },
                 })}
                 pagination={{

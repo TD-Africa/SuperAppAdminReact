@@ -1234,6 +1234,8 @@ export interface BrandProductDto {
   priceInDollar: number;
   dynamicsId: string | null;
   isActive: boolean;
+  adminDisabled: boolean;
+  showNairaCurrency: boolean;
   productImageUrls: Array<{ imageUrl: string }> | null;
 }
 
@@ -1258,5 +1260,18 @@ export function getBrandProducts(
 ) {
   return apiGet<PaginationResponse<BrandProductDto>>(
     `Brand/GetBrandProducts/${brandId}/products${toQuery(params)}`,
+  );
+}
+
+export function getStorefrontEligibleBrandProducts(
+  brandId: string,
+  params: {
+    PageSize?: number;
+    PageNumber?: number;
+    SearchString?: string;
+  } = {},
+) {
+  return apiGet<PaginationResponse<BrandProductDto>>(
+    `Brand/GetStorefrontEligibleProducts/${brandId}/products${toQuery(params)}`,
   );
 }

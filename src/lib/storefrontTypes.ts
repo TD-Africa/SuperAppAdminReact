@@ -780,6 +780,7 @@ export interface StorefrontOwnerBrandSelectionRequest {
 /** PUT Storefront/ConfigureStorefrontOwner/{ownerId} */
 export interface StorefrontOwnerConfigurationRequest {
   storefrontBrandIds?: string[] | null;
+  excludedProductIds?: string[] | null;
   primaryStorefrontBrandId?: string | null;
   defaultStorefrontPriceMargin?: number | null;
   brandMargins?: StorefrontOwnerBrandMarginEntry[] | null;

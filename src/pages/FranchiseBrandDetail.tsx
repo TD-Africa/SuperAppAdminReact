@@ -68,6 +68,7 @@ function variantLabel(variant: StorefrontVariantDto, index: number) {
 function toUpdateBody(brand: StorefrontBrandAdminDto): UpdateStorefrontBrandRequest {
   return {
     brandId: brand.brandId,
+    ...(brand.catalogBrandIds.length > 0 ? { catalogBrandIds: brand.catalogBrandIds } : {}),
     brandImageUrl: brand.brandImageUrl ?? "",
     name: brand.name,
     dynamicsId: brand.dynamicsId,

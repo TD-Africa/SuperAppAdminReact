@@ -60,7 +60,7 @@ export interface SetVariantStorefrontMarginRequest {
 
 export interface SetProductVisibilityRequest {
   productId: string;
-  isVisible: boolean;
+  isPublished: boolean;
 }
 
 export type StorefrontPagedBrands = PaginationResponse<StorefrontBrandAdminDto>;

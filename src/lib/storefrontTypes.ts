@@ -7,10 +7,20 @@ export interface StorefrontBrandDto {
   brandImageUrl: string | null;
 }
 
+export interface StorefrontCatalogBrandDto {
+  id: string;
+  name: string | null;
+  brandImageUrl: string | null;
+  dynamicsId: string | null;
+}
+
 /** GET Storefront/GetStorefrontBrands | PUT UpdateStorefrontBrand */
 export interface StorefrontBrandAdminDto {
   id: string;
-  brandId: string;
+  /** Legacy single source brand link. New storefront brands use catalogBrandIds. */
+  brandId: string | null;
+  catalogBrandIds: string[];
+  catalogBrands?: StorefrontCatalogBrandDto[];
   brandImageUrl: string | null;
   name: string;
   dynamicsId: string;
@@ -20,7 +30,8 @@ export interface StorefrontBrandAdminDto {
 }
 
 export interface UpdateStorefrontBrandRequest {
-  brandId: string;
+  brandId?: string | null;
+  catalogBrandIds?: string[];
   brandImageUrl: string;
   name: string;
   dynamicsId: string;
@@ -751,6 +762,7 @@ export interface StorefrontOwnerInvitationTokenRequest {
 export interface StorefrontOwnerBrandDto {
   storefrontBrandId: string;
   brandId: string | null;
+  catalogBrandIds: string[];
   name: string | null;
   brandImageUrl: string | null;
   isSelected: boolean;

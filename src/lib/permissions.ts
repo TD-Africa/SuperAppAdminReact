@@ -73,6 +73,8 @@ export const Permission = {
   CanViewDebtCollection: "CanViewDebtCollection",
   CanViewAuditTrail: "CanViewAuditTrail",
   ManageExchangeRate: "ManageExchangeRate",
+  CanViewStaff: "CanViewStaff",
+  CanManageStaff: "CanManageStaff",
 } as const;
 
 export type Permission = (typeof Permission)[keyof typeof Permission];

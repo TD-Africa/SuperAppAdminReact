@@ -21,6 +21,7 @@ import {
   AuditOutlined,
   CheckOutlined,
   CloseOutlined,
+  ShopOutlined,
   StopOutlined,
   UndoOutlined,
 } from "@ant-design/icons";
@@ -38,6 +39,7 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { formatDateTime } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { PromptDialog } from "@/components/PromptDialog";
+import { StaffAssignmentsModal } from "@/components/staff/StaffAssignmentsModal";
 
 const ALL = "__all__";
 
@@ -85,6 +87,7 @@ export default function StaffAccessPage() {
   const [approveRole, setApproveRole] = useState<StaffRole>("Staff");
   const [approving, setApproving] = useState(false);
   const [roleSavingId, setRoleSavingId] = useState<string | null>(null);
+  const [assignmentsFor, setAssignmentsFor] = useState<StaffAdminResponse | null>(null);
 
   const queryParams = useMemo(() => {
     const params = new URLSearchParams();
@@ -239,60 +242,77 @@ export default function StaffAccessPage() {
     {
       title: "",
       key: "actions",
-      width: 200,
+      width: 330,
       align: "right",
       render: (_, r) => {
-        if (!canManage) return null;
-        switch (r.status) {
-          case "Pending":
-            return (
-              <Space size={4}>
-                <Button size="small" type="primary" icon={<CheckOutlined />} onClick={() => openApprove(r)}>
-                  Approve
-                </Button>
-                <Button
-                  size="small"
-                  danger
-                  icon={<CloseOutlined />}
-                  onClick={() => setDialog({ kind: "reject", row: r })}
-                >
-                  Reject
-                </Button>
-              </Space>
-            );
-          case "Rejected":
-            return (
-              <Button size="small" icon={<CheckOutlined />} onClick={() => openApprove(r)}>
-                Approve
-              </Button>
-            );
-          case "Active":
-            return (
-              <Button
-                size="small"
-                danger
-                icon={<StopOutlined />}
-                onClick={() => setDialog({ kind: "deactivate", row: r })}
-              >
-                Deactivate
-              </Button>
-            );
-          case "Deactivated":
-            return (
-              <Button
-                size="small"
-                icon={<UndoOutlined />}
-                onClick={() => setDialog({ kind: "reactivate", row: r })}
-              >
-                Reactivate
-              </Button>
-            );
-          default:
-            return null;
-        }
+        // Assignments only matter once someone has been granted access; viewers
+        // without CanManageStaff can still open them read-only.
+        const assignments =
+          r.status === "Active" || r.status === "Deactivated" ? (
+            <Button size="small" icon={<ShopOutlined />} onClick={() => setAssignmentsFor(r)}>
+              Assignments
+            </Button>
+          ) : null;
+        if (!canManage) return assignments;
+        return (
+          <Space size={4}>
+            {assignments}
+            {statusActions(r)}
+          </Space>
+        );
       },
     },
   ];
+
+  function statusActions(r: StaffAdminResponse) {
+    switch (r.status) {
+      case "Pending":
+        return (
+          <Space size={4}>
+            <Button size="small" type="primary" icon={<CheckOutlined />} onClick={() => openApprove(r)}>
+              Approve
+            </Button>
+            <Button
+              size="small"
+              danger
+              icon={<CloseOutlined />}
+              onClick={() => setDialog({ kind: "reject", row: r })}
+            >
+              Reject
+            </Button>
+          </Space>
+        );
+      case "Rejected":
+        return (
+          <Button size="small" icon={<CheckOutlined />} onClick={() => openApprove(r)}>
+            Approve
+          </Button>
+        );
+      case "Active":
+        return (
+          <Button
+            size="small"
+            danger
+            icon={<StopOutlined />}
+            onClick={() => setDialog({ kind: "deactivate", row: r })}
+          >
+            Deactivate
+          </Button>
+        );
+      case "Deactivated":
+        return (
+          <Button
+            size="small"
+            icon={<UndoOutlined />}
+            onClick={() => setDialog({ kind: "reactivate", row: r })}
+          >
+            Reactivate
+          </Button>
+        );
+      default:
+        return null;
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -460,6 +480,13 @@ export default function StaffAccessPage() {
             "Staff member deactivated",
           );
         }}
+      />
+
+      <StaffAssignmentsModal
+        staff={assignmentsFor}
+        open={!!assignmentsFor}
+        onOpenChange={(o) => !o && setAssignmentsFor(null)}
+        canEdit={canManage}
       />
 
       <ConfirmDialog

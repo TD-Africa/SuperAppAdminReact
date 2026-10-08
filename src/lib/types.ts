@@ -1272,3 +1272,28 @@ export interface StaffAdminResponse {
   /** For a Pending row this is when access was requested (first sign-in). */
   dateCreated: string;
 }
+
+// GET Staff/GetAssignments/{id}; every assign/unassign endpoint returns the
+// refreshed set in this shape too.
+export interface StaffAssignmentsResponse {
+  staffId: string;
+  partners: StaffPartnerAssignmentResponse[];
+  brands: StaffBrandAssignmentResponse[];
+}
+
+export interface StaffPartnerAssignmentResponse {
+  /** Partner main-account user ID. Sub-users are covered through it. */
+  userId: string;
+  companyName: string | null;
+  email: string | null;
+  dynamicsId: string | null;
+  assignedBy: string | null;
+  assignedAt: string;
+}
+
+export interface StaffBrandAssignmentResponse {
+  brandId: string;
+  name: string | null;
+  assignedBy: string | null;
+  assignedAt: string;
+}

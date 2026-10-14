@@ -162,6 +162,12 @@ export function ProductDetailModal({ productId, open, onOpenChange }: Props) {
       render: (v: number) => formatCurrency(v, "USD"),
     },
     {
+      title: "RRP (NGN)",
+      dataIndex: "retailPriceInNaira",
+      align: "right" as const,
+      render: (v: number | null | undefined) => (v ? formatCurrency(v, "NGN") : "—"),
+    },
+    {
       // One entry per warehouse stocking this variant. Rendered with each
       // warehouse's own quantity rather than comma-joining the names — a joined
       // list can't say where the variant's stock actually sits, which is the
@@ -337,6 +343,11 @@ export function ProductDetailModal({ productId, open, onOpenChange }: Props) {
                 </Descriptions.Item>
                 <Descriptions.Item label="Price (NGN)">
                   {formatCurrency(data.priceInNaira, "NGN")}
+                </Descriptions.Item>
+                <Descriptions.Item label="RRP (NGN)">
+                  {data.retailPriceInNaira
+                    ? formatCurrency(data.retailPriceInNaira, "NGN")
+                    : "—"}
                 </Descriptions.Item>
                 {/* Cross-warehouse total, matching the catalogue grid — the
                     detail endpoint was migrated off default-warehouse scoping. */}

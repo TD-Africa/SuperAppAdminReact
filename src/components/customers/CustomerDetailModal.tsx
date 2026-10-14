@@ -13,6 +13,7 @@ import {
 import { CustomerBrandAccessPanel } from "@/components/customers/CustomerBrandAccessPanel";
 import { WalletTransactionsDownload } from "@/components/wallets/WalletExportButtons";
 import { CreditSyncButton } from "@/components/customers/CreditSyncButton";
+import { CreditPositionPanel } from "@/components/credit/CreditPositionPanel";
 
 interface CustomerDetailModalProps {
   customer: CustomerResponse | null;
@@ -202,6 +203,14 @@ export function CustomerDetailModal({
                 />
               </div>
             </div>
+
+            {/* Live credit position — only for D365-linked customers. */}
+            {c.dynamicsId && (
+              <div>
+                <SectionLabel>Credit position</SectionLabel>
+                <CreditPositionPanel userId={c.id} />
+              </div>
+            )}
 
             {/* Orders */}
             <div>

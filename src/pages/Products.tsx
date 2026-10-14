@@ -360,6 +360,13 @@ export default function ProductsPage() {
       render: (v) => formatCurrency(v, "USD"),
     },
     {
+      // Recommended retail price from the Middleware. Null = none set.
+      title: "RRP (NGN)",
+      dataIndex: "retailPriceInNaira",
+      align: "right",
+      render: (v) => (v ? formatCurrency(v, "NGN") : "—"),
+    },
+    {
       title: "Dynamics ID",
       dataIndex: "dynamicsId",
       render: (v) => <span className="text-xs text-muted-foreground">{v ?? "—"}</span>,

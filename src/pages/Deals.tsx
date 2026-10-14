@@ -31,6 +31,7 @@ import {
 import { apiDelete, apiGet, apiPost, apiPut } from "@/lib/api";
 import type {
   DealEnum,
+  DealRewardItemResponse,
   DealRequest,
   DealResponse,
   EditDealRequest,
@@ -44,14 +45,28 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { formatDate } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { ProductSearchMultiSelect } from "@/components/ProductSearchMultiSelect";
+import {
+  DealRewardsEditor,
+  newRewardRow,
+  type RewardRow,
+} from "@/components/deals/DealRewardsEditor";
 
 const ALL = "__all__";
 
+// The two buy-get types used to share a label; now that there are two, each
+// says which products the free units come from.
 const DEAL_TYPE_LABELS: Record<DealEnum, string> = {
   PercentageDiscount: "Percentage Discount",
   FixedDiscount: "Fixed Discount",
-  BuyOneGetOneFree: "Buy X Get Y Free",
+  BuyOneGetOneFree: "Buy X Get Y Free (same product)",
+  BuyXGetYFree: "Buy X, Get Other Items Free",
 };
+
+function rewardsSummary(d: DealResponse): string {
+  const items = d.rewardItems ?? [];
+  if (items.length === 0) return "no free items";
+  return items.map((r) => `${r.quantity}× ${r.productName ?? "item"}`).join(", ");
+}
 
 function discountDisplay(d: DealResponse): string {
   switch (d.dealType) {
@@ -61,6 +76,8 @@ function discountDisplay(d: DealResponse): string {
       return `$${(d.fixedAmount ?? 0).toFixed(2)}`;
     case "BuyOneGetOneFree":
       return `Buy ${d.buyQuantity ?? 0}, Get ${d.getQuantity ?? 0} free`;
+    case "BuyXGetYFree":
+      return `Buy ${d.buyQuantity ?? 0}, get free: ${rewardsSummary(d)}`;
   }
 }
 
@@ -338,6 +355,8 @@ interface DealFormState {
   locationId: string;
   range: [Dayjs | null, Dayjs | null] | null;
   productIds: string[];
+  /** BuyXGetYFree only. */
+  rewards: RewardRow[];
 }
 
 function emptyForm(): DealFormState {
@@ -351,7 +370,27 @@ function emptyForm(): DealFormState {
     locationId: "",
     range: [dayjs(), dayjs().add(7, "day")],
     productIds: [],
+    rewards: [],
   };
+}
+
+// Mirrors DealService's own checks so the admin sees the problem before saving.
+function validateRewards(s: DealFormState): string | null {
+  if (s.dealType !== "BuyXGetYFree") return null;
+  if (!s.buyQuantity || s.buyQuantity < 1) return "Buy quantity must be at least 1";
+  if (s.rewards.length === 0) return "Add at least one free item";
+  if (s.rewards.some((r) => !r.productId)) return "Pick a product for every free item";
+  if (s.rewards.some((r) => !r.quantity || r.quantity < 1))
+    return "Each free item needs a quantity of at least 1";
+  if (s.rewards.some((r) => r.productId && s.productIds.includes(r.productId)))
+    return "A free item can't also be a Buy product — use Buy X Get Y Free (same product) for that";
+  const seen = new Set<string>();
+  for (const r of s.rewards) {
+    const k = `${r.productId}::${r.variantId ?? "default"}`;
+    if (seen.has(k)) return "The same free item is listed twice";
+    seen.add(k);
+  }
+  return null;
 }
 
 function buildPayload(s: DealFormState): DealRequest {
@@ -366,7 +405,15 @@ function buildPayload(s: DealFormState): DealRequest {
   };
   if (s.dealType === "PercentageDiscount") payload.percentOff = s.percentOff;
   else if (s.dealType === "FixedDiscount") payload.fixedAmount = s.fixedAmount;
-  else {
+  else if (s.dealType === "BuyXGetYFree") {
+    payload.buyQuantity = s.buyQuantity;
+    // Always sent on this type: on an edit, the list replaces what's saved.
+    payload.rewards = s.rewards.map((r) => ({
+      productId: r.productId as string,
+      variantId: r.variantId,
+      quantity: r.quantity,
+    }));
+  } else {
     payload.buyQuantity = s.buyQuantity;
     payload.getQuantity = s.getQuantity;
   }
@@ -422,6 +469,14 @@ function DealFormModal({
           existing.validUntil ? dayjs(existing.validUntil) : null,
         ],
         productIds: existing.products.map((p) => p.id),
+        rewards: (existing.rewardItems ?? []).map((r) =>
+          newRewardRow({
+            productId: r.productId,
+            productName: r.productName,
+            variantId: r.variantId,
+            quantity: r.quantity,
+          }),
+        ),
       });
       setInitialSelection(
         existing.products.map((p) => ({
@@ -438,6 +493,8 @@ function DealFormModal({
       if (!form.locationId) throw new Error("Location is required");
       if (form.productIds.length === 0)
         throw new Error("Select at least one product");
+      const rewardsError = validateRewards(form);
+      if (rewardsError) throw new Error(rewardsError);
       const payload = buildPayload(form);
       const res =
         mode === "create"
@@ -495,6 +552,7 @@ function DealFormModal({
                 { value: "PercentageDiscount", label: DEAL_TYPE_LABELS.PercentageDiscount },
                 { value: "FixedDiscount", label: DEAL_TYPE_LABELS.FixedDiscount },
                 { value: "BuyOneGetOneFree", label: DEAL_TYPE_LABELS.BuyOneGetOneFree },
+                { value: "BuyXGetYFree", label: DEAL_TYPE_LABELS.BuyXGetYFree },
               ]}
             />
           </Form.Item>
@@ -521,6 +579,29 @@ function DealFormModal({
                 placeholder="50.00"
               />
             </Form.Item>
+          )}
+          {form.dealType === "BuyXGetYFree" && (
+            <Alert
+              type="info"
+              showIcon
+              message={
+                <>
+                  Every <strong>{form.buyQuantity ?? 1}</strong> paid units of the Buy
+                  products earn the free items below. Repeats with no cap.
+                </>
+              }
+              description={
+                <Form.Item label="Buy quantity (per set)" className="!mb-0 mt-2">
+                  <InputNumber
+                    min={1}
+                    precision={0}
+                    value={form.buyQuantity}
+                    onChange={(v) => setForm((p) => ({ ...p, buyQuantity: v ?? 1 }))}
+                    style={{ width: "100%" }}
+                  />
+                </Form.Item>
+              }
+            />
           )}
           {form.dealType === "BuyOneGetOneFree" && (
             <Alert
@@ -573,7 +654,15 @@ function DealFormModal({
               }
             />
           </Form.Item>
-          <Form.Item label="Products" required>
+          <Form.Item
+            label={form.dealType === "BuyXGetYFree" ? "Buy" : "Products"}
+            required
+            extra={
+              form.dealType === "BuyXGetYFree"
+                ? "Any mix of these counts toward each set."
+                : undefined
+            }
+          >
             <ProductSearchMultiSelect
               value={form.productIds}
               onChange={(v) => setForm((p) => ({ ...p, productIds: v }))}
@@ -581,6 +670,19 @@ function DealFormModal({
               extraParams={{ locationId: form.locationId || undefined }}
             />
           </Form.Item>
+          {form.dealType === "BuyXGetYFree" && (
+            <Form.Item
+              label="Get free"
+              required
+              extra="Added to the customer's cart at ₦0 for every completed set. A free item can't also be a Buy product."
+            >
+              <DealRewardsEditor
+                value={form.rewards}
+                onChange={(rewards) => setForm((p) => ({ ...p, rewards }))}
+                locationId={form.locationId || undefined}
+              />
+            </Form.Item>
+          )}
         </Form>
       )}
     </Modal>
@@ -656,6 +758,9 @@ function DetailDealModal({
               {data.validUntil ? formatDate(data.validUntil) : "—"}
             </Descriptions.Item>
           </Descriptions>
+          {data.dealType === "BuyXGetYFree" && (
+            <Typography.Text strong>Buy</Typography.Text>
+          )}
           <Table
             rowKey="id"
             dataSource={data.products ?? []}
@@ -663,6 +768,43 @@ function DetailDealModal({
             pagination={false}
             size="small"
           />
+          {data.dealType === "BuyXGetYFree" && (
+            <>
+              <Typography.Text strong>
+                Get free (per {data.buyQuantity ?? 0} bought)
+              </Typography.Text>
+              <Table<DealRewardItemResponse>
+                rowKey={(r) => `${r.productId}-${r.variantId}`}
+                dataSource={data.rewardItems ?? []}
+                pagination={false}
+                size="small"
+                locale={{ emptyText: "No free items set." }}
+                columns={[
+                  {
+                    title: "Product",
+                    dataIndex: "productName",
+                    render: (v: string | null, r) => (
+                      <div className="flex items-center gap-2">
+                        {r.imageUrl && (
+                          <img
+                            src={r.imageUrl}
+                            alt=""
+                            className="h-8 w-8 rounded object-contain"
+                          />
+                        )}
+                        <span className="font-medium">{v ?? "—"}</span>
+                      </div>
+                    ),
+                  },
+                  {
+                    title: "Quantity",
+                    dataIndex: "quantity",
+                    align: "right",
+                  },
+                ]}
+              />
+            </>
+          )}
         </div>
       )}
     </Modal>

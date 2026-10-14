@@ -60,6 +60,7 @@ const AdminUsersPage = lazy(() => import("@/pages/AdminUsers"));
 const RolesPage = lazy(() => import("@/pages/Roles"));
 const StaffAccessPage = lazy(() => import("@/pages/StaffAccess"));
 const DebtCollectionPage = lazy(() => import("@/pages/DebtCollection"));
+const CreditReservationsPage = lazy(() => import("@/pages/CreditReservations"));
 const WalletsPage = lazy(() => import("@/pages/Wallets"));
 const TransactionSettingsPage = lazy(() => import("@/pages/TransactionSettings"));
 const ExchangeRatesPage = lazy(() => import("@/pages/ExchangeRates"));
@@ -178,6 +179,15 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute permission={Permission.CanViewOrders}>
             {withSuspense(<DebtCollectionPage />)}
+          </ProtectedRoute>
+        ),
+      },
+      {
+        // Same permission the backend's CreditController checks.
+        path: "credit-reservations",
+        element: (
+          <ProtectedRoute permission={Permission.CanViewUser}>
+            {withSuspense(<CreditReservationsPage />)}
           </ProtectedRoute>
         ),
       },

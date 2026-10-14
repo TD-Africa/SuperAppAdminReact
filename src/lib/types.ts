@@ -188,6 +188,9 @@ export interface BaseProductReturnDto {
   adminDisabled?: boolean;
   // Minimum order quantity. 0 means no minimum. Test API only, as above.
   minOrderQuantity?: number;
+  // Recommended retail price from the Middleware, in naira. Null when none is
+  // set. The product-level figure is copied from one source variant.
+  retailPriceInNaira?: number | null;
 }
 
 // PATCH Product/EditProduct/{id}. Every field is nullable, so leaving one out
@@ -214,6 +217,8 @@ export interface ProductVariantReturnDto {
   priceInNaira: number;
   priceInDollar: number;
   specialPrice: number;
+  // This variant's RRP in naira; null when none is set.
+  retailPriceInNaira?: number | null;
   // This variant's total across all warehouses (backend sums `warehouses`).
   quantity: number;
   // Note the wire name is plural here, unlike the product-level `warehouse`.
@@ -724,7 +729,30 @@ export interface CouponProductUploadResponse {
 }
 
 // ---- Deal ----
-export type DealEnum = "PercentageDiscount" | "FixedDiscount" | "BuyOneGetOneFree";
+// `BuyOneGetOneFree` gives free units of the SAME product. `BuyXGetYFree` is
+// cross-product: every `buyQuantity` paid units of the deal's products (any mix)
+// earns the deal's `rewards` free. Repeatable, uncapped.
+export type DealEnum =
+  | "PercentageDiscount"
+  | "FixedDiscount"
+  | "BuyOneGetOneFree"
+  | "BuyXGetYFree";
+
+// BuyXGetYFree only: one free item per completed set. `variantId` omitted means
+// the product's default variant. A reward can't also be a qualifying product.
+export interface DealRewardItemRequest {
+  productId: string;
+  variantId?: string | null;
+  quantity: number;
+}
+
+export interface DealRewardItemResponse {
+  productId: string;
+  variantId: string;
+  productName: string | null;
+  imageUrl: string | null;
+  quantity: number;
+}
 
 export interface DynamicsLocationResponse {
   locationId: string;
@@ -751,6 +779,9 @@ export interface DealResponse {
   locationId: string;
   location: DynamicsLocationResponse | null;
   products: DealProductResponse[];
+  // BuyXGetYFree only; empty for the other types. Optional so an older API
+  // build that omits it reads as "none".
+  rewardItems?: DealRewardItemResponse[];
 }
 
 export interface DealRequest {
@@ -765,6 +796,7 @@ export interface DealRequest {
   locationId: string;
   isActive?: boolean | null;
   productIds: string[];
+  rewards?: DealRewardItemRequest[] | null;
 }
 
 export interface EditDealRequest {
@@ -779,6 +811,69 @@ export interface EditDealRequest {
   locationId?: string | null;
   isActive?: boolean | null;
   productIds?: string[] | null;
+  // Replaces the free items when sent; null/omitted leaves them unchanged.
+  rewards?: DealRewardItemRequest[] | null;
+}
+
+// ---- Credit reservations ----
+// What SuperApp holds against each customer's D365 available credit
+// (ADMIN.API CreditController). All amounts in naira.
+
+// GET Credit/ReservationReport — one row per customer with uninvoiced credit
+// orders. Database only; makes no D365 calls.
+export interface CreditReservationReportRow {
+  dynamicsId: string;
+  companyName: string | null;
+  /** TDNG sales orders not yet recorded as invoiced. Checkout asks D365 about these. */
+  awaitingInvoiceOrders: number;
+  awaitingInvoiceAmount: number;
+  /** Unposted orders still in flight (awaiting acceptance or recent). Reserved. */
+  inFlightOrders: number;
+  inFlightAmount: number;
+  /** Unposted post-cutover orders past the in-flight window. Not reserved; a Lead must post or cancel. */
+  needsReviewOrders: number;
+  needsReviewAmount: number;
+  /** Pre-cutover or legacy-ERP orders. Never reserved. */
+  legacyOrders: number;
+  legacyAmount: number;
+}
+
+export type CreditReservationKind = "AwaitingInvoice" | "InFlight" | "NeedsReview";
+
+export interface CreditReservationResponse {
+  orderId: string;
+  orderReference: string | null;
+  userId: string | null;
+  dateCreated: string;
+  orderStatus: string | null;
+  isDynamicsPosted: boolean;
+  kind: CreditReservationKind | string;
+  salesIds: string[];
+  /** Naira value that counts against credit (0 for NeedsReview). */
+  amount: number;
+}
+
+// GET Credit/Position/{userId} — one partner's live position. Asks D365 which
+// TDNG sales orders are invoiced (lookup only; nothing is posted).
+export interface CreditPositionResponse {
+  dynamicsId: string;
+  /** Gross limit: d365Available + accountBalance. */
+  creditLimit: number;
+  /** Positive = the customer owes; negative = in credit. */
+  accountBalance: number;
+  /** D365's own available credit, already net of accountBalance. */
+  d365Available: number;
+  /** SuperApp credit orders D365 hasn't invoiced yet. */
+  reserved: number;
+  /** What a new credit order may use when enforcement is on: d365Available - reserved. */
+  available: number;
+  /** Whether checkout currently refuses credit orders above `available`. */
+  isEnforced: boolean;
+  /** False when the D365 invoice check failed: every uninvoiced TDNG order then counts. */
+  invoiceStatusVerified: boolean;
+  needsReviewAmount: number;
+  needsReviewCount: number;
+  reservations: CreditReservationResponse[];
 }
 
 // ---- Debt collection ----

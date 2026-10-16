@@ -280,6 +280,32 @@ export function getStorefrontProducts(params: {
   );
 }
 
+/** Returns every active SuperApp product matching a storefront brand for global configuration. */
+export function getStorefrontBrandProductsForAdmin(
+  storefrontBrandId: string,
+  params: { PageSize?: number; PageNumber?: number; SearchString?: string } = {},
+) {
+  return apiGet<StorefrontPagedProducts>(
+    `Storefront/GetStorefrontBrandProductsForAdmin/${encodeURIComponent(storefrontBrandId)}${toQuery(params)}`,
+  );
+}
+
+export function getStorefrontBrandExcludedProducts(storefrontBrandId: string) {
+  return apiGet<string[]>(
+    `Storefront/GetStorefrontBrandExcludedProducts/${encodeURIComponent(storefrontBrandId)}`,
+  );
+}
+
+export function setStorefrontBrandExcludedProducts(
+  storefrontBrandId: string,
+  productIds: string[],
+) {
+  return apiPut<string[]>(
+    `Storefront/SetStorefrontBrandExcludedProducts/${encodeURIComponent(storefrontBrandId)}`,
+    { productIds },
+  );
+}
+
 export function getProductsByStorefrontCategory(
   storefrontCategoryId: string,
   params: {

@@ -47,8 +47,10 @@ export interface ProductStorefrontPricingDto {
   productId: string;
   productName: string;
   priceInNaira: number;
+  retailPriceInNaira?: number | null;
   productMargin: number;
   brandMargin: number;
+  categoryMargin?: number | null;
   effectiveMargin: number;
   storefrontPrice: number;
 }
@@ -58,8 +60,11 @@ export interface VariantStorefrontPricingDto {
   variantId: string;
   productId: string;
   priceInNaira: number;
+  retailPriceInNaira?: number | null;
   productMargin: number;
   brandMargin: number;
+  storefrontPriceMargin?: number | null;
+  categoryMargin?: number | null;
   effectiveMargin: number;
   storefrontPrice: number;
 }
@@ -81,10 +86,13 @@ export type ProductMarginSource = "override" | "inherited" | "unset";
 /** GET Storefront/GetActiveStorefrontCategories | GetStorefrontCategoriesByProduct */
 export interface StorefrontCategoryDto {
   id: string;
+  superAppCategoryId?: string | null;
   name: string;
+  imageUrl?: string | null;
   isActive: boolean;
   dateCreated: string;
   productCount: number;
+  storefrontPriceMargin?: number | null;
 }
 
 export type StorefrontPagedCategories = PaginationResponse<StorefrontCategoryDto>;
@@ -92,6 +100,7 @@ export type StorefrontPagedCategories = PaginationResponse<StorefrontCategoryDto
 /** GET Storefront/GetPublishedProductCategories/{productId} */
 export interface StorefrontCategoryReturnDto {
   id: string;
+  superAppCategoryId?: string | null;
   name: string | null;
   imageUrl: string | null;
   isActive: boolean;
@@ -129,6 +138,9 @@ export interface StorefrontVariantDto {
   styleId: string | null;
   versionId: string | null;
   priceInNaira: number;
+  retailPriceInNaira?: number | null;
+  categoryMargin?: number | null;
+  effectiveMargin?: number;
   storefrontPrice: number;
   availableQuantity: number;
   isAvailable: boolean;
@@ -144,6 +156,9 @@ export interface StorefrontProductDto {
   categoryIds: string[] | null;
   images: string[] | null;
   isStorefrontPublished: boolean;
+  retailPriceInNaira?: number | null;
+  /** Global exclusion configured for the selected storefront brand. */
+  isExcluded?: boolean;
   variants: StorefrontVariantDto[] | null;
 }
 
@@ -154,7 +169,10 @@ export interface StorefrontCategoryProductDto {
   dynamicsId: string;
   isActive: boolean;
   priceInNaira: number;
+  retailPriceInNaira?: number;
   storefrontPriceMargin: number;
+  categoryMargin?: number | null;
+  effectiveMargin?: number;
   storefrontPrice: number;
 }
 
@@ -338,13 +356,23 @@ export function pickDefaultVariant(product: StorefrontProductDto): StorefrontVar
 /** Prefer a sellable variant over the placeholder default (often price/qty 0). */
 export function pickDisplayVariant(product: StorefrontProductDto): StorefrontVariantDto | null {
   const variants = product.variants ?? [];
+  const hasPrice = (variant: StorefrontVariantDto) =>
+    variant.priceInNaira > 0 || (variant.retailPriceInNaira ?? 0) >= 1;
   return (
-    variants.find((v) => v.isActive && v.isAvailable && v.priceInNaira > 0) ??
-    variants.find((v) => v.isActive && v.priceInNaira > 0) ??
+    variants.find((v) => v.isActive && v.isAvailable && hasPrice(v)) ??
+    variants.find((v) => v.isActive && hasPrice(v)) ??
     variants.find((v) => v.isDefault) ??
     variants[0] ??
     null
   );
+}
+
+/** Retail price is the final storefront base when it is at least one naira. */
+export function effectiveStorefrontBasePrice(variant: StorefrontVariantDto | null | undefined) {
+  if (!variant) return 0;
+  return (variant.retailPriceInNaira ?? 0) >= 1
+    ? variant.retailPriceInNaira!
+    : variant.priceInNaira;
 }
 
 export function aggregateStorefrontAvailability(product: StorefrontProductDto) {

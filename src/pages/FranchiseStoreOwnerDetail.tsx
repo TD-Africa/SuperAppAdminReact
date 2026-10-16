@@ -17,7 +17,6 @@ import {
   getStorefrontEarningsSummary,
   getStorefrontOwner,
   getStorefrontOwnerBrands,
-  getStorefrontOwnerExcludedProducts,
   getStorefrontTicket,
   getStorefrontTickets,
 } from "@/lib/storefrontApi";
@@ -38,8 +37,6 @@ import {
 } from "@/lib/storefrontTypes";
 import type {
   LocationReturnDTO,
-  PaginationResponse,
-  ProductReturnDto,
   TicketResponse,
 } from "@/lib/types";
 import { formatCurrency, formatDate, formatNumber } from "@/lib/utils";
@@ -48,7 +45,6 @@ import { useQuery } from "@tanstack/react-query";
 import type { TableColumnsType } from "antd";
 import {
   App as AntdApp,
-  Alert,
   Button,
   Card,
   Descriptions,
@@ -59,7 +55,6 @@ import {
   Modal,
   Select,
   Space,
-  Spin,
   Statistic,
   Table,
   Tabs,
@@ -1185,7 +1180,6 @@ function OwnerConfigModal({
   const [defaultMargin, setDefaultMargin] = useState<number | null>(null);
   const [margins, setMargins] = useState<Record<string, number | null>>({});
   const [assignedBrandIds, setAssignedBrandIds] = useState<string[]>([]);
-  const [excludedProductIds, setExcludedProductIds] = useState<string[]>([]);
 
   // All storefront brands — the pool an owner can be assigned to.
   const allBrandsQuery = useQuery({
@@ -1198,16 +1192,6 @@ function OwnerConfigModal({
     enabled: open,
   });
   const allBrands = allBrandsQuery.data ?? [];
-
-  const excludedProductsQuery = useQuery({
-    queryKey: ["storefront", "owner-excluded-products", ownerId],
-    queryFn: async () => {
-      const res = await getStorefrontOwnerExcludedProducts(ownerId);
-      if (!res.status) throw new Error(res.message ?? "Failed to load excluded products");
-      return res.data ?? [];
-    },
-    enabled: open,
-  });
 
   useEffect(() => {
     if (!open) return;
@@ -1223,82 +1207,11 @@ function OwnerConfigModal({
     );
   }, [open, owner, brands]);
 
-  useEffect(() => {
-    if (open && excludedProductsQuery.data) {
-      setExcludedProductIds(excludedProductsQuery.data);
-    }
-  }, [open, excludedProductsQuery.data]);
-
-  const selectedBrandLinks = useMemo(
-    () =>
-      assignedBrandIds
-        .map((storefrontBrandId) => {
-          const brand = brands.find((item) => item.storefrontBrandId === storefrontBrandId);
-          const sourceBrandIds = brand?.catalogBrandIds?.length
-            ? brand.catalogBrandIds
-            : brand?.brandId
-              ? [brand.brandId]
-              : allBrands.find((item) => item.id === storefrontBrandId)?.brandId
-                ? [allBrands.find((item) => item.id === storefrontBrandId)!.brandId!]
-                : [];
-          return sourceBrandIds.length
-            ? { storefrontBrandId, sourceBrandIds, storefrontBrandName: brand?.name ?? storefrontBrandId }
-            : null;
-        })
-        .filter((value): value is {
-          storefrontBrandId: string;
-          sourceBrandIds: string[];
-          storefrontBrandName: string;
-        } => Boolean(value)),
-    [allBrands, assignedBrandIds, brands],
-  );
-
-  // The admin Product endpoint already returns all active SuperApp products.
-  // Filter those products by the underlying SuperApp brand ID; do not use the
-  // public storefront catalog endpoint, which intentionally requires publication.
-  const selectedBrandProductsQuery = useQuery({
-    queryKey: [
-      "storefront",
-      "configure-owner-brand-products",
-      selectedBrandLinks,
-    ],
-    queryFn: async () => {
-      if (selectedBrandLinks.length === 0) return [];
-
-      const products: ProductReturnDto[] = [];
-      let pageNumber = 1;
-      let total = Number.POSITIVE_INFINITY;
-
-      while (products.length < total) {
-        const res = await apiGet<PaginationResponse<ProductReturnDto>>(
-          `Product/GetProducts?PageSize=100&PageNumber=${pageNumber}&isActive=true`,
-        );
-        if (!res.status) {
-          throw new Error(res.message ?? "Failed to load SuperApp products");
-        }
-
-        const page = res.data?.data ?? [];
-        products.push(...page);
-        total = Number(res.data?.count ?? products.length);
-        if (page.length === 0 || products.length >= total) break;
-        pageNumber += 1;
-      }
-
-      return selectedBrandLinks.map(({ storefrontBrandId, sourceBrandIds, storefrontBrandName }) => ({
-        brandId: storefrontBrandId,
-        brandName: storefrontBrandName,
-        products: products.filter((product) => sourceBrandIds.includes(product.brand?.id ?? "")),
-      }));
-    },
-    enabled: open && selectedBrandLinks.length > 0,
-  });
-
   async function save() {
     setSaving(true);
     try {
       const body: StorefrontOwnerConfigurationRequest = {
         storefrontBrandIds: assignedBrandIds,
-        excludedProductIds,
         primaryStorefrontBrandId: primaryBrandId,
         defaultStorefrontPriceMargin: defaultMargin,
         brandMargins: brands
@@ -1326,76 +1239,22 @@ function OwnerConfigModal({
     }
   }
 
-  const brandOptions = allBrands.map((b) => ({
-    value: b.id,
-    label: b.name,
-  }));
+  const brandOptions = allBrands
+    .filter((b) => b.isActive)
+    .map((b) => ({
+      value: b.id,
+      label: b.catalogBrands?.length
+        ? `${b.name} (${b.catalogBrands.map((source) => source.name).filter(Boolean).join(", ")})`
+        : b.name,
+    }));
 
-  const selectedBrandProducts = (selectedBrandProductsQuery.data ?? []).flatMap(
-    (group) =>
-      group.products.map((product) => ({
-        brandId: group.brandId,
-        brandName: group.brandName ?? product.brand?.name ?? "—",
-        excluded: excludedProductIds.includes(product.id),
-        product,
-      })),
+  const assignedBrandOptions = brandOptions.filter((option) =>
+    assignedBrandIds.includes(option.value),
   );
-  const productsToAdd = selectedBrandProducts.filter((row) => !row.excluded);
-  const excludedSelectedCount = selectedBrandProducts.length - productsToAdd.length;
+
   const selectedBrandRecords = brands.filter((brand) =>
     assignedBrandIds.includes(brand.storefrontBrandId),
   );
-
-  const productPreviewColumns: TableColumnsType<
-    (typeof selectedBrandProducts)[number]
-  > = [
-    {
-      title: "Product",
-      key: "product",
-      render: (_, row) => (
-        <Space>
-          {row.product.productImageUrls?.[0]?.url ? (
-            <img
-              src={row.product.productImageUrls[0].url}
-              alt=""
-              className="h-8 w-8 rounded object-cover"
-            />
-          ) : null}
-          <span className="font-medium">{row.product.productName}</span>
-        </Space>
-      ),
-    },
-    { title: "Brand", dataIndex: "brandName", width: 180 },
-    {
-      title: "Variants",
-      key: "variants",
-      align: "right",
-      width: 90,
-      render: (_, row) => row.product.variants?.length ?? 0,
-    },
-    {
-      title: "Action",
-      key: "action",
-      width: 100,
-      render: (_, row) => (
-        <Button
-          type="link"
-          danger={!row.excluded}
-          onClick={() =>
-            setExcludedProductIds((current) =>
-              row.excluded
-                ? current.filter((id) => id !== row.product.id)
-                : current.includes(row.product.id)
-                  ? current
-                  : [...current, row.product.id],
-            )
-          }
-        >
-          {row.excluded ? "Restore" : "Remove"}
-        </Button>
-      ),
-    },
-  ];
 
   return (
     <Modal
@@ -1404,7 +1263,6 @@ function OwnerConfigModal({
       title="Configure owner"
       okText="Save"
       confirmLoading={saving}
-      okButtonProps={{ disabled: excludedProductsQuery.isLoading }}
       onOk={save}
       width={640}
       destroyOnClose
@@ -1440,8 +1298,9 @@ function OwnerConfigModal({
             placeholder="Select primary brand"
             value={primaryBrandId ?? undefined}
             onChange={(v) => setPrimaryBrandId(v ?? null)}
-            options={brandOptions}
+            options={assignedBrandOptions}
             style={{ width: "100%" }}
+            disabled={assignedBrandIds.length === 0}
           />
         </Form.Item>
         <Form.Item label="Default storefront price margin (%)">
@@ -1453,51 +1312,6 @@ function OwnerConfigModal({
             placeholder="e.g. 15"
           />
         </Form.Item>
-
-        {assignedBrandIds.length > 0 && (
-          <div className="mb-4 space-y-3">
-            <Alert
-              type="info"
-              showIcon
-              message={`${productsToAdd.length} product${productsToAdd.length === 1 ? "" : "s"} will be added`}
-              description={
-                excludedSelectedCount > 0
-                  ? `${excludedSelectedCount} product${excludedSelectedCount === 1 ? " is" : "s are"} excluded. Selecting a brand adds active matching SuperApp products unless removed here.`
-                  : "Selecting a brand adds active matching SuperApp products unless removed here. Public storefront visibility is managed separately."
-              }
-            />
-            {selectedBrandProductsQuery.isLoading ||
-            selectedBrandProductsQuery.isFetching ? (
-              <div className="flex justify-center py-4">
-                <Spin tip="Loading products for selected brands…" />
-              </div>
-            ) : selectedBrandProductsQuery.error ? (
-              <Alert
-                type="error"
-                showIcon
-                message="Products could not be loaded"
-                description={
-                  selectedBrandProductsQuery.error instanceof Error
-                    ? selectedBrandProductsQuery.error.message
-                    : "Try selecting the brand again."
-                }
-              />
-            ) : (
-              <Table
-                size="small"
-                rowKey={(row) => row.product.id}
-                columns={productPreviewColumns}
-                dataSource={selectedBrandProducts}
-                pagination={{ pageSize: 5, hideOnSinglePage: true }}
-                scroll={{ y: 240 }}
-                rowClassName={(row) => (row.excluded ? "opacity-50" : "")}
-                locale={{
-                  emptyText: <Empty description="No active products match the selected brands" />,
-                }}
-              />
-            )}
-          </div>
-        )}
 
         {selectedBrandRecords.length > 0 && (
           <div>

@@ -8,7 +8,6 @@ import {
   Card,
   Empty,
   Input,
-  Modal,
   Select,
   Space,
   Switch,
@@ -23,31 +22,20 @@ import {
   FontSizeOutlined,
   PercentageOutlined,
   SyncOutlined,
-  TagsOutlined,
 } from "@ant-design/icons";
 import { apiGet, apiPatch, apiPut } from "@/lib/api";
 import {
-  addStorefrontCategoriesToProduct,
   getActiveStorefrontBrands,
-  getActiveStorefrontCategories,
-  getPublishedProduct,
-  getPublishedProductCategories,
-  getOwnerProductsForAdmin,
-  getStoreOwners,
-  getStorefrontCategories,
-  getStorefrontCategoriesByProduct,
-  getStorefrontProducts,
-  removeStorefrontCategoriesFromProduct,
+  getStorefrontBrandProductsForAdmin,
   setProductVisibility,
 } from "@/lib/storefrontApi";
 import { effectiveProductPrice, productThumbnail } from "@/lib/productHelpers";
 import {
   aggregateStorefrontAvailability,
+  effectiveStorefrontBasePrice,
   formatStorefrontNaira,
   pickDisplayVariant,
   storefrontMarkupPercent,
-  type StorefrontCategoryDto,
-  type StorefrontCategoryReturnDto,
   type StorefrontProductDto,
 } from "@/lib/storefrontTypes";
 import type { ProductReturnDto } from "@/lib/types";
@@ -83,13 +71,6 @@ export default function FranchiseProductsPage() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [visibilityBusyId, setVisibilityBusyId] = useState<string | null>(null);
 
-  const [categoriesProduct, setCategoriesProduct] = useState<StorefrontProductDto | null>(null);
-  const [assignedCategoryIds, setAssignedCategoryIds] = useState<string[]>([]);
-  const [initialCategoryIds, setInitialCategoryIds] = useState<string[]>([]);
-  const [categoriesLoading, setCategoriesLoading] = useState(false);
-  const [categoriesSaving, setCategoriesSaving] = useState(false);
-  const [publishedSnapshot, setPublishedSnapshot] = useState<StorefrontProductDto | null>(null);
-  const [publishedCategories, setPublishedCategories] = useState<StorefrontCategoryReturnDto[] | null>(null);
 
   useEffect(() => {
     if (brandIdFromUrl) setBrandId(brandIdFromUrl);
@@ -117,47 +98,42 @@ export default function FranchiseProductsPage() {
   const productsQuery = useQuery({
     queryKey: ["storefront", "products", queryParams],
     queryFn: async () => {
-      const res = await getStorefrontProducts(queryParams);
-      if (res.status && (res.data?.count ?? 0) > 0) return res.data;
+      const configuredBrands = brandsQuery.data ?? [];
+      const search = queryParams.SearchString;
 
-      // The global endpoint may still be the older public-only implementation.
-      // If it returns no products, fall back to the owner catalogs already exposed
-      // by the admin API and merge the owner assortments in the browser.
-      const owners: { id: string }[] = [];
-      let ownerPage = 1;
-      let ownerCount = Number.POSITIVE_INFINITY;
-      while (owners.length < ownerCount) {
-        const ownerRes = await getStoreOwners({ PageSize: 100, PageNumber: ownerPage });
-        if (!ownerRes.status) {
-          throw new Error(
-            ownerRes.message ?? res.message ?? "Failed to load storefront owners",
-          );
-        }
-        const page = ownerRes.data?.data ?? [];
-        owners.push(...page);
-        ownerCount = Number(ownerRes.data?.count ?? owners.length);
-        if (page.length === 0) break;
-        ownerPage += 1;
+      // The global admin catalog is the union of explicitly configured
+      // storefront brands. It must not be inferred from store-owner catalogs:
+      // an owner is assigned brands, not individual products.
+      if (brandId !== ALL) {
+        const res = await getStorefrontBrandProductsForAdmin(brandId, {
+          PageSize: queryParams.PageSize,
+          PageNumber: queryParams.PageNumber,
+          SearchString: search,
+        });
+        if (!res.status) throw new Error(res.message ?? "Failed to load storefront products");
+        return res.data;
       }
 
-      const productsByOwner = await Promise.all(
-        owners.map(async (owner) => {
+      const productsByBrand = await Promise.all(
+        configuredBrands.map(async (brand) => {
           const products: StorefrontProductDto[] = [];
           let productPage = 1;
           let productCount = Number.POSITIVE_INFINITY;
+          const pageSize = 100;
 
           while (products.length < productCount) {
-            const ownerRes = await getOwnerProductsForAdmin(owner.id, {
-              PageSize: 100,
+            const res = await getStorefrontBrandProductsForAdmin(brand.id, {
+              PageSize: pageSize,
               PageNumber: productPage,
-              SearchString: queryParams.SearchString,
-              storefrontBrandId: queryParams.storefrontBrandId,
+              SearchString: search,
             });
-            if (!ownerRes.status) break;
+            if (!res.status) {
+              throw new Error(res.message ?? `Failed to load products for ${brand.name}`);
+            }
 
-            const page = ownerRes.data?.data ?? [];
+            const page = res.data?.data ?? [];
             products.push(...page);
-            productCount = Number(ownerRes.data?.count ?? products.length);
+            productCount = Number(res.data?.count ?? products.length);
             if (page.length === 0) break;
             productPage += 1;
           }
@@ -167,9 +143,16 @@ export default function FranchiseProductsPage() {
       );
 
       const uniqueProducts = new Map<string, StorefrontProductDto>();
-      for (const products of productsByOwner) {
+      for (const products of productsByBrand) {
         for (const product of products) {
-          uniqueProducts.set(product.productId, product);
+          const existing = uniqueProducts.get(product.productId);
+          if (!existing) {
+            uniqueProducts.set(product.productId, { ...product });
+          } else {
+            // A product is included globally if at least one configured brand
+            // includes it. `isExcluded` is brand-scoped on the API response.
+            existing.isExcluded = Boolean(existing.isExcluded && product.isExcluded);
+          }
         }
       }
 
@@ -186,6 +169,7 @@ export default function FranchiseProductsPage() {
         pageNumber,
       };
     },
+    enabled: brandsQuery.isSuccess,
   });
 
   const storefrontRows = productsQuery.data?.data ?? [];
@@ -209,20 +193,6 @@ export default function FranchiseProductsPage() {
       return new Map(entries.filter(Boolean) as [string, ProductReturnDto][]);
     },
     enabled: productIds.length > 0,
-  });
-
-  const allCategoriesQuery = useQuery({
-    queryKey: ["storefront", "categories-admin", { PageSize: 200, PageNumber: 1 }],
-    queryFn: async () => {
-      const res = await getStorefrontCategories({ PageSize: 200, PageNumber: 1 });
-      if (res.status && res.data?.data) return res.data.data;
-      const fallback = await getActiveStorefrontCategories();
-      if (!fallback.status) {
-        throw new Error(res.message ?? fallback.message ?? "Failed to load categories");
-      }
-      return fallback.data ?? [];
-    },
-    enabled: categoriesProduct !== null,
   });
 
   useEffect(() => {
@@ -259,82 +229,9 @@ export default function FranchiseProductsPage() {
       ? (brandsQuery.data?.find((b) => b.id === brandId)?.name ?? brandNameFromUrl)
       : null;
 
-  const categoryOptions = useMemo(
-    () =>
-      (allCategoriesQuery.data ?? []).map((c: StorefrontCategoryDto) => ({
-        value: c.id,
-        label: c.name,
-      })),
-    [allCategoriesQuery.data],
-  );
-
   function openDetail(id: string) {
     setSelectedId(id);
     setDetailOpen(true);
-  }
-
-  async function openCategories(product: StorefrontProductDto) {
-    setCategoriesProduct(product);
-    setCategoriesLoading(true);
-    setPublishedSnapshot(null);
-    setPublishedCategories(null);
-    try {
-      const [catsRes, publishedRes, publishedCatsRes] = await Promise.all([
-        getStorefrontCategoriesByProduct(product.productId),
-        getPublishedProduct(product.productId),
-        getPublishedProductCategories(product.productId),
-      ]);
-      if (!catsRes.status) {
-        message.error(catsRes.message ?? "Failed to load product categories");
-        setCategoriesProduct(null);
-        return;
-      }
-      const ids = (catsRes.data ?? []).map((c) => c.id);
-      setAssignedCategoryIds(ids);
-      setInitialCategoryIds(ids);
-      if (publishedRes.status) setPublishedSnapshot(publishedRes.data);
-      if (publishedCatsRes.status) setPublishedCategories(publishedCatsRes.data ?? []);
-    } finally {
-      setCategoriesLoading(false);
-    }
-  }
-
-  async function saveCategories() {
-    if (!categoriesProduct) return;
-    const toAdd = assignedCategoryIds.filter((id) => !initialCategoryIds.includes(id));
-    const toRemove = initialCategoryIds.filter((id) => !assignedCategoryIds.includes(id));
-    if (toAdd.length === 0 && toRemove.length === 0) {
-      setCategoriesProduct(null);
-      return;
-    }
-    setCategoriesSaving(true);
-    try {
-      if (toAdd.length > 0) {
-        const res = await addStorefrontCategoriesToProduct({
-          productId: categoriesProduct.productId,
-          storefrontCategoryIds: toAdd,
-        });
-        if (!res.status) {
-          message.error(res.message ?? "Failed to add categories");
-          return;
-        }
-      }
-      if (toRemove.length > 0) {
-        const res = await removeStorefrontCategoriesFromProduct({
-          productId: categoriesProduct.productId,
-          storefrontCategoryIds: toRemove,
-        });
-        if (!res.status) {
-          message.error(res.message ?? "Failed to remove categories");
-          return;
-        }
-      }
-      message.success("Storefront categories updated");
-      setCategoriesProduct(null);
-      void productsQuery.refetch();
-    } finally {
-      setCategoriesSaving(false);
-    }
   }
 
   async function toggleStorefrontVisibility(productId: string, isPublished: boolean) {
@@ -483,7 +380,7 @@ export default function FranchiseProductsPage() {
       render: (_, { storefront, catalog }) => {
         if (catalog) return formatCurrency(effectiveProductPrice(catalog, "naira"), "NGN");
         const v = pickDisplayVariant(storefront);
-        return v ? formatStorefrontNaira(v.priceInNaira) : "—";
+        return v ? formatStorefrontNaira(effectiveStorefrontBasePrice(v)) : "—";
       },
     },
     {
@@ -528,7 +425,7 @@ export default function FranchiseProductsPage() {
         const v = pickDisplayVariant(storefront);
         const baseNaira = catalog
           ? effectiveProductPrice(catalog, "naira")
-          : (v?.priceInNaira ?? 0);
+          : effectiveStorefrontBasePrice(v);
         const storefrontNaira = v?.storefrontPrice ?? 0;
         const markup = storefrontMarkupPercent(baseNaira, storefrontNaira);
         return markup === null ? "—" : <span className="font-medium">{markup.toFixed(2)}%</span>;
@@ -557,6 +454,16 @@ export default function FranchiseProductsPage() {
             onChange={(val) => void toggleStorefrontVisibility(storefront.productId, val)}
           />
         </span>
+      ),
+    },
+    {
+      title: "Availability",
+      key: "availability",
+      width: 120,
+      render: (_, { storefront }) => (
+        <Tag color={storefront.isExcluded ? "error" : "success"}>
+          {storefront.isExcluded ? "Excluded" : "Included"}
+        </Tag>
       ),
     },
     {
@@ -615,17 +522,6 @@ export default function FranchiseProductsPage() {
           {canEdit && (
             <Button
               size="small"
-              icon={<TagsOutlined />}
-              onClick={(e) => {
-                e.stopPropagation();
-                void openCategories(storefront);
-              }}
-              title="Storefront categories"
-            />
-          )}
-          {canEdit && (
-            <Button
-              size="small"
               icon={<SyncOutlined />}
               onClick={(e) => {
                 e.stopPropagation();
@@ -659,10 +555,10 @@ export default function FranchiseProductsPage() {
     <div className="space-y-6">
       <div>
         <Typography.Title level={3} className="!m-0">
-          Franchise products
+            Manage storefront products
         </Typography.Title>
         <Typography.Text type="secondary">
-          Storefront catalogue with catalog and storefront pricing
+          Global product view from explicitly configured storefront brands. Product exclusions are managed per brand and apply to every owner assigned to that brand
           {selectedBrandLabel ? ` · filtered by ${selectedBrandLabel}` : ""}.
         </Typography.Text>
       </div>
@@ -744,50 +640,6 @@ export default function FranchiseProductsPage() {
         }}
       />
 
-      <Modal
-        open={categoriesProduct !== null}
-        title={`Storefront categories — ${categoriesProduct?.productName ?? ""}`}
-        onCancel={() => setCategoriesProduct(null)}
-        onOk={() => void saveCategories()}
-        confirmLoading={categoriesSaving}
-        okButtonProps={{ disabled: categoriesLoading || !canEdit }}
-        destroyOnClose
-        width={560}
-      >
-        {categoriesLoading ? (
-          <div className="py-8 text-center text-muted-foreground">Loading…</div>
-        ) : (
-          <div className="space-y-4 pt-2">
-            {publishedSnapshot && (
-              <div className="rounded border border-border px-3 py-2 text-sm">
-                <div className="font-medium">Published snapshot</div>
-                <div className="text-muted-foreground">
-                  {publishedSnapshot.productName}
-                  {publishedSnapshot.isStorefrontPublished ? " · published" : " · not published"}
-                </div>
-                {publishedCategories !== null && (
-                  <div className="text-muted-foreground">
-                    {publishedCategories.length > 0
-                      ? `Published categories: ${publishedCategories.map((c) => c.name).join(", ")}`
-                      : "No published categories"}
-                  </div>
-                )}
-              </div>
-            )}
-            <Select
-              mode="multiple"
-              className="w-full"
-              placeholder="Assign storefront categories"
-              value={assignedCategoryIds}
-              onChange={setAssignedCategoryIds}
-              options={categoryOptions}
-              loading={allCategoriesQuery.isFetching}
-              optionFilterProp="label"
-              showSearch
-            />
-          </div>
-        )}
-      </Modal>
     </div>
   );
 }

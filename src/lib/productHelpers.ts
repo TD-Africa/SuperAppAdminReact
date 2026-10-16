@@ -5,8 +5,16 @@ export function effectiveProductPrice(
   product: ProductReturnDto,
   currency: "naira" | "dollar",
 ): number {
-  const pick = (v: { priceInNaira: number; priceInDollar: number }) =>
-    currency === "naira" ? v.priceInNaira : v.priceInDollar;
+  const pick = (v: {
+    priceInNaira: number;
+    priceInDollar: number;
+    retailPriceInNaira?: number | null;
+  }) => {
+    if (currency === "naira" && (v.retailPriceInNaira ?? 0) >= 1) {
+      return v.retailPriceInNaira!;
+    }
+    return currency === "naira" ? v.priceInNaira : v.priceInDollar;
+  };
   const base = pick(product);
   if (base > 0) return base;
   const variants = product.variants ?? [];

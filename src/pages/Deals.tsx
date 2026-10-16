@@ -50,6 +50,11 @@ import {
   newRewardRow,
   type RewardRow,
 } from "@/components/deals/DealRewardsEditor";
+import {
+  DealQualifyingQuantitiesEditor,
+  toQualifyingQuantities,
+  type QualifyingMinimums,
+} from "@/components/deals/DealQualifyingQuantitiesEditor";
 
 const ALL = "__all__";
 
@@ -357,6 +362,8 @@ interface DealFormState {
   productIds: string[];
   /** BuyXGetYFree only. */
   rewards: RewardRow[];
+  /** BuyXGetYFree only: optional per-set minimums. Keys outside `productIds` are ignored. */
+  minimums: QualifyingMinimums;
 }
 
 function emptyForm(): DealFormState {
@@ -371,6 +378,7 @@ function emptyForm(): DealFormState {
     range: [dayjs(), dayjs().add(7, "day")],
     productIds: [],
     rewards: [],
+    minimums: {},
   };
 }
 
@@ -393,7 +401,12 @@ function validateRewards(s: DealFormState): string | null {
   return null;
 }
 
-function buildPayload(s: DealFormState): DealRequest {
+/**
+ * `hadMinimums`: the saved deal carries minimums. When an edit moves it off
+ * BuyXGetYFree they're cleared with [] rather than left behind; otherwise the
+ * field is left out for the other types.
+ */
+function buildPayload(s: DealFormState, hadMinimums = false): DealRequest {
   const [start, end] = s.range ?? [null, null];
   const payload: DealRequest = {
     name: s.name.trim(),
@@ -403,10 +416,14 @@ function buildPayload(s: DealFormState): DealRequest {
     validUntil: end ? end.toDate().toISOString() : null,
     productIds: s.productIds,
   };
+  if (s.dealType !== "BuyXGetYFree" && hadMinimums) payload.qualifyingQuantities = [];
   if (s.dealType === "PercentageDiscount") payload.percentOff = s.percentOff;
   else if (s.dealType === "FixedDiscount") payload.fixedAmount = s.fixedAmount;
   else if (s.dealType === "BuyXGetYFree") {
     payload.buyQuantity = s.buyQuantity;
+    // Always sent on this type: on an edit the list replaces what's saved,
+    // and [] clears it.
+    payload.qualifyingQuantities = toQualifyingQuantities(s.productIds, s.minimums);
     // Always sent on this type: on an edit, the list replaces what's saved.
     payload.rewards = s.rewards.map((r) => ({
       productId: r.productId as string,
@@ -438,6 +455,7 @@ function DealFormModal({
   const { message } = AntdApp.useApp();
   const [form, setForm] = useState<DealFormState>(emptyForm);
   const [initialSelection, setInitialSelection] = useState<MiniProductResponse[]>([]);
+  const [productNames, setProductNames] = useState<Record<string, string>>({});
 
   const { data: existing, isLoading } = useQuery({
     queryKey: ["deal", dealId],
@@ -455,6 +473,7 @@ function DealFormModal({
     if (mode === "create") {
       setForm(emptyForm());
       setInitialSelection([]);
+      setProductNames({});
     } else if (existing) {
       setForm({
         name: existing.name,
@@ -477,6 +496,17 @@ function DealFormModal({
             quantity: r.quantity,
           }),
         ),
+        minimums: Object.fromEntries(
+          (existing.qualifyingQuantities ?? []).map((q) => [q.productId, q.minQuantity]),
+        ),
+      });
+      setProductNames({
+        ...Object.fromEntries(
+          (existing.qualifyingQuantities ?? []).flatMap((q) =>
+            q.productName ? [[q.productId, q.productName]] : [],
+          ),
+        ),
+        ...Object.fromEntries(existing.products.map((p) => [p.id, p.name ?? "Unnamed"])),
       });
       setInitialSelection(
         existing.products.map((p) => ({
@@ -495,7 +525,10 @@ function DealFormModal({
         throw new Error("Select at least one product");
       const rewardsError = validateRewards(form);
       if (rewardsError) throw new Error(rewardsError);
-      const payload = buildPayload(form);
+      const payload = buildPayload(
+        form,
+        (existing?.qualifyingQuantities?.length ?? 0) > 0,
+      );
       const res =
         mode === "create"
           ? await apiPost<boolean>("Deal/Create", payload)
@@ -665,11 +698,30 @@ function DealFormModal({
           >
             <ProductSearchMultiSelect
               value={form.productIds}
-              onChange={(v) => setForm((p) => ({ ...p, productIds: v }))}
+              onChange={(v, selected) => {
+                setForm((p) => ({ ...p, productIds: v }));
+                setProductNames((prev) => ({
+                  ...prev,
+                  ...Object.fromEntries(selected.map((s) => [s.id, s.productName])),
+                }));
+              }}
               initialSelection={initialSelection}
               extraParams={{ locationId: form.locationId || undefined }}
             />
           </Form.Item>
+          {form.dealType === "BuyXGetYFree" && (
+            <Form.Item
+              label="Minimum per set (optional)"
+              extra="Each set must include at least this many of the product. Leave blank for no minimum."
+            >
+              <DealQualifyingQuantitiesEditor
+                productIds={form.productIds}
+                productNames={productNames}
+                value={form.minimums}
+                onChange={(minimums) => setForm((p) => ({ ...p, minimums }))}
+              />
+            </Form.Item>
+          )}
           {form.dealType === "BuyXGetYFree" && (
             <Form.Item
               label="Get free"
@@ -709,12 +761,26 @@ function DetailDealModal({
     enabled: !!dealId && open,
   });
 
+  const minimums = new Map(
+    (data?.qualifyingQuantities ?? []).map((q) => [q.productId, q.minQuantity]),
+  );
+
   const columns = [
     {
       title: "Product",
       dataIndex: "name",
       render: (v: string | null) => <span className="font-medium">{v ?? "—"}</span>,
     },
+    ...(data?.dealType === "BuyXGetYFree"
+      ? [
+          {
+            title: "Min per set",
+            dataIndex: "id",
+            align: "right" as const,
+            render: (id: string) => minimums.get(id) ?? "—",
+          },
+        ]
+      : []),
     {
       title: "Price",
       dataIndex: "price",

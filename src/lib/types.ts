@@ -754,6 +754,19 @@ export interface DealRewardItemResponse {
   quantity: number;
 }
 
+// A per-set minimum of one of the deal's own products (DealQualifyingQuantityRequest;
+// minQuantity >= 1). Only products in `productIds` can carry one; the backend
+// drops minimums on products removed from the deal.
+export interface DealQualifyingQuantity {
+  productId: string;
+  minQuantity: number;
+}
+
+// As returned on Deal/Get and Deal/GetAll (verified against the test API).
+export interface DealQualifyingQuantityResponse extends DealQualifyingQuantity {
+  productName: string | null;
+}
+
 export interface DynamicsLocationResponse {
   locationId: string;
   locationName: string;
@@ -782,6 +795,8 @@ export interface DealResponse {
   // BuyXGetYFree only; empty for the other types. Optional so an older API
   // build that omits it reads as "none".
   rewardItems?: DealRewardItemResponse[];
+  // Optional so an older API build that omits it reads as "no minimums".
+  qualifyingQuantities?: DealQualifyingQuantityResponse[];
 }
 
 export interface DealRequest {
@@ -797,6 +812,7 @@ export interface DealRequest {
   isActive?: boolean | null;
   productIds: string[];
   rewards?: DealRewardItemRequest[] | null;
+  qualifyingQuantities?: DealQualifyingQuantity[] | null;
 }
 
 export interface EditDealRequest {
@@ -813,6 +829,8 @@ export interface EditDealRequest {
   productIds?: string[] | null;
   // Replaces the free items when sent; null/omitted leaves them unchanged.
   rewards?: DealRewardItemRequest[] | null;
+  // Replaces the minimums when sent; [] clears them; null/omitted keeps them.
+  qualifyingQuantities?: DealQualifyingQuantity[] | null;
 }
 
 // ---- Credit reservations ----

@@ -7,7 +7,8 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 
 export interface ProductSearchMultiSelectProps {
   value: string[];
-  onChange: (value: string[]) => void;
+  /** `selected` carries the label of each chosen product that has one. */
+  onChange: (value: string[], selected: MiniProductResponse[]) => void;
   /** Labels for already-selected products; used to render chips when they aren't in the latest search results. */
   initialSelection?: MiniProductResponse[];
   /** Extra query parameters appended to Product/GetProductOptions. */
@@ -96,7 +97,15 @@ export function ProductSearchMultiSelect({
     <Select
       mode="multiple"
       value={value}
-      onChange={(v: string[]) => onChange(v)}
+      onChange={(v: string[]) =>
+        onChange(
+          v,
+          v.flatMap((id) => {
+            const p = labelsRef.current.get(id);
+            return p ? [p] : [];
+          }),
+        )
+      }
       onSearch={setSearch}
       searchValue={search}
       options={options}

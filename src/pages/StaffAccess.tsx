@@ -14,6 +14,7 @@ import {
   Table,
   Tabs,
   Tag,
+  Tooltip,
   Typography,
 } from "antd";
 import type { TableColumnsType } from "antd";
@@ -21,6 +22,8 @@ import {
   AuditOutlined,
   CheckOutlined,
   CloseOutlined,
+  DisconnectOutlined,
+  LinkOutlined,
   ShopOutlined,
   StopOutlined,
   UndoOutlined,
@@ -40,6 +43,7 @@ import { formatDateTime } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { PromptDialog } from "@/components/PromptDialog";
 import { StaffAssignmentsModal } from "@/components/staff/StaffAssignmentsModal";
+import { StaffReferralModal } from "@/components/staff/StaffReferralModal";
 
 const ALL = "__all__";
 
@@ -72,7 +76,7 @@ function nameOf(row: StaffAdminResponse) {
 
 export default function StaffAccessPage() {
   const queryClient = useQueryClient();
-  const { message } = AntdApp.useApp();
+  const { message, modal } = AntdApp.useApp();
   const canManage = useAuthStore((s) => s.hasPermission(Permission.CanManageStaff));
   const canViewAudit = useAuthStore((s) => s.hasPermission(Permission.CanViewAuditTrail));
 
@@ -88,6 +92,8 @@ export default function StaffAccessPage() {
   const [approving, setApproving] = useState(false);
   const [roleSavingId, setRoleSavingId] = useState<string | null>(null);
   const [assignmentsFor, setAssignmentsFor] = useState<StaffAdminResponse | null>(null);
+  const [linkFor, setLinkFor] = useState<StaffAdminResponse | null>(null);
+  const [unlinkFor, setUnlinkFor] = useState<StaffAdminResponse | null>(null);
 
   const queryParams = useMemo(() => {
     const params = new URLSearchParams();
@@ -126,8 +132,8 @@ export default function StaffAccessPage() {
     return queryClient.invalidateQueries({ queryKey: ["staff"] });
   }
 
-  async function runAction(
-    request: Promise<{ status: boolean; message?: string | null }>,
+  async function runAction<T>(
+    request: Promise<{ status: boolean; message?: string | null; data: T | null }>,
     fallbackSuccess: string,
   ) {
     const res = await request;
@@ -138,18 +144,36 @@ export default function StaffAccessPage() {
     }
     // Refresh either way: a failure is usually a stale status (someone else acted first).
     await refresh();
-    return res.status;
+    return res;
+  }
+
+  // Approve and Reactivate link automatically when exactly one D365 worker
+  // shares the staff member's email. When that didn't happen, nudge the admin
+  // to do it by hand rather than leave their orders without a sales taker.
+  function promptLinkIfNeeded(row: StaffAdminResponse | null) {
+    if (!canManage || !row || row.referralId || row.status !== "Active") return;
+    modal.confirm({
+      title: "Not linked to a D365 worker",
+      content:
+        "Link this staff member to their D365 worker so orders record them as sales taker.",
+      okText: "Link now",
+      cancelText: "Later",
+      onOk: () => setLinkFor(row),
+    });
   }
 
   async function approve() {
     if (dialog?.kind !== "approve") return;
     setApproving(true);
     try {
-      const ok = await runAction(
+      const res = await runAction(
         apiPost<StaffAdminResponse>(`Staff/Approve/${dialog.row.id}`, { role: approveRole }),
         "Staff member approved",
       );
-      if (ok) setDialog(null);
+      if (res.status) {
+        setDialog(null);
+        promptLinkIfNeeded(res.data);
+      }
     } finally {
       setApproving(false);
     }
@@ -213,6 +237,54 @@ export default function StaffAccessPage() {
         ) : (
           <Tag>{v}</Tag>
         ),
+    },
+    {
+      title: "D365 sales taker",
+      key: "salesTaker",
+      width: 230,
+      render: (_, r) => (
+        <div className="flex flex-col items-start gap-1">
+          {r.referralId ? (
+            <div className="flex flex-col">
+              <span className="text-sm">{r.salesTakerName || r.referralId}</span>
+              <span className="font-mono text-xs text-muted-foreground">
+                {r.salesTakerPersonnelNumber ?? "—"} · {r.referralId}
+              </span>
+            </div>
+          ) : (
+            // Only a warning where it bites: pending/rejected staff can't place
+            // orders, and approval tries to link them automatically.
+            <Tooltip title="They can still place orders, but D365 won't record them as the sales taker.">
+              <Tag color={r.status === "Active" ? "warning" : "default"}>Not linked</Tag>
+            </Tooltip>
+          )}
+          {canManage && (r.status === "Active" || r.status === "Deactivated") && (
+            <Space size={12}>
+              <Button
+                size="small"
+                type="link"
+                className="!px-0"
+                icon={<LinkOutlined />}
+                onClick={() => setLinkFor(r)}
+              >
+                {r.referralId ? "Change" : "Link"}
+              </Button>
+              {r.referralId && (
+                <Button
+                  size="small"
+                  type="link"
+                  danger
+                  className="!px-0"
+                  icon={<DisconnectOutlined />}
+                  onClick={() => setUnlinkFor(r)}
+                >
+                  Unlink
+                </Button>
+              )}
+            </Space>
+          )}
+        </div>
+      ),
     },
     {
       title: status === "Pending" ? "Requested" : "Created",
@@ -385,7 +457,7 @@ export default function StaffAccessPage() {
           dataSource={rows}
           columns={columns}
           loading={isLoading || isFetching}
-          scroll={{ x: 960 }}
+          scroll={{ x: 1190 }}
           pagination={{
             current: page,
             pageSize,
@@ -489,6 +561,33 @@ export default function StaffAccessPage() {
         canEdit={canManage}
       />
 
+      <StaffReferralModal
+        staff={linkFor}
+        open={!!linkFor}
+        onOpenChange={(o) => !o && setLinkFor(null)}
+        onSaved={() => void refresh()}
+      />
+
+      <ConfirmDialog
+        open={!!unlinkFor}
+        onOpenChange={(o) => !o && setUnlinkFor(null)}
+        title="Unlink D365 worker"
+        description={
+          unlinkFor
+            ? `Orders ${nameOf(unlinkFor)} places from now on won't record a sales taker in D365 until they are linked again.`
+            : undefined
+        }
+        confirmLabel="Unlink"
+        destructive
+        onConfirm={async () => {
+          if (!unlinkFor) return;
+          await runAction(
+            apiPut<StaffAdminResponse>(`Staff/SetReferral/${unlinkFor.id}`, { referralId: null }),
+            "D365 sales taker link removed",
+          );
+        }}
+      />
+
       <ConfirmDialog
         open={dialog?.kind === "reactivate"}
         onOpenChange={(o) => !o && setDialog(null)}
@@ -501,10 +600,11 @@ export default function StaffAccessPage() {
         confirmLabel="Reactivate"
         onConfirm={async () => {
           if (dialog?.kind !== "reactivate") return;
-          await runAction(
+          const res = await runAction(
             apiPost<StaffAdminResponse>(`Staff/Reactivate/${dialog.row.id}`),
             "Staff member reactivated",
           );
+          if (res.status) promptLinkIfNeeded(res.data);
         }}
       />
     </div>

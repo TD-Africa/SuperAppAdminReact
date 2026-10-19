@@ -76,6 +76,31 @@ export interface AnalyticsOverview {
   brands: AnalyticsPage<AnalyticsDimension>;
   categories: AnalyticsPage<AnalyticsDimension>;
   growth: AnalyticsPage<AnalyticsGrowth>;
+  /** Optional until every host serves it; also at GET analytics/staff-orders. */
+  staffOrders?: AnalyticsStaffOrders;
+}
+
+export interface AnalyticsChannelTotals {
+  orderCount: number;
+  eligibleOrders: number;
+  revenueNaira: number;
+  revenueUsd: number | null;
+  missingUsdLineCount: number;
+}
+
+export interface AnalyticsStaffOrderRow extends AnalyticsChannelTotals {
+  staffId: string;
+  name: string | null;
+  email: string | null;
+  /** Null when the staff member isn't linked to a D365 worker. */
+  salesTakerReferralId: string | null;
+}
+
+/** Self-service vs staff-placed orders, with a per-staff breakdown. */
+export interface AnalyticsStaffOrders {
+  selfService: AnalyticsChannelTotals;
+  staffPlaced: AnalyticsChannelTotals;
+  byStaff: AnalyticsStaffOrderRow[];
 }
 
 export interface AnalyticsPartner {

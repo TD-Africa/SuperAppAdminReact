@@ -24,7 +24,10 @@ import type {
   OrderReturnDto,
   OrderStatusReturnDTO,
   PaginationResponse,
+  StaffAdminResponse,
 } from "@/lib/types";
+import { Permission } from "@/lib/permissions";
+import { useAuthStore } from "@/stores/auth";
 import { PaymentMethodId } from "@/lib/paymentMethods";
 import {
   OrderStatusId,
@@ -47,7 +50,10 @@ export default function OrdersPage() {
   const [isPaid, setIsPaid] = useState<string>(ALL);
   const [paymentMethodId, setPaymentMethodId] = useState<string>(ALL);
   const [isPoa, setIsPoa] = useState<string>(ALL);
+  const [placedBy, setPlacedBy] = useState<string>(ALL);
+  const [placedByStaffId, setPlacedByStaffId] = useState<string | undefined>();
   const [page, setPage] = useState(1);
+  const canViewStaff = useAuthStore((s) => s.hasPermission(Permission.CanViewStaff));
   const [pageSize, setPageSize] = useState(20);
 
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
@@ -61,6 +67,27 @@ export default function OrdersPage() {
       if (!res.status) throw new Error(res.message ?? "Failed to load statuses");
       return res.data ?? [];
     },
+    staleTime: 5 * 60_000,
+  });
+
+  // Feeds the staff picker. Deactivated staff stay listed: their past orders
+  // are still worth filtering to. Staff/Query needs CanViewStaff.
+  const { data: staffOptions, isLoading: staffLoading } = useQuery({
+    queryKey: ["staff", "order-filter-options"],
+    queryFn: async () => {
+      const res = await apiGet<PaginationResponse<StaffAdminResponse>>(
+        "Staff/Query?PageSize=200&PageNumber=1",
+      );
+      if (!res.status) throw new Error(res.message ?? "Failed to load staff");
+      return (res.data?.data ?? [])
+        .filter((s) => s.status === "Active" || s.status === "Deactivated")
+        .map((s) => ({
+          value: s.id,
+          label: s.displayName || s.email || s.id,
+        }))
+        .sort((a, b) => a.label.localeCompare(b.label));
+    },
+    enabled: canViewStaff,
     staleTime: 5 * 60_000,
   });
 
@@ -83,8 +110,21 @@ export default function OrdersPage() {
     if (isPaid !== ALL) params.set("isPaid", isPaid);
     if (paymentMethodId !== ALL) params.set("paymentMethodId", paymentMethodId);
     if (isPoa !== ALL) params.set("isPoa", isPoa);
+    // One staff member is a narrower "Staff", so it replaces the flag.
+    if (placedByStaffId) params.set("placedByStaffId", placedByStaffId);
+    else if (placedBy !== ALL) params.set("placedByStaff", placedBy);
     return params;
-  }, [pageSize, page, debouncedKeyword, orderStatusId, isPaid, paymentMethodId, isPoa]);
+  }, [
+    pageSize,
+    page,
+    debouncedKeyword,
+    orderStatusId,
+    isPaid,
+    paymentMethodId,
+    isPoa,
+    placedBy,
+    placedByStaffId,
+  ]);
 
   const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: ["orders", queryParams.toString()],
@@ -165,6 +205,24 @@ export default function OrdersPage() {
     },
     { title: "Method", dataIndex: ["paymentMethod", "method"], render: (v) => v ?? "—" },
     { title: "Delivery", dataIndex: ["deliveryMethod", "method"], render: (v) => v ?? "—" },
+    {
+      title: "Placed by",
+      key: "placedBy",
+      render: (_, r) =>
+        r.placedByStaffName || r.placedByStaffId ? (
+          <div className="leading-tight">
+            <div className="text-xs font-medium">{r.placedByStaffName ?? "Staff"}</div>
+            {/* The referral ID that actually went to D365; blank means no sales taker was recorded. */}
+            <Tooltip title="Sales taker sent to D365">
+              <div className="font-mono text-xs text-muted-foreground">
+                {r.SalesTaker ?? "no sales taker"}
+              </div>
+            </Tooltip>
+          </div>
+        ) : (
+          <span className="text-xs text-muted-foreground">Partner</span>
+        ),
+    },
     {
       title: "POA",
       dataIndex: "isPoaTransaction",
@@ -323,6 +381,38 @@ export default function OrdersPage() {
               { value: "false", label: "Non-POA" },
             ]}
           />
+          <Select
+            className="md:col-span-3"
+            value={placedBy}
+            onChange={(v) => {
+              setPage(1);
+              setPlacedBy(v);
+              if (v !== "true") setPlacedByStaffId(undefined);
+            }}
+            options={[
+              { value: ALL, label: "Placed by: All" },
+              { value: "true", label: "Placed by: Staff" },
+              { value: "false", label: "Placed by: Partner" },
+            ]}
+          />
+          {canViewStaff && (
+            <Select
+              className="md:col-span-3"
+              placeholder="Any staff member"
+              value={placedByStaffId}
+              allowClear
+              showSearch
+              optionFilterProp="label"
+              loading={staffLoading}
+              disabled={placedBy === "false"}
+              onChange={(v) => {
+                setPage(1);
+                setPlacedByStaffId(v);
+                if (v) setPlacedBy("true");
+              }}
+              options={staffOptions ?? []}
+            />
+          )}
         </div>
 
         {partiallyPaidStatusId && orderStatusId !== partiallyPaidStatusId && (

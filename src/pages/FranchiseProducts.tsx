@@ -54,8 +54,6 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { formatCurrency, formatNumber } from "@/lib/utils";
 import { ProductDetailModal } from "@/components/products/ProductDetailModal";
 
-const ALL = "__all__";
-
 interface FranchiseProductRow {
   storefront: StorefrontProductDto;
   catalog: ProductReturnDto | null;
@@ -73,7 +71,7 @@ export default function FranchiseProductsPage() {
 
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebouncedValue(search, 350);
-  const [brandId, setBrandId] = useState(brandIdFromUrl || ALL);
+  const [brandId, setBrandId] = useState(brandIdFromUrl);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -119,7 +117,7 @@ export default function FranchiseProductsPage() {
       PageSize: pageSize,
       PageNumber: page,
       SearchString: debouncedSearch.trim() || undefined,
-      storefrontBrandId: brandId !== ALL ? brandId : undefined,
+      storefrontBrandId: brandId || undefined,
     }),
     [pageSize, page, debouncedSearch, brandId],
   );
@@ -127,100 +125,38 @@ export default function FranchiseProductsPage() {
   const productsQuery = useQuery({
     queryKey: ["storefront", "products", queryParams],
     queryFn: async () => {
-      const configuredBrands = brandsQuery.data ?? [];
-      const search = queryParams.SearchString;
-
-      // The global admin catalog is the union of explicitly configured
-      // storefront brands. It must not be inferred from store-owner catalogs:
-      // an owner is assigned brands, not individual products.
-      if (brandId !== ALL) {
-        const res = await getStorefrontBrandProductsForAdmin(brandId, {
-          PageSize: queryParams.PageSize,
-          PageNumber: queryParams.PageNumber,
-          SearchString: search,
-        });
-        if (!res.status) throw new Error(res.message ?? "Failed to load storefront products");
-        return res.data;
-      }
-
-      const productsByBrand = await Promise.all(
-        configuredBrands.map(async (brand) => {
-          const products: StorefrontProductDto[] = [];
-          let productPage = 1;
-          let productCount = Number.POSITIVE_INFINITY;
-          const pageSize = 100;
-
-          while (products.length < productCount) {
-            const res = await getStorefrontBrandProductsForAdmin(brand.id, {
-              PageSize: pageSize,
-              PageNumber: productPage,
-              SearchString: search,
-            });
-            if (!res.status) {
-              throw new Error(res.message ?? `Failed to load products for ${brand.name}`);
-            }
-
-            const page = res.data?.data ?? [];
-            products.push(...page);
-            productCount = Number(res.data?.count ?? products.length);
-            if (page.length === 0) break;
-            productPage += 1;
-          }
-
-          return products;
-        }),
-      );
-
-      const uniqueProducts = new Map<string, StorefrontProductDto>();
-      for (const products of productsByBrand) {
-        for (const product of products) {
-          const existing = uniqueProducts.get(product.productId);
-          if (!existing) {
-            uniqueProducts.set(product.productId, { ...product });
-          } else {
-            // A product is included globally if at least one configured brand
-            // includes it. `isExcluded` is brand-scoped on the API response.
-            existing.isExcluded = Boolean(existing.isExcluded && product.isExcluded);
-          }
-        }
-      }
-
-      const allProducts = [...uniqueProducts.values()].sort((left, right) =>
-        left.productName.localeCompare(right.productName),
-      );
-      const pageSize = queryParams.PageSize ?? 20;
-      const pageNumber = queryParams.PageNumber ?? 1;
-      const start = (pageNumber - 1) * pageSize;
-
-      return {
-        data: allProducts.slice(start, start + pageSize),
-        count: allProducts.length,
-        pageNumber,
-      };
+      if (!brandId) return { data: [], count: 0, pageNumber: 1 };
+      const res = await getStorefrontBrandProductsForAdmin(brandId, {
+        PageSize: queryParams.PageSize,
+        PageNumber: queryParams.PageNumber,
+        SearchString: queryParams.SearchString,
+      });
+      if (!res.status) throw new Error(res.message ?? "Failed to load storefront products");
+      return res.data;
     },
-    enabled: brandsQuery.isSuccess,
+    enabled: brandsQuery.isSuccess && Boolean(brandId),
   });
 
   const exclusionsQuery = useQuery({
     queryKey: ["storefront", "manage-brand-exclusions", brandId],
     queryFn: async () => {
-      if (brandId === ALL) return [];
+      if (!brandId) return [];
       const res = await getStorefrontBrandExcludedProducts(brandId);
       if (!res.status) throw new Error(res.message ?? "Failed to load product exclusions");
       return res.data ?? [];
     },
-    enabled: brandId !== ALL,
+    enabled: Boolean(brandId),
   });
 
   const categoriesQuery = useQuery({
     queryKey: ["storefront", "manage-brand-categories", brandId],
     queryFn: async () => {
-      if (brandId === ALL) return [] as StorefrontCategoryReturnDto[];
+      if (!brandId) return [] as StorefrontCategoryReturnDto[];
       const res = await getStorefrontBrandCategoriesForAdmin(brandId);
       if (!res.status) throw new Error(res.message ?? "Failed to load brand categories");
       return res.data ?? [];
     },
-    enabled: brandId !== ALL,
+    enabled: Boolean(brandId),
   });
 
   const storefrontRows = productsQuery.data?.data ?? [];
@@ -268,15 +204,14 @@ export default function FranchiseProductsPage() {
   const totalItems = Number(productsQuery.data?.count ?? 0);
 
   const brandOptions = useMemo(() => {
-    const options = (brandsQuery.data ?? []).map((b) => ({
+    return (brandsQuery.data ?? []).map((b) => ({
       value: b.id,
       label: b.name,
     }));
-    return [{ value: ALL, label: "All brands" }, ...options];
   }, [brandsQuery.data]);
 
   const selectedBrandLabel =
-    brandId !== ALL
+    brandId
       ? (brandsQuery.data?.find((b) => b.id === brandId)?.name ?? brandNameFromUrl)
       : null;
 
@@ -289,7 +224,7 @@ export default function FranchiseProductsPage() {
     setPage(1);
     setBrandId(value);
     const next = new URLSearchParams(searchParams);
-    if (value === ALL) {
+    if (!value) {
       next.delete("brandId");
       next.delete("brand");
     } else {
@@ -341,7 +276,7 @@ export default function FranchiseProductsPage() {
   }
 
   async function toggleBrandProduct(product: StorefrontProductDto) {
-    if (brandId === ALL) return;
+    if (!brandId) return;
     const isExcluded = excludedProductIds.has(product.productId) || product.isExcluded === true;
     const next = new Set(excludedProductIds);
     if (isExcluded) next.delete(product.productId);
@@ -362,7 +297,7 @@ export default function FranchiseProductsPage() {
   }
 
   async function includeAllBrandProducts() {
-    if (brandId === ALL || excludedProductIds.size === 0) return;
+    if (!brandId || excludedProductIds.size === 0) return;
     const res = await setStorefrontBrandExcludedProducts(brandId, []);
     if (!res.status) {
       message.error(res.message ?? "Failed to restore products");
@@ -613,7 +548,7 @@ export default function FranchiseProductsPage() {
             <Tag color={isExcluded ? "error" : "success"}>
               {isExcluded ? "Excluded" : "Included"}
             </Tag>
-            {brandId !== ALL && canEdit && (
+            {brandId && canEdit && (
               <Button
                 size="small"
                 loading={exclusionBusyId === storefront.productId}
@@ -748,15 +683,28 @@ export default function FranchiseProductsPage() {
           />
           <Select
             className="md:col-span-5"
-            value={brandId || ALL}
+            value={brandId || undefined}
             loading={brandsQuery.isLoading}
             options={brandOptions}
+            placeholder="Select a storefront brand"
             onChange={selectBrand}
           />
         </div>
       </Card>
 
-      {brandId !== ALL && (
+      {!brandId ? (
+        <Card>
+          <Empty
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+            description="Select a storefront brand to view its products and categories"
+          >
+            <Button type="primary" disabled={!canEditBrands} onClick={openAddBrand}>
+              Add storefront brand
+            </Button>
+          </Empty>
+        </Card>
+      ) : (
+        <>
         <Card
           title={`Categories for ${selectedBrandLabel ?? "this brand"}`}
           extra={
@@ -783,7 +731,6 @@ export default function FranchiseProductsPage() {
             </Space>
           )}
         </Card>
-      )}
 
       <Card styles={{ body: { padding: 0 } }}>
         <Table<FranchiseProductRow>
@@ -810,6 +757,8 @@ export default function FranchiseProductsPage() {
           }}
         />
       </Card>
+        </>
+      )}
 
       <ProductDetailModal
         productId={selectedId}

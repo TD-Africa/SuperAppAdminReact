@@ -695,7 +695,9 @@ export default function FranchiseBrandDetailPage() {
               <Button
                 key={category.id}
                 type="link"
-                onClick={() => navigate(`/franchise-categories/${category.id}`, { state: { category } })}
+                onClick={() => navigate(`/franchise-categories/${category.id}`, {
+                  state: { category, storefrontBrandId, storefrontBrandName: brand.name },
+                })}
               >
                 {category.name} ({category.productCount})
               </Button>

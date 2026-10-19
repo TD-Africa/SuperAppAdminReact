@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   App as AntdApp,
@@ -7,7 +7,10 @@ import {
   Button,
   Card,
   Empty,
+  Form,
   Input,
+  InputNumber,
+  Modal,
   Select,
   Space,
   Switch,
@@ -25,8 +28,13 @@ import {
 } from "@ant-design/icons";
 import { apiGet, apiPatch, apiPut } from "@/lib/api";
 import {
-  getActiveStorefrontBrands,
+  addStorefrontBrand,
+  getAllBrands,
+  getStorefrontBrandCategoriesForAdmin,
   getStorefrontBrandProductsForAdmin,
+  getStorefrontBrandExcludedProducts,
+  getStorefrontBrands,
+  setStorefrontBrandExcludedProducts,
   setProductVisibility,
 } from "@/lib/storefrontApi";
 import { effectiveProductPrice, productThumbnail } from "@/lib/productHelpers";
@@ -36,6 +44,7 @@ import {
   formatStorefrontNaira,
   pickDisplayVariant,
   storefrontMarkupPercent,
+  type StorefrontCategoryReturnDto,
   type StorefrontProductDto,
 } from "@/lib/storefrontTypes";
 import type { ProductReturnDto } from "@/lib/types";
@@ -53,11 +62,11 @@ interface FranchiseProductRow {
 }
 
 export default function FranchiseProductsPage() {
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const { message } = AntdApp.useApp();
   const canEdit = useAuthStore((s) => s.hasPermission(Permission.CanEditProducts));
+  const canEditBrands = useAuthStore((s) => s.hasPermission(Permission.CanEditBrands));
 
   const brandIdFromUrl = searchParams.get("brandId") ?? "";
   const brandNameFromUrl = searchParams.get("brand") ?? "";
@@ -70,6 +79,17 @@ export default function FranchiseProductsPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [visibilityBusyId, setVisibilityBusyId] = useState<string | null>(null);
+  const [exclusionBusyId, setExclusionBusyId] = useState<string | null>(null);
+  const [addBrandOpen, setAddBrandOpen] = useState(false);
+  const [savingBrand, setSavingBrand] = useState(false);
+  const [brandForm] = Form.useForm<{
+    catalogBrandId: string;
+    name: string;
+    brandImageUrl: string;
+    dynamicsId: string;
+    storefrontPriceMargin: number;
+    isActive: boolean;
+  }>();
 
 
   useEffect(() => {
@@ -77,11 +97,20 @@ export default function FranchiseProductsPage() {
   }, [brandIdFromUrl]);
 
   const brandsQuery = useQuery({
-    queryKey: ["storefront", "brands"],
+    queryKey: ["storefront", "manage-brands"],
     queryFn: async () => {
-      const res = await getActiveStorefrontBrands();
-      if (!res.status) throw new Error(res.message ?? "Failed to load brands");
-      return res.data ?? [];
+      const res = await getStorefrontBrands({ PageSize: 500, PageNumber: 1, isActive: true });
+      if (!res.status) throw new Error(res.message ?? "Failed to load storefront brands");
+      return res.data?.data ?? [];
+    },
+  });
+
+  const catalogBrandsQuery = useQuery({
+    queryKey: ["catalog-brands-admin", "manage-storefront-products"],
+    queryFn: async () => {
+      const res = await getAllBrands({ PageSize: 500, PageNumber: 1, isActive: true });
+      if (!res.status) throw new Error(res.message ?? "Failed to load catalog brands");
+      return res.data?.data ?? [];
     },
   });
 
@@ -172,6 +201,28 @@ export default function FranchiseProductsPage() {
     enabled: brandsQuery.isSuccess,
   });
 
+  const exclusionsQuery = useQuery({
+    queryKey: ["storefront", "manage-brand-exclusions", brandId],
+    queryFn: async () => {
+      if (brandId === ALL) return [];
+      const res = await getStorefrontBrandExcludedProducts(brandId);
+      if (!res.status) throw new Error(res.message ?? "Failed to load product exclusions");
+      return res.data ?? [];
+    },
+    enabled: brandId !== ALL,
+  });
+
+  const categoriesQuery = useQuery({
+    queryKey: ["storefront", "manage-brand-categories", brandId],
+    queryFn: async () => {
+      if (brandId === ALL) return [] as StorefrontCategoryReturnDto[];
+      const res = await getStorefrontBrandCategoriesForAdmin(brandId);
+      if (!res.status) throw new Error(res.message ?? "Failed to load brand categories");
+      return res.data ?? [];
+    },
+    enabled: brandId !== ALL,
+  });
+
   const storefrontRows = productsQuery.data?.data ?? [];
   const productIds = useMemo(
     () => storefrontRows.map((p) => p.productId),
@@ -228,6 +279,101 @@ export default function FranchiseProductsPage() {
     brandId !== ALL
       ? (brandsQuery.data?.find((b) => b.id === brandId)?.name ?? brandNameFromUrl)
       : null;
+
+  const excludedProductIds = useMemo(
+    () => new Set(exclusionsQuery.data ?? []),
+    [exclusionsQuery.data],
+  );
+
+  function selectBrand(value: string) {
+    setPage(1);
+    setBrandId(value);
+    const next = new URLSearchParams(searchParams);
+    if (value === ALL) {
+      next.delete("brandId");
+      next.delete("brand");
+    } else {
+      next.set("brandId", value);
+      const name = brandsQuery.data?.find((b) => b.id === value)?.name;
+      if (name) next.set("brand", name);
+    }
+    setSearchParams(next, { replace: true });
+  }
+
+  function openAddBrand() {
+    brandForm.setFieldsValue({
+      catalogBrandId: "",
+      name: "",
+      brandImageUrl: "",
+      dynamicsId: "",
+      storefrontPriceMargin: 0,
+      isActive: true,
+    });
+    setAddBrandOpen(true);
+  }
+
+  async function addBrand() {
+    const values = await brandForm.validateFields();
+    const source = catalogBrandsQuery.data?.find((brand) => brand.id === values.catalogBrandId);
+    if (!source) return;
+    setSavingBrand(true);
+    try {
+      const res = await addStorefrontBrand({
+        catalogBrandIds: [source.id],
+        name: values.name,
+        brandImageUrl: values.brandImageUrl || source.brandImageUrl || "",
+        dynamicsId: values.dynamicsId || source.dynamicsId || "",
+        storefrontPriceMargin: values.storefrontPriceMargin,
+        isActive: values.isActive,
+      });
+      if (!res.status || !res.data) {
+        message.error(res.message ?? "Failed to add storefront brand");
+        return;
+      }
+      message.success("Brand added. Its products and categories are now available to configure.");
+      setAddBrandOpen(false);
+      brandForm.resetFields();
+      await queryClient.invalidateQueries({ queryKey: ["storefront", "manage-brands"] });
+      selectBrand(res.data.id);
+    } finally {
+      setSavingBrand(false);
+    }
+  }
+
+  async function toggleBrandProduct(product: StorefrontProductDto) {
+    if (brandId === ALL) return;
+    const isExcluded = excludedProductIds.has(product.productId) || product.isExcluded === true;
+    const next = new Set(excludedProductIds);
+    if (isExcluded) next.delete(product.productId);
+    else next.add(product.productId);
+    setExclusionBusyId(product.productId);
+    try {
+      const res = await setStorefrontBrandExcludedProducts(brandId, [...next]);
+      if (!res.status) {
+        message.error(res.message ?? "Failed to update product inclusion");
+        return;
+      }
+      message.success(isExcluded ? "Product restored for this brand" : "Product removed from this brand");
+      await queryClient.invalidateQueries({ queryKey: ["storefront", "manage-brand-exclusions", brandId] });
+      await Promise.all([productsQuery.refetch(), categoriesQuery.refetch()]);
+    } finally {
+      setExclusionBusyId(null);
+    }
+  }
+
+  async function includeAllBrandProducts() {
+    if (brandId === ALL || excludedProductIds.size === 0) return;
+    const res = await setStorefrontBrandExcludedProducts(brandId, []);
+    if (!res.status) {
+      message.error(res.message ?? "Failed to restore products");
+      return;
+    }
+    message.success("All products restored for this brand");
+    await queryClient.invalidateQueries({ queryKey: ["storefront", "manage-brand-exclusions", brandId] });
+    await Promise.all([productsQuery.refetch(), categoriesQuery.refetch()]);
+  }
+
+  const selectedBrandCategories = categoriesQuery.data ?? [];
 
   function openDetail(id: string) {
     setSelectedId(id);
@@ -459,12 +605,29 @@ export default function FranchiseProductsPage() {
     {
       title: "Availability",
       key: "availability",
-      width: 120,
-      render: (_, { storefront }) => (
-        <Tag color={storefront.isExcluded ? "error" : "success"}>
-          {storefront.isExcluded ? "Excluded" : "Included"}
-        </Tag>
-      ),
+      width: 190,
+      render: (_, { storefront }) => {
+        const isExcluded = excludedProductIds.has(storefront.productId) || storefront.isExcluded === true;
+        return (
+          <Space size={6}>
+            <Tag color={isExcluded ? "error" : "success"}>
+              {isExcluded ? "Excluded" : "Included"}
+            </Tag>
+            {brandId !== ALL && canEdit && (
+              <Button
+                size="small"
+                loading={exclusionBusyId === storefront.productId}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  void toggleBrandProduct(storefront);
+                }}
+              >
+                {isExcluded ? "Restore" : "Remove"}
+              </Button>
+            )}
+          </Space>
+        );
+      },
     },
     {
       title: "Active",
@@ -554,13 +717,20 @@ export default function FranchiseProductsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <Typography.Title level={3} className="!m-0">
-            Manage storefront products
-        </Typography.Title>
-        <Typography.Text type="secondary">
-          Global product view from explicitly configured storefront brands. Product exclusions are managed per brand and apply to every owner assigned to that brand
-          {selectedBrandLabel ? ` · filtered by ${selectedBrandLabel}` : ""}.
-        </Typography.Text>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <Typography.Title level={3} className="!m-0">
+              Manage storefront products
+            </Typography.Title>
+            <Typography.Text type="secondary">
+              Add a storefront brand, remove products from that brand, and review the categories that remain available.
+              {selectedBrandLabel ? ` · ${selectedBrandLabel}` : ""}
+            </Typography.Text>
+          </div>
+          <Button type="primary" disabled={!canEditBrands} icon={<AppstoreOutlined />} onClick={openAddBrand}>
+            Add brand
+          </Button>
+        </div>
       </div>
 
       <Card styles={{ body: { padding: 16 } }}>
@@ -581,23 +751,39 @@ export default function FranchiseProductsPage() {
             value={brandId || ALL}
             loading={brandsQuery.isLoading}
             options={brandOptions}
-            onChange={(value) => {
-              setPage(1);
-              setBrandId(value);
-              const next = new URLSearchParams(searchParams);
-              if (value === ALL) {
-                next.delete("brandId");
-                next.delete("brand");
-              } else {
-                next.set("brandId", value);
-                const name = brandsQuery.data?.find((b) => b.id === value)?.name;
-                if (name) next.set("brand", name);
-              }
-              setSearchParams(next, { replace: true });
-            }}
+            onChange={selectBrand}
           />
         </div>
       </Card>
+
+      {brandId !== ALL && (
+        <Card
+          title={`Categories for ${selectedBrandLabel ?? "this brand"}`}
+          extra={
+            <Button
+              size="small"
+              disabled={!canEdit || excludedProductIds.size === 0}
+              onClick={() => void includeAllBrandProducts()}
+            >
+              Restore all products
+            </Button>
+          }
+        >
+          {categoriesQuery.isLoading ? (
+            <Typography.Text type="secondary">Loading categories…</Typography.Text>
+          ) : selectedBrandCategories.length === 0 ? (
+            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No categories with included products" />
+          ) : (
+            <Space wrap>
+              {selectedBrandCategories.map((category) => (
+                <Tag key={category.id} color="blue">
+                  {category.name ?? "Unnamed category"} ({category.productCount})
+                </Tag>
+              ))}
+            </Space>
+          )}
+        </Card>
+      )}
 
       <Card styles={{ body: { padding: 0 } }}>
         <Table<FranchiseProductRow>
@@ -625,12 +811,6 @@ export default function FranchiseProductsPage() {
         />
       </Card>
 
-      {brandId !== ALL && (
-        <Button type="link" className="!px-0" onClick={() => navigate("/franchise-brands")}>
-          ← Back to franchise brands
-        </Button>
-      )}
-
       <ProductDetailModal
         productId={selectedId}
         open={detailOpen}
@@ -639,6 +819,73 @@ export default function FranchiseProductsPage() {
           if (!v) setSelectedId(null);
         }}
       />
+
+      <Modal
+        open={addBrandOpen}
+        title="Add storefront brand"
+        onCancel={() => {
+          setAddBrandOpen(false);
+          brandForm.resetFields();
+        }}
+        onOk={() => void addBrand()}
+        confirmLoading={savingBrand}
+        destroyOnClose
+        okText="Add brand"
+      >
+        <Form form={brandForm} layout="vertical">
+          <Typography.Text type="secondary" className="mb-3 block">
+            Select one SuperApp brand. Its valid products are included by default, and its categories are derived from those products.
+          </Typography.Text>
+          <Form.Item
+            name="catalogBrandId"
+            label="SuperApp brand"
+            rules={[{ required: true, message: "Select a SuperApp brand" }]}
+          >
+            <Select
+              showSearch
+              optionFilterProp="label"
+              loading={catalogBrandsQuery.isLoading}
+              placeholder="Select the source brand"
+              onChange={(value: string) => {
+                const source = catalogBrandsQuery.data?.find((brand) => brand.id === value);
+                if (!source) return;
+                brandForm.setFieldsValue({
+                  name: source.name,
+                  dynamicsId: source.dynamicsId ?? "",
+                  brandImageUrl: source.brandImageUrl ?? "",
+                });
+              }}
+              options={(catalogBrandsQuery.data ?? []).map((brand) => ({
+                value: brand.id,
+                label: brand.name,
+              }))}
+            />
+          </Form.Item>
+          <Form.Item
+            name="name"
+            label="Storefront brand name"
+            rules={[{ required: true, message: "Enter a storefront brand name" }]}
+          >
+            <Input placeholder="Defaults to the selected SuperApp brand" />
+          </Form.Item>
+          <Form.Item name="brandImageUrl" label="Logo URL">
+            <Input placeholder="Optional storefront logo URL" />
+          </Form.Item>
+          <Form.Item name="dynamicsId" label="Dynamics ID">
+            <Input placeholder="Optional" />
+          </Form.Item>
+          <Form.Item
+            name="storefrontPriceMargin"
+            label="Default margin %"
+            rules={[{ required: true, message: "Enter a margin" }]}
+          >
+            <InputNumber min={0} max={100} precision={2} addonAfter="%" className="w-full" />
+          </Form.Item>
+          <Form.Item name="isActive" label="Active" valuePropName="checked">
+            <Switch checkedChildren="Active" unCheckedChildren="Inactive" />
+          </Form.Item>
+        </Form>
+      </Modal>
 
     </div>
   );

@@ -39,6 +39,21 @@ function marginLabel(margin: number) {
   return `${margin.toFixed(2)}%`;
 }
 
+function catalogBrandLabel(brand: StorefrontBrandAdminDto) {
+  const names = (brand.catalogBrands ?? [])
+    .map((source) => source.name?.trim())
+    .filter((name): name is string => Boolean(name));
+
+  if (names.length > 0) return names.join(", ");
+
+  const ids = (brand.catalogBrandIds ?? []).filter(Boolean);
+  if (ids.length > 0) return `Source catalog brand IDs: ${ids.join(", ")}`;
+
+  if (brand.brandId) return `Legacy catalog brand ID: ${brand.brandId}`;
+
+  return "No catalog brands linked";
+}
+
 export default function FranchiseBrandsPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -165,7 +180,9 @@ export default function FranchiseBrandsPage() {
     return (storefrontBrandsAllQuery.data ?? []).filter((brand) =>
       !search
       || brand.name.toLowerCase().includes(search)
-      || brand.catalogBrands?.some((source) => source.name?.toLowerCase().includes(search)),
+      || brand.catalogBrands?.some((source) => source.name?.toLowerCase().includes(search))
+      || brand.catalogBrandIds?.some((id) => id.toLowerCase().includes(search))
+      || brand.brandId?.toLowerCase().includes(search),
     );
   }, [brandSearch, storefrontBrandsAllQuery.data]);
 
@@ -191,7 +208,7 @@ export default function FranchiseBrandsPage() {
         <div>
           <div className="font-medium">{row.name}</div>
           <div className="text-xs text-muted-foreground">
-            {row.catalogBrands?.map((source) => source.name).filter(Boolean).join(", ") || "No catalog brands linked"}
+            {catalogBrandLabel(row)}
           </div>
         </div>
       ),

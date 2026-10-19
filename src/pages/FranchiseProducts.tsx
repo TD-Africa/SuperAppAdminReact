@@ -276,10 +276,14 @@ export default function FranchiseProductsPage() {
           ) && !alreadyAdded;
         return {
           value: brand.id,
-          label: brand.name,
+          label: alreadyAdded
+            ? `${brand.name} (already added)`
+            : duplicateMetadata
+              ? `${brand.name} (unavailable)`
+              : brand.name,
           disabled: alreadyAdded || duplicateMetadata,
         };
-      }).filter((option) => !option.disabled),
+      }),
     [catalogBrandsQuery.data, configuredCatalogBrandIds, brandsQuery.data],
   );
 

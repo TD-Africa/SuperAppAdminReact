@@ -255,6 +255,25 @@ export default function FranchiseProductsPage() {
       }));
   }, [brandsQuery.data]);
 
+  useEffect(() => {
+    if (brandId || brandIdFromUrl || brandOptions.length === 0) return;
+
+    const firstBrand = brandOptions[0];
+    const next = new URLSearchParams(searchParams);
+    next.set("brandId", firstBrand.value);
+    const firstBrandName = brandsQuery.data?.find((brand) => brand.id === firstBrand.value)?.name;
+    if (firstBrandName) next.set("brand", firstBrandName);
+    setBrandId(firstBrand.value);
+    setSearchParams(next, { replace: true });
+  }, [
+    brandId,
+    brandIdFromUrl,
+    brandOptions,
+    brandsQuery.data,
+    searchParams,
+    setSearchParams,
+  ]);
+
   const configuredCatalogBrandIds = useMemo(() => {
     const ids = new Set<string>();
     for (const brand of brandsQuery.data ?? []) {

@@ -1295,7 +1295,7 @@ export function getBrandProducts(
     SearchString?: string;
   } = {},
 ) {
-  return apiGet<PaginationResponse<BrandProductDto>>(
+  return apiGet<PaginationResponse<ProductReturnDto>>(
     `Brand/GetBrandProducts/${brandId}/products${toQuery(params)}`,
   );
 }

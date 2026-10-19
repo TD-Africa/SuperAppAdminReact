@@ -13,6 +13,7 @@ import {
 } from "antd";
 import { apiGet, apiPost } from "@/lib/api";
 import type { PlatformSettingDto } from "@/lib/types";
+import VatSettings from "@/components/vat/VatSettings";
 
 // Local form state mirrors the DTO one-for-one, so adding a backend setting means
 // adding the field to PlatformSettingDto plus a row in the card below.
@@ -142,6 +143,8 @@ export default function TransactionSettingsPage() {
           </div>
         )}
       </Card>
+
+      <VatSettings />
     </div>
   );
 }

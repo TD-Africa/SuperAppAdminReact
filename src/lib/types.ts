@@ -1315,6 +1315,42 @@ export interface PlatformSettingDto {
   splitTenderPercent: number | null;
 }
 
+// VAT switches (api/v1/vat). Product VAT drives every price: cart, checkout,
+// D365 and invoices. Rates are percents (7.5 = 7.5%).
+export type VatStatus = "On" | "Off" | "Partial";
+
+export interface VatProductDto {
+  productId: string;
+  productName: string;
+  brandName: string | null;
+  isVATApplicable: boolean;
+  vatRate: number;
+}
+
+export interface VatSummaryDto {
+  products: number;
+  productsWithVat: number;
+  brandsWithVat: number;
+  /** Only the first 500, ordered by name. */
+  vatProducts: VatProductDto[];
+}
+
+/** One row per brand name; changes apply to every Brand row sharing it. */
+export interface VatBrandDto {
+  brandId: string;
+  name: string;
+  vatStatus: VatStatus;
+  productCount: number;
+  productsWithVat: number;
+}
+
+export interface VatChangeDto {
+  enabled: boolean;
+  rate: number | null;
+  brandsUpdated: number;
+  productsUpdated: number;
+}
+
 // ── Exchange rates (ExchangeRate controller) ──────────────────────────────────
 // Rates are naira-per-dollar and versioned rather than overwritten: setting a new
 // rate closes the current row (`effectiveTo`) and opens a new one. A brand row

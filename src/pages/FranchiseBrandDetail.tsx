@@ -27,6 +27,7 @@ import { ArrowLeftOutlined, DeleteOutlined, EditOutlined, SettingOutlined } from
 import {
   deleteStorefrontBrand,
   getStorefrontBrandExcludedProducts,
+  getStorefrontBrandCategoriesForAdmin,
   getStorefrontBrandProductsForAdmin,
   getProductStorefrontPricing,
   getStorefrontBrandById,
@@ -46,6 +47,7 @@ import {
   type ProductMarginSource,
   type ProductStorefrontPricingDto,
   type StorefrontBrandAdminDto,
+  type StorefrontCategoryReturnDto,
   type StorefrontProductDto,
   type StorefrontVariantDto,
   type UpdateStorefrontBrandRequest,
@@ -160,6 +162,17 @@ export default function FranchiseBrandDetailPage() {
   const products = productsQuery.data?.data ?? [];
   const productTotal = Number(productsQuery.data?.count ?? 0);
 
+  const categoriesQuery = useQuery({
+    queryKey: ["storefront", "brand-categories", storefrontBrandId],
+    queryFn: async () => {
+      if (!storefrontBrandId) return [] as StorefrontCategoryReturnDto[];
+      const res = await getStorefrontBrandCategoriesForAdmin(storefrontBrandId);
+      if (!res.status) throw new Error(res.message ?? "Failed to load brand categories");
+      return res.data ?? [];
+    },
+    enabled: Boolean(storefrontBrandId && brand?.isActive),
+  });
+
   const exclusionsQuery = useQuery({
     queryKey: ["storefront", "brand-product-exclusions", storefrontBrandId],
     queryFn: async () => {
@@ -179,7 +192,8 @@ export default function FranchiseBrandDetailPage() {
   async function toggleProductExclusion(product: StorefrontProductDto) {
     if (!storefrontBrandId) return;
     const next = new Set(excludedProductIds);
-    if (next.has(product.productId)) next.delete(product.productId);
+    const isExcluded = next.has(product.productId) || product.isExcluded === true;
+    if (isExcluded) next.delete(product.productId);
     else next.add(product.productId);
     const res = await setStorefrontBrandExcludedProducts(storefrontBrandId, [...next]);
     if (!res.status) {
@@ -190,7 +204,21 @@ export default function FranchiseBrandDetailPage() {
     await queryClient.invalidateQueries({
       queryKey: ["storefront", "brand-product-exclusions", storefrontBrandId],
     });
-    await productsQuery.refetch();
+    await Promise.all([productsQuery.refetch(), categoriesQuery.refetch()]);
+  }
+
+  async function includeAllProducts() {
+    if (!storefrontBrandId || excludedProductIds.size === 0) return;
+    const res = await setStorefrontBrandExcludedProducts(storefrontBrandId, []);
+    if (!res.status) {
+      message.error(res.message ?? "Failed to include all products");
+      return;
+    }
+    message.success("All products restored for this storefront brand");
+    await queryClient.invalidateQueries({
+      queryKey: ["storefront", "brand-product-exclusions", storefrontBrandId],
+    });
+    await Promise.all([productsQuery.refetch(), categoriesQuery.refetch()]);
   }
 
   const editableVariants = useMemo(() => {
@@ -605,6 +633,16 @@ export default function FranchiseBrandDetailPage() {
         title={`Products (${productTotal})`}
         extra={
           <Space>
+            <Popconfirm
+              title="Include every product for this brand?"
+              description="This clears the global product exclusions for the brand."
+              okText="Include all"
+              onConfirm={() => void includeAllProducts()}
+            >
+              <Button disabled={!canEdit || excludedProductIds.size === 0}>
+                Include all
+              </Button>
+            </Popconfirm>
             <Input
               allowClear
               placeholder="Search products…"
@@ -645,6 +683,27 @@ export default function FranchiseBrandDetailPage() {
             },
           }}
         />
+      </Card>
+
+      <Card
+        title={`Derived categories (${categoriesQuery.data?.length ?? 0})`}
+        loading={categoriesQuery.isLoading || categoriesQuery.isFetching}
+      >
+        {categoriesQuery.data && categoriesQuery.data.length > 0 ? (
+          <Space wrap>
+            {categoriesQuery.data.map((category) => (
+              <Button
+                key={category.id}
+                type="link"
+                onClick={() => navigate(`/franchise-categories/${category.id}`, { state: { category } })}
+              >
+                {category.name} ({category.productCount})
+              </Button>
+            ))}
+          </Space>
+        ) : (
+          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No categories for the included products" />
+        )}
       </Card>
 
       <Drawer

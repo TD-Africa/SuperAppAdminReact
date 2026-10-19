@@ -290,6 +290,12 @@ export function getStorefrontBrandProductsForAdmin(
   );
 }
 
+export function getStorefrontBrandCategoriesForAdmin(storefrontBrandId: string) {
+  return apiGet<StorefrontCategoryReturnDto[]>(
+    `Storefront/GetStorefrontBrandCategoriesForAdmin/${encodeURIComponent(storefrontBrandId)}`,
+  );
+}
+
 export function getStorefrontBrandExcludedProducts(storefrontBrandId: string) {
   return apiGet<string[]>(
     `Storefront/GetStorefrontBrandExcludedProducts/${encodeURIComponent(storefrontBrandId)}`,

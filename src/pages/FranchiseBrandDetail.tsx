@@ -11,6 +11,7 @@ import {
   Drawer,
   Empty,
   Form,
+  Input,
   InputNumber,
   Popconfirm,
   Select,
@@ -25,16 +26,19 @@ import type { TableColumnsType } from "antd";
 import { ArrowLeftOutlined, DeleteOutlined, EditOutlined, SettingOutlined } from "@ant-design/icons";
 import {
   deleteStorefrontBrand,
+  getStorefrontBrandExcludedProducts,
+  getStorefrontBrandProductsForAdmin,
   getProductStorefrontPricing,
   getStorefrontBrandById,
-  getStorefrontProducts,
   getVariantStorefrontPricing,
   setProductStorefrontMargin,
+  setStorefrontBrandExcludedProducts,
   setVariantStorefrontMargin,
   updateStorefrontBrand,
 } from "@/lib/storefrontApi";
 import {
   formatStorefrontNaira,
+  effectiveStorefrontBasePrice,
   pickDisplayVariant,
   productMarginSource,
   storefrontMarkupPercent,
@@ -49,6 +53,7 @@ import {
 } from "@/lib/storefrontTypes";
 import { Permission } from "@/lib/permissions";
 import { useAuthStore } from "@/stores/auth";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 
 const sourceTag = (source: ProductMarginSource, rate: number | null) => {
   if (source === "override") return <Tag color="purple">Override · {rate?.toFixed(2)}%</Tag>;
@@ -68,7 +73,7 @@ function variantLabel(variant: StorefrontVariantDto, index: number) {
 function toUpdateBody(brand: StorefrontBrandAdminDto): UpdateStorefrontBrandRequest {
   return {
     brandId: brand.brandId,
-    ...(brand.catalogBrandIds.length > 0 ? { catalogBrandIds: brand.catalogBrandIds } : {}),
+    ...(brand.catalogBrandIds?.length ? { catalogBrandIds: brand.catalogBrandIds } : {}),
     brandImageUrl: brand.brandImageUrl ?? "",
     name: brand.name,
     dynamicsId: brand.dynamicsId,
@@ -92,6 +97,8 @@ export default function FranchiseBrandDetailPage() {
   const [savingBrand, setSavingBrand] = useState(false);
   const [deletingBrand, setDeletingBrand] = useState(false);
   const [sourceFilter, setSourceFilter] = useState<ProductMarginSource | "all">("all");
+  const [productSearch, setProductSearch] = useState("");
+  const debouncedProductSearch = useDebouncedValue(productSearch, 350);
   const [productPage, setProductPage] = useState(1);
   const [productPageSize, setProductPageSize] = useState(20);
 
@@ -129,26 +136,66 @@ export default function FranchiseBrandDetailPage() {
   }, [brand]);
 
   const productsQuery = useQuery({
-    queryKey: ["storefront", "brand-products", storefrontBrandId, productPage, productPageSize],
+    queryKey: [
+      "storefront",
+      "brand-products",
+      storefrontBrandId,
+      productPage,
+      productPageSize,
+      debouncedProductSearch,
+    ],
     queryFn: async () => {
       if (!storefrontBrandId) return null;
-      const res = await getStorefrontProducts({
-        storefrontBrandId,
+      const res = await getStorefrontBrandProductsForAdmin(storefrontBrandId, {
         PageSize: productPageSize,
         PageNumber: productPage,
+        SearchString: debouncedProductSearch.trim() || undefined,
       });
       if (!res.status) throw new Error(res.message ?? "Failed to load products");
       return res.data;
     },
-    enabled: Boolean(storefrontBrandId),
+    enabled: Boolean(storefrontBrandId && brand?.isActive),
   });
 
   const products = productsQuery.data?.data ?? [];
   const productTotal = Number(productsQuery.data?.count ?? 0);
 
+  const exclusionsQuery = useQuery({
+    queryKey: ["storefront", "brand-product-exclusions", storefrontBrandId],
+    queryFn: async () => {
+      if (!storefrontBrandId) return [];
+      const res = await getStorefrontBrandExcludedProducts(storefrontBrandId);
+      if (!res.status) throw new Error(res.message ?? "Failed to load product exclusions");
+      return res.data ?? [];
+    },
+    enabled: Boolean(storefrontBrandId),
+  });
+
+  const excludedProductIds = useMemo(
+    () => new Set(exclusionsQuery.data ?? []),
+    [exclusionsQuery.data],
+  );
+
+  async function toggleProductExclusion(product: StorefrontProductDto) {
+    if (!storefrontBrandId) return;
+    const next = new Set(excludedProductIds);
+    if (next.has(product.productId)) next.delete(product.productId);
+    else next.add(product.productId);
+    const res = await setStorefrontBrandExcludedProducts(storefrontBrandId, [...next]);
+    if (!res.status) {
+      message.error(res.message ?? "Failed to update product availability");
+      return;
+    }
+    message.success(next.has(product.productId) ? "Product removed from this storefront brand" : "Product restored for this storefront brand");
+    await queryClient.invalidateQueries({
+      queryKey: ["storefront", "brand-product-exclusions", storefrontBrandId],
+    });
+    await productsQuery.refetch();
+  }
+
   const editableVariants = useMemo(() => {
     const variants = (editingProduct?.variants ?? []).filter(
-      (v) => v.isActive && v.priceInNaira > 0,
+      (v) => v.isActive && effectiveStorefrontBasePrice(v) > 0,
     );
     return variants.length > 1 ? variants : [];
   }, [editingProduct]);
@@ -157,7 +204,7 @@ export default function FranchiseBrandDetailPage() {
     if (!brand || sourceFilter === "all") return products;
     return products.filter((product) => {
       const variant = pickDisplayVariant(product);
-      const base = variant?.priceInNaira ?? 0;
+      const base = effectiveStorefrontBasePrice(variant);
       const storefront = variant?.storefrontPrice ?? 0;
       const markup = storefrontMarkupPercent(base, storefront);
       const source: ProductMarginSource =
@@ -230,7 +277,9 @@ export default function FranchiseBrandDetailPage() {
       // Round here so margin % derivation matches the UI input precision.
       setDraftStorefront(Math.round(res.data.storefrontPrice));
 
-      const variants = (product.variants ?? []).filter((v) => v.isActive && v.priceInNaira > 0);
+      const variants = (product.variants ?? []).filter(
+        (v) => v.isActive && effectiveStorefrontBasePrice(v) > 0,
+      );
       if (variants.length > 1) {
         const entries = await Promise.all(
           variants.map(async (variant) => {
@@ -260,7 +309,11 @@ export default function FranchiseBrandDetailPage() {
       if (revertToBrand) {
         margin = pricing.brandMargin;
       } else {
-        const baseForMargin = Math.round(pricing.priceInNaira);
+        const baseForMargin = Math.round(
+          (pricing.retailPriceInNaira ?? 0) >= 1
+            ? pricing.retailPriceInNaira!
+            : pricing.priceInNaira,
+        );
         if (draftStorefront === null || draftStorefront < baseForMargin) {
           message.error("Storefront price must be at least the product price.");
           return;
@@ -292,7 +345,7 @@ export default function FranchiseBrandDetailPage() {
   async function saveVariantPricing(variant: StorefrontVariantDto) {
     const draft = variantDrafts[variant.id];
     if (draft === null || draft === undefined) return;
-    const baseForMargin = Math.round(variant.priceInNaira);
+    const baseForMargin = Math.round(effectiveStorefrontBasePrice(variant));
     if (draft < baseForMargin) {
       message.error("Storefront price must be at least the variant price.");
       return;
@@ -356,7 +409,8 @@ export default function FranchiseBrandDetailPage() {
       width: 140,
       render: (_, product) => {
         const v = pickDisplayVariant(product);
-        return v && v.priceInNaira > 0 ? formatStorefrontNaira(v.priceInNaira) : "—";
+        const basePrice = effectiveStorefrontBasePrice(v);
+        return basePrice > 0 ? formatStorefrontNaira(basePrice) : "—";
       },
     },
     {
@@ -377,7 +431,10 @@ export default function FranchiseBrandDetailPage() {
       width: 90,
       render: (_, product) => {
         const v = pickDisplayVariant(product);
-        const markup = storefrontMarkupPercent(v?.priceInNaira ?? 0, v?.storefrontPrice ?? 0);
+        const markup = storefrontMarkupPercent(
+          effectiveStorefrontBasePrice(v),
+          v?.storefrontPrice ?? 0,
+        );
         return markup === null ? "—" : `${markup.toFixed(2)}%`;
       },
     },
@@ -386,7 +443,10 @@ export default function FranchiseBrandDetailPage() {
       key: "source",
       render: (_, product) => {
         const v = pickDisplayVariant(product);
-        const markup = storefrontMarkupPercent(v?.priceInNaira ?? 0, v?.storefrontPrice ?? 0);
+        const markup = storefrontMarkupPercent(
+          effectiveStorefrontBasePrice(v),
+          v?.storefrontPrice ?? 0,
+        );
         const source: ProductMarginSource =
           markup === null || markup <= 0
             ? "unset"
@@ -395,6 +455,23 @@ export default function FranchiseBrandDetailPage() {
               : "override";
         return sourceTag(source, markup);
       },
+    },
+    {
+      title: "Availability",
+      key: "availability",
+      width: 150,
+      render: (_, product) => (
+        <Space direction="vertical" size={2}>
+          <Tag color={excludedProductIds.has(product.productId) || product.isExcluded ? "error" : "success"}>
+            {excludedProductIds.has(product.productId) || product.isExcluded ? "Excluded" : "Included"}
+          </Tag>
+          {canEdit && (
+            <Button size="small" onClick={() => void toggleProductExclusion(product)}>
+              {excludedProductIds.has(product.productId) || product.isExcluded ? "Restore" : "Remove"}
+            </Button>
+          )}
+        </Space>
+      ),
     },
     {
       title: "",
@@ -414,11 +491,19 @@ export default function FranchiseBrandDetailPage() {
     },
   ];
 
+  const primaryPricingBase = pricing
+    ? (pricing.retailPriceInNaira ?? 0) >= 1
+      ? pricing.retailPriceInNaira!
+      : pricing.priceInNaira
+    : null;
+  const retailPriceIsPrimary = (pricing?.retailPriceInNaira ?? 0) >= 1;
   const brandDefaultStorefront =
     pricing && brand
-      ? Math.round(
-          storefrontPriceFromMargin(Math.round(pricing.priceInNaira), brand.storefrontPriceMargin),
-        )
+      ? retailPriceIsPrimary
+        ? Math.round(pricing.retailPriceInNaira!)
+        : Math.round(
+            storefrontPriceFromMargin(Math.round(pricing.priceInNaira), brand.storefrontPriceMargin),
+          )
       : null;
 
   const derivedMarkup =
@@ -519,24 +604,36 @@ export default function FranchiseBrandDetailPage() {
       <Card
         title={`Products (${productTotal})`}
         extra={
-          <Select
-            value={sourceFilter}
-            onChange={setSourceFilter}
-            className="min-w-40"
-            options={[
-              { value: "all", label: "All sources" },
-              { value: "inherited", label: "Inherited" },
-              { value: "override", label: "Overridden" },
-              { value: "unset", label: "Not configured" },
-            ]}
-          />
+          <Space>
+            <Input
+              allowClear
+              placeholder="Search products…"
+              value={productSearch}
+              onChange={(event) => {
+                setProductSearch(event.target.value);
+                setProductPage(1);
+              }}
+              style={{ width: 220 }}
+            />
+            <Select
+              value={sourceFilter}
+              onChange={setSourceFilter}
+              className="min-w-40"
+              options={[
+                { value: "all", label: "All sources" },
+                { value: "inherited", label: "Inherited" },
+                { value: "override", label: "Overridden" },
+                { value: "unset", label: "Not configured" },
+              ]}
+            />
+          </Space>
         }
       >
         <Table
           rowKey="productId"
           columns={columns}
           dataSource={visibleProducts}
-          loading={productsQuery.isLoading || productsQuery.isFetching}
+          loading={productsQuery.isLoading || productsQuery.isFetching || exclusionsQuery.isLoading}
           pagination={{
             current: productPage,
             pageSize: productPageSize,
@@ -577,14 +674,22 @@ export default function FranchiseBrandDetailPage() {
               size="small"
               className="mb-4"
               items={[
-                { key: "base", label: "Product price", children: formatStorefrontNaira(pricing.priceInNaira) },
+                {
+                  key: "base",
+                  label: retailPriceIsPrimary ? "Retail price (primary)" : "Product price",
+                  children: primaryPricingBase === null
+                    ? "—"
+                    : formatStorefrontNaira(primaryPricingBase),
+                },
                 {
                   key: "brand",
                   label: "Brand default storefront",
                   children:
                     brandDefaultStorefront === null || brand.storefrontPriceMargin <= 0
                       ? "Not configured"
-                      : `${formatStorefrontNaira(brandDefaultStorefront)} (${brand.storefrontPriceMargin.toFixed(2)}%)`,
+                      : retailPriceIsPrimary
+                        ? `${formatStorefrontNaira(brandDefaultStorefront)} (retail price)`
+                        : `${formatStorefrontNaira(brandDefaultStorefront)} (${brand.storefrontPriceMargin.toFixed(2)}%)`,
                 },
                 {
                   key: "current",
@@ -598,10 +703,14 @@ export default function FranchiseBrandDetailPage() {
               <Form.Item
                 label="Storefront price"
                 required
-                extra="Only this field is editable. Margin is calculated automatically."
+                extra={
+                  retailPriceIsPrimary
+                    ? "RetailPriceInNaira is currently the final storefront price. This margin is only used if retail price becomes unavailable."
+                    : "Only this field is editable. Margin is calculated automatically."
+                }
               >
                 <InputNumber
-                  min={Math.round(pricing.priceInNaira)}
+                  min={Math.round(primaryPricingBase ?? 0)}
                   precision={0}
                   addonBefore="₦"
                   className="w-full"

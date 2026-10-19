@@ -152,6 +152,9 @@ export default function FranchiseBrandsPage() {
       void queryClient.invalidateQueries({ queryKey: storefrontBrandsAllQueryKey });
       void queryClient.invalidateQueries({ queryKey: ["storefront", "brands-admin"] });
       void queryClient.invalidateQueries({ queryKey: ["storefront", "brands"] });
+      if (res.data?.id) {
+        navigate(`/franchise-brands/${res.data.id}`, { state: { brand: res.data } });
+      }
     } finally {
       setSaving(false);
     }

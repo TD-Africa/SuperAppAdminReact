@@ -268,20 +268,19 @@ export default function FranchiseProductsPage() {
   const addBrandOptions = useMemo(
     () =>
       (catalogBrandsQuery.data ?? []).map((brand) => {
-        const alreadyAdded = configuredCatalogBrandIds.has(brand.id);
-        const duplicateMetadata = (brandsQuery.data ?? []).some(
+        // Older storefront-brand records may not have a catalog brand ID. Match
+        // those records by their stable name/Dynamics metadata as well, so an
+        // already-configured brand is still shown but cannot be added again.
+        const alreadyAdded = configuredCatalogBrandIds.has(brand.id)
+          || (brandsQuery.data ?? []).some(
             (existing) =>
               existing.name.trim().toLowerCase() === brand.name.trim().toLowerCase()
               || (brand.dynamicsId && existing.dynamicsId === brand.dynamicsId),
-          ) && !alreadyAdded;
+          );
         return {
           value: brand.id,
-          label: alreadyAdded
-            ? `${brand.name} (already added)`
-            : duplicateMetadata
-              ? `${brand.name} (unavailable)`
-              : brand.name,
-          disabled: alreadyAdded || duplicateMetadata,
+          label: alreadyAdded ? `${brand.name} (already added)` : brand.name,
+          disabled: alreadyAdded,
         };
       }),
     [catalogBrandsQuery.data, configuredCatalogBrandIds, brandsQuery.data],

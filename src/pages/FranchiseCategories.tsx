@@ -1,59 +1,33 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import {
   App as AntdApp,
   Button,
   Card,
   Empty,
-  Form,
   Input,
-  Modal,
-  Popconfirm,
   Select,
-  Space,
-  Switch,
   Table,
   Tag,
   Typography,
 } from "antd";
 import type { TableColumnsType } from "antd";
-import {
-  AppstoreOutlined,
-  DeleteOutlined,
-  EditOutlined,
-  PlusOutlined,
-  TagsOutlined,
-} from "@ant-design/icons";
-import {
-  addStorefrontCategory,
-  deleteStorefrontCategory,
-  getStorefrontCategories,
-  updateStorefrontCategory,
-} from "@/lib/storefrontApi";
+import { AppstoreOutlined, TagsOutlined } from "@ant-design/icons";
+import { getStorefrontCategories } from "@/lib/storefrontApi";
 import type { StorefrontCategoryDto } from "@/lib/storefrontTypes";
-import { Permission } from "@/lib/permissions";
-import { useAuthStore } from "@/stores/auth";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 
 const ALL = "__all__";
 
 export default function FranchiseCategoriesPage() {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const { message } = AntdApp.useApp();
-  const canEdit = useAuthStore((s) => s.hasPermission(Permission.CanEditBrands));
-
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebouncedValue(search, 350);
   const [isActive, setIsActive] = useState<string>(ALL);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
-
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editing, setEditing] = useState<StorefrontCategoryDto | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [form] = Form.useForm<{ name: string; isActive: boolean }>();
 
   const queryParams = useMemo(
     () => ({
@@ -65,9 +39,10 @@ export default function FranchiseCategoriesPage() {
     [pageSize, page, debouncedSearch, isActive],
   );
 
-  const { data, isLoading, isFetching, isError, error } = useQuery({
+  const categoriesQuery = useQuery({
     queryKey: ["storefront", "categories-admin", queryParams],
     queryFn: async () => {
+      // This endpoint mirrors SuperApp categories and reuses the source ID.
       const res = await getStorefrontCategories(queryParams);
       if (!res.status) throw new Error(res.message ?? "Failed to load storefront categories");
       return res.data;
@@ -75,157 +50,97 @@ export default function FranchiseCategoriesPage() {
   });
 
   useEffect(() => {
-    if (isError) {
-      message.error(
-        error instanceof Error ? error.message : "Unable to load storefront categories.",
-      );
-    }
-  }, [isError, error, message]);
+    if (!categoriesQuery.isError) return;
+    message.error(
+      categoriesQuery.error instanceof Error
+        ? categoriesQuery.error.message
+        : "Unable to load storefront categories.",
+    );
+  }, [categoriesQuery.isError, categoriesQuery.error, message]);
 
-  const rows = data?.data ?? [];
-  const totalItems = Number(data?.count ?? 0);
-
-  function openCreate() {
-    setEditing(null);
-    form.setFieldsValue({ name: "", isActive: true });
-    setModalOpen(true);
-  }
-
-  function openEdit(category: StorefrontCategoryDto) {
-    setEditing(category);
-    form.setFieldsValue({ name: category.name, isActive: category.isActive });
-    setModalOpen(true);
-  }
-
-  async function saveCategory() {
-    const values = await form.validateFields();
-    setSaving(true);
-    try {
-      if (editing) {
-        const res = await updateStorefrontCategory(editing.id, values);
-        if (!res.status) {
-          message.error(res.message ?? "Failed to update category");
-          return;
-        }
-        message.success(res.message ?? "Category updated");
-      } else {
-        const res = await addStorefrontCategory(values);
-        if (!res.status) {
-          message.error(res.message ?? "Failed to create category");
-          return;
-        }
-        message.success(res.message ?? "Category created");
-      }
-      setModalOpen(false);
-      void queryClient.invalidateQueries({ queryKey: ["storefront", "categories-admin"] });
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function removeCategory(category: StorefrontCategoryDto) {
-    const res = await deleteStorefrontCategory(category.id);
-    if (!res.status) {
-      message.error(res.message ?? "Failed to delete category");
-      return;
-    }
-    message.success(res.message ?? "Category deleted");
-    void queryClient.invalidateQueries({ queryKey: ["storefront", "categories-admin"] });
-  }
+  const rows = categoriesQuery.data?.data ?? [];
+  const totalItems = Number(categoriesQuery.data?.count ?? 0);
 
   const columns: TableColumnsType<StorefrontCategoryDto> = [
     {
       title: "Category",
-      dataIndex: "name",
-      render: (name: string) => <span className="font-medium">{name}</span>,
+      key: "category",
+      render: (_, category) => (
+        <div>
+          <div className="font-medium">{category.name}</div>
+          <Typography.Text type="secondary" className="text-xs">
+            SuperApp ID: {category.superAppCategoryId ?? category.id}
+          </Typography.Text>
+        </div>
+      ),
     },
     {
-      title: "Products",
+      title: "Source products",
       dataIndex: "productCount",
-      width: 100,
+      width: 150,
       align: "right",
     },
     {
       title: "Status",
       dataIndex: "isActive",
-      width: 100,
+      width: 110,
       render: (active: boolean) => (
         <Tag color={active ? "success" : "default"}>{active ? "Active" : "Inactive"}</Tag>
       ),
     },
     {
+      title: "Source",
+      key: "source",
+      width: 130,
+      render: () => <Tag color="blue">Mirrored</Tag>,
+    },
+    {
       title: "Created",
       dataIndex: "dateCreated",
-      width: 120,
+      width: 130,
       render: (value: string) => (value ? new Date(value).toLocaleDateString() : "—"),
     },
     {
       title: "",
       key: "actions",
       align: "right",
-      width: 260,
+      width: 120,
       render: (_, category) => (
-        <Space size={4}>
-          <Button
-            type="primary"
-            size="small"
-            icon={<AppstoreOutlined />}
-            onClick={() =>
-              navigate(`/franchise-categories/${category.id}`, { state: { category } })
-            }
-          >
-            Manage
-          </Button>
-          {canEdit && (
-            <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(category)}>
-              Edit
-            </Button>
-          )}
-          {canEdit && (
-            <Popconfirm
-              title="Delete this storefront category?"
-              okText="Delete"
-              okButtonProps={{ danger: true }}
-              onConfirm={() => void removeCategory(category)}
-            >
-              <Button size="small" danger icon={<DeleteOutlined />} />
-            </Popconfirm>
-          )}
-        </Space>
+        <Button
+          type="primary"
+          size="small"
+          icon={<AppstoreOutlined />}
+          onClick={() => navigate(`/franchise-categories/${category.id}`, { state: { category } })}
+        >
+          View
+        </Button>
       ),
     },
   ];
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <Typography.Title level={3} className="!m-0">
-            Franchise categories
-          </Typography.Title>
-          <Typography.Text type="secondary">
-            Manage storefront categories and assign products to them.
-          </Typography.Text>
-        </div>
-        {canEdit && (
-          <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
-            Add category
-          </Button>
-        )}
+      <div>
+        <Typography.Title level={3} className="!m-0">
+          Storefront categories
+        </Typography.Title>
+        <Typography.Text type="secondary">
+          Categories are mirrored from SuperApp. Their IDs and product-category relationships remain the SuperApp source of truth.
+        </Typography.Text>
       </div>
 
       <Card styles={{ body: { padding: 16 } }}>
         <div className="flex flex-wrap gap-3">
           <Input
             allowClear
-            placeholder="Search category…"
+            placeholder="Search mirrored categories…"
             value={search}
             onChange={(event) => {
               setSearch(event.target.value);
               setPage(1);
             }}
             prefix={<TagsOutlined className="text-muted-foreground" />}
-            className="min-w-[220px] flex-1"
+            className="min-w-[240px] flex-1"
           />
           <Select
             value={isActive}
@@ -248,8 +163,8 @@ export default function FranchiseCategoriesPage() {
           rowKey="id"
           columns={columns}
           dataSource={rows}
-          loading={isLoading || isFetching}
-          locale={{ emptyText: <Empty description="No storefront categories" /> }}
+          loading={categoriesQuery.isLoading || categoriesQuery.isFetching}
+          locale={{ emptyText: <Empty description="No mirrored categories" /> }}
           pagination={{
             current: page,
             pageSize,
@@ -264,27 +179,9 @@ export default function FranchiseCategoriesPage() {
         />
       </Card>
 
-      <Modal
-        open={modalOpen}
-        title={editing ? "Edit category" : "Add category"}
-        onCancel={() => setModalOpen(false)}
-        onOk={() => void saveCategory()}
-        confirmLoading={saving}
-        destroyOnClose
-      >
-        <Form form={form} layout="vertical" className="mt-4">
-          <Form.Item
-            name="name"
-            label="Name"
-            rules={[{ required: true, message: "Enter a category name" }]}
-          >
-            <Input placeholder="Category name" />
-          </Form.Item>
-          <Form.Item name="isActive" label="Active" valuePropName="checked">
-            <Switch checkedChildren="Active" unCheckedChildren="Inactive" />
-          </Form.Item>
-        </Form>
-      </Modal>
+      <Typography.Text type="secondary" className="block text-sm">
+        Product exclusions are configured on the storefront brand, not on a category or store owner.
+      </Typography.Text>
     </div>
   );
 }

@@ -249,10 +249,9 @@ export default function FranchiseProductsPage() {
 
   const brandOptions = useMemo(() => {
     return (brandsQuery.data ?? [])
-      .filter((b) => b.isActive)
       .map((b) => ({
-      value: b.id,
-      label: b.name,
+        value: b.id,
+        label: b.isActive ? b.name : `${b.name} (inactive)`,
       }));
   }, [brandsQuery.data]);
 

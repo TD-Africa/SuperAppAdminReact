@@ -19,6 +19,9 @@ import {
   setStorefrontBrandTheme,
 } from "@/lib/storefrontApi";
 
+const DEFAULT_THEME_NAME = "brand-default";
+const DEFAULT_THEME_JSON = "{}";
+
 export default function StorefrontBrandThemeDesignPage() {
   const queryClient = useQueryClient();
   const { message } = AntdApp.useApp();
@@ -41,8 +44,21 @@ export default function StorefrontBrandThemeDesignPage() {
     queryFn: async () => {
       if (!storefrontBrandId) return null;
       const res = await getStorefrontBrandTheme(storefrontBrandId);
-      if (!res.status || !res.data) throw new Error(res.message ?? "Failed to load theme");
-      return res.data;
+      if (res.status && res.data) return res.data;
+
+      // A theme is optional until an admin saves one. The backend's 404 is
+      // therefore a valid first-load state, not a page error. Keep the draft
+      // local; SetStorefrontBrandTheme creates the record on the first save.
+      if (res.message?.toLowerCase().includes("storefront brand theme not found")) {
+        return {
+          storefrontBrandId,
+          themeName: DEFAULT_THEME_NAME,
+          themeJson: DEFAULT_THEME_JSON,
+          isActive: false,
+        };
+      }
+
+      throw new Error(res.message ?? "Failed to load theme");
     },
   });
 
@@ -130,6 +146,13 @@ export default function StorefrontBrandThemeDesignPage() {
         <Typography.Text type="secondary">
           Edit the theme JSON for this storefront brand. Toggle activation with “isActive”.
         </Typography.Text>
+        {themeQuery.data?.themeName === DEFAULT_THEME_NAME &&
+        themeQuery.data?.themeJson === DEFAULT_THEME_JSON ? (
+          <Typography.Paragraph type="secondary" className="!mb-0 !mt-2">
+            No theme has been saved for this brand yet. Update the draft and save it to create
+            the brand theme.
+          </Typography.Paragraph>
+        ) : null}
       </div>
 
       <Card>
@@ -207,4 +230,3 @@ export default function StorefrontBrandThemeDesignPage() {
     </div>
   );
 }
-

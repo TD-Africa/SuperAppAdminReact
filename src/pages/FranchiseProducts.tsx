@@ -116,6 +116,16 @@ export default function FranchiseProductsPage() {
   });
 
   const previewBrandId = Form.useWatch("catalogBrandId", brandForm);
+  const existingStorefrontBrandForPreview = useMemo(
+    () =>
+      (brandsQuery.data ?? []).find(
+        (brand) =>
+          brand.catalogBrandIds?.includes(previewBrandId ?? "")
+          || brand.brandId === previewBrandId,
+      ) ?? null,
+    [brandsQuery.data, previewBrandId],
+  );
+
   const previewProductsQuery = useQuery({
     queryKey: ["storefront", "add-brand-preview-products", previewBrandId],
     queryFn: async () => {
@@ -143,10 +153,35 @@ export default function FranchiseProductsPage() {
     enabled: addBrandOpen && Boolean(previewBrandId),
   });
 
+  const existingPreviewExclusionsQuery = useQuery({
+    queryKey: [
+      "storefront",
+      "add-brand-preview-exclusions",
+      existingStorefrontBrandForPreview?.id,
+    ],
+    queryFn: async () => {
+      if (!existingStorefrontBrandForPreview) return [];
+      const res = await getStorefrontBrandExcludedProducts(existingStorefrontBrandForPreview.id);
+      if (!res.status) throw new Error(res.message ?? "Failed to load existing product exclusions");
+      return res.data ?? [];
+    },
+    enabled: addBrandOpen && Boolean(existingStorefrontBrandForPreview),
+  });
+
   useEffect(() => {
     if (!addBrandOpen || !previewBrandId || !previewProductsQuery.data) return;
-    setSelectedProductIds(previewProductsQuery.data.map((product) => product.id));
-  }, [addBrandOpen, previewBrandId, previewProductsQuery.data]);
+    const excluded = new Set(existingPreviewExclusionsQuery.data ?? []);
+    setSelectedProductIds(
+      previewProductsQuery.data
+        .map((product) => product.id)
+        .filter((productId) => !excluded.has(productId)),
+    );
+  }, [
+    addBrandOpen,
+    previewBrandId,
+    previewProductsQuery.data,
+    existingPreviewExclusionsQuery.data,
+  ]);
 
   const queryParams = useMemo(
     () => ({
@@ -260,16 +295,16 @@ export default function FranchiseProductsPage() {
   const addBrandOptions = useMemo(
     () =>
       (catalogBrandsQuery.data ?? []).map((brand) => {
-        const alreadyAdded = configuredCatalogBrandIds.has(brand.id)
-          || (brandsQuery.data ?? []).some(
+        const alreadyAdded = configuredCatalogBrandIds.has(brand.id);
+        const duplicateMetadata = (brandsQuery.data ?? []).some(
             (existing) =>
               existing.name.trim().toLowerCase() === brand.name.trim().toLowerCase()
               || (brand.dynamicsId && existing.dynamicsId === brand.dynamicsId),
-          );
+          ) && !alreadyAdded;
         return {
           value: brand.id,
           label: alreadyAdded ? `${brand.name} (already added)` : brand.name,
-          disabled: alreadyAdded,
+          disabled: duplicateMetadata,
         };
       }),
     [catalogBrandsQuery.data, configuredCatalogBrandIds, brandsQuery.data],
@@ -316,6 +351,13 @@ export default function FranchiseProductsPage() {
     const values = await brandForm.validateFields();
     const source = catalogBrandsQuery.data?.find((brand) => brand.id === values.catalogBrandId);
     if (!source) return;
+    if (existingStorefrontBrandForPreview) {
+      setAddBrandOpen(false);
+      brandForm.resetFields();
+      setSelectedProductIds([]);
+      selectBrand(existingStorefrontBrandForPreview.id);
+      return;
+    }
     if (configuredCatalogBrandIds.has(source.id)) {
       message.error("This SuperApp brand has already been added to the storefront");
       return;
@@ -884,14 +926,17 @@ export default function FranchiseProductsPage() {
           disabled:
             !previewBrandId
             || previewProductsQuery.isLoading
-            || previewProductsQuery.isError,
+            || previewProductsQuery.isError
+            || existingPreviewExclusionsQuery.isLoading,
         }}
         destroyOnClose
-        okText="Add brand"
+        okText={existingStorefrontBrandForPreview ? "Open brand" : "Add brand"}
       >
         <Form form={brandForm} layout="vertical">
           <Typography.Text type="secondary" className="mb-3 block">
-            Select one SuperApp brand. Its valid products are included by default, and its categories are derived from those products.
+            {existingStorefrontBrandForPreview
+              ? "This brand is already configured. Open it to view its products and categories."
+              : "Select one SuperApp brand. Its valid products are included by default, and its categories are derived from those products."}
           </Typography.Text>
           <Form.Item
             name="catalogBrandId"
@@ -920,10 +965,15 @@ export default function FranchiseProductsPage() {
             <div className="mb-4 space-y-2">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <Typography.Text strong>
-                  Products to add ({selectedProductIds.length} of {previewProductsQuery.data?.length ?? 0} selected)
+                  {existingStorefrontBrandForPreview ? "Products in this brand" : "Products to add"}
+                  {existingStorefrontBrandForPreview
+                    ? ` (${(previewProductsQuery.data?.length ?? 0) - (existingPreviewExclusionsQuery.data?.length ?? 0)} included of ${previewProductsQuery.data?.length ?? 0})`
+                    : ` (${selectedProductIds.length} of ${previewProductsQuery.data?.length ?? 0} selected)`}
                 </Typography.Text>
                 <Typography.Text type="secondary">
-                  Uncheck products you do not want this brand to sell.
+                  {existingStorefrontBrandForPreview
+                    ? "Use the brand product list after opening it to remove or restore products."
+                    : "Uncheck products you do not want this brand to sell."}
                 </Typography.Text>
               </div>
               {previewProductsQuery.isError ? (
@@ -944,10 +994,14 @@ export default function FranchiseProductsPage() {
                   dataSource={previewProductsQuery.data ?? []}
                   pagination={false}
                   scroll={{ y: 300 }}
-                  rowSelection={{
-                    selectedRowKeys: selectedProductIds,
-                    onChange: (keys) => setSelectedProductIds(keys.map(String)),
-                  }}
+                  rowSelection={
+                    existingStorefrontBrandForPreview
+                      ? undefined
+                      : {
+                          selectedRowKeys: selectedProductIds,
+                          onChange: (keys) => setSelectedProductIds(keys.map(String)),
+                        }
+                  }
                   locale={{ emptyText: "No eligible products for this brand" }}
                   columns={[
                     {

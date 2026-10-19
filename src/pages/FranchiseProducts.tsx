@@ -17,6 +17,7 @@ import {
   Switch,
   Table,
   Tag,
+  Tabs,
   Typography,
 } from "antd";
 import type { TableColumnsType } from "antd";
@@ -254,25 +255,6 @@ export default function FranchiseProductsPage() {
         label: b.isActive ? b.name : `${b.name} (inactive)`,
       }));
   }, [brandsQuery.data]);
-
-  useEffect(() => {
-    if (brandId || brandIdFromUrl || brandOptions.length === 0) return;
-
-    const firstBrand = brandOptions[0];
-    const next = new URLSearchParams(searchParams);
-    next.set("brandId", firstBrand.value);
-    const firstBrandName = brandsQuery.data?.find((brand) => brand.id === firstBrand.value)?.name;
-    if (firstBrandName) next.set("brand", firstBrandName);
-    setBrandId(firstBrand.value);
-    setSearchParams(next, { replace: true });
-  }, [
-    brandId,
-    brandIdFromUrl,
-    brandOptions,
-    brandsQuery.data,
-    searchParams,
-    setSearchParams,
-  ]);
 
   const configuredCatalogBrandIds = useMemo(() => {
     const ids = new Set<string>();
@@ -798,27 +780,14 @@ export default function FranchiseProductsPage() {
       </div>
 
       <Card styles={{ body: { padding: 16 } }}>
-        <div className="grid gap-3 md:grid-cols-12">
-          <Input
-            className="md:col-span-7"
-            allowClear
-            placeholder="Search products…"
-            value={search}
-            onChange={(e) => {
-              setPage(1);
-              setSearch(e.target.value);
-            }}
-            prefix={<PercentageOutlined className="text-muted-foreground" />}
-          />
-          <Select
-            className="md:col-span-5"
-            value={brandId || undefined}
-            loading={brandsQuery.isLoading}
-            options={brandOptions}
-            placeholder="Select a storefront brand"
-            onChange={selectBrand}
-          />
-        </div>
+        <Select
+          className="w-full"
+          value={brandId || undefined}
+          loading={brandsQuery.isLoading}
+          options={brandOptions}
+          placeholder="Select a storefront brand"
+          onChange={selectBrand}
+        />
       </Card>
 
       {!brandId ? (
@@ -833,60 +802,90 @@ export default function FranchiseProductsPage() {
           </Empty>
         </Card>
       ) : (
-        <>
-        <Card
-          title={`Categories for ${selectedBrandLabel ?? "this brand"}`}
-          extra={
-            <Button
-              size="small"
-              disabled={!canEdit || excludedProductIds.size === 0}
-              onClick={() => void includeAllBrandProducts()}
-            >
-              Restore all products
-            </Button>
-          }
-        >
-          {categoriesQuery.isLoading ? (
-            <Typography.Text type="secondary">Loading categories…</Typography.Text>
-          ) : selectedBrandCategories.length === 0 ? (
-            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No categories with included products" />
-          ) : (
-            <Space wrap>
-              {selectedBrandCategories.map((category) => (
-                <Tag key={category.id} color="blue">
-                  {category.name ?? "Unnamed category"} ({category.productCount})
-                </Tag>
-              ))}
-            </Space>
-          )}
-        </Card>
+        <Tabs
+          key={brandId}
+          defaultActiveKey="products"
+          items={[
+            {
+              key: "products",
+              label: "Products",
+              children: (
+                <div className="space-y-4">
+                  <Card styles={{ body: { padding: 16 } }}>
+                    <Input
+                      allowClear
+                      placeholder="Search products…"
+                      value={search}
+                      onChange={(e) => {
+                        setPage(1);
+                        setSearch(e.target.value);
+                      }}
+                      prefix={<PercentageOutlined className="text-muted-foreground" />}
+                    />
+                  </Card>
 
-      <Card styles={{ body: { padding: 0 } }}>
-        <Table<FranchiseProductRow>
-          rowKey={(row) => row.storefront.productId}
-          columns={columns}
-          dataSource={rows}
-          onRow={(row) => ({
-            onClick: () => openDetail(row.storefront.productId),
-            style: { cursor: "pointer" },
-          })}
-          loading={tableLoading}
-          scroll={{ x: 1600 }}
-          locale={{ emptyText: <Empty description="No storefront products" /> }}
-          pagination={{
-            current: page,
-            pageSize,
-            total: totalItems,
-            showSizeChanger: true,
-            pageSizeOptions: [10, 20, 50, 100],
-            onChange: (p, ps) => {
-              setPage(p);
-              setPageSize(ps);
+                  <Card styles={{ body: { padding: 0 } }}>
+                    <Table<FranchiseProductRow>
+                      rowKey={(row) => row.storefront.productId}
+                      columns={columns}
+                      dataSource={rows}
+                      onRow={(row) => ({
+                        onClick: () => openDetail(row.storefront.productId),
+                        style: { cursor: "pointer" },
+                      })}
+                      loading={tableLoading}
+                      scroll={{ x: 1600 }}
+                      locale={{ emptyText: <Empty description="No storefront products" /> }}
+                      pagination={{
+                        current: page,
+                        pageSize,
+                        total: totalItems,
+                        showSizeChanger: true,
+                        pageSizeOptions: [10, 20, 50, 100],
+                        onChange: (p, ps) => {
+                          setPage(p);
+                          setPageSize(ps);
+                        },
+                      }}
+                    />
+                  </Card>
+                </div>
+              ),
             },
-          }}
+            {
+              key: "categories",
+              label: "Categories",
+              children: (
+                <Card
+                  title={`Categories for ${selectedBrandLabel ?? "this brand"}`}
+                  extra={
+                    <Button
+                      size="small"
+                      disabled={!canEdit || excludedProductIds.size === 0}
+                      onClick={() => void includeAllBrandProducts()}
+                    >
+                      Restore all products
+                    </Button>
+                  }
+                >
+                  {categoriesQuery.isLoading ? (
+                    <Typography.Text type="secondary">Loading categories…</Typography.Text>
+                  ) : selectedBrandCategories.length === 0 ? (
+                    <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No categories with included products" />
+                  ) : (
+                    <Space wrap>
+                      {selectedBrandCategories.map((category) => (
+                        <Tag key={category.id} color="blue">
+                          {category.name ?? "Unnamed category"} ({category.productCount})
+                        </Tag>
+                      ))}
+                    </Space>
+                  )}
+                </Card>
+              ),
+            },
+          ]}
         />
-      </Card>
-        </>
       )}
 
       <ProductDetailModal

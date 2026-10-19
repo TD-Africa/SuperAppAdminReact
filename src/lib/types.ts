@@ -1079,7 +1079,11 @@ export interface OrderReturnDto {
   amountSettledInNaira: number;
   amountSettledInDollar: number;
   transactions: TransactionResponseDTO[] | null;
-  referralId: string | null;
+  /** The referral ID sent to D365 as the sales taker. The API serializes it PascalCase. */
+  SalesTaker: string | null;
+  /** Both null when the partner placed the order themselves. */
+  placedByStaffId: string | null;
+  placedByStaffName: string | null;
 }
 
 export interface AdminDashboardResponse {
@@ -1315,6 +1319,42 @@ export interface PlatformSettingDto {
   splitTenderPercent: number | null;
 }
 
+// VAT switches (api/v1/vat). Product VAT drives every price: cart, checkout,
+// D365 and invoices. Rates are percents (7.5 = 7.5%).
+export type VatStatus = "On" | "Off" | "Partial";
+
+export interface VatProductDto {
+  productId: string;
+  productName: string;
+  brandName: string | null;
+  isVATApplicable: boolean;
+  vatRate: number;
+}
+
+export interface VatSummaryDto {
+  products: number;
+  productsWithVat: number;
+  brandsWithVat: number;
+  /** Only the first 500, ordered by name. */
+  vatProducts: VatProductDto[];
+}
+
+/** One row per brand name; changes apply to every Brand row sharing it. */
+export interface VatBrandDto {
+  brandId: string;
+  name: string;
+  vatStatus: VatStatus;
+  productCount: number;
+  productsWithVat: number;
+}
+
+export interface VatChangeDto {
+  enabled: boolean;
+  rate: number | null;
+  brandsUpdated: number;
+  productsUpdated: number;
+}
+
 // ── Exchange rates (ExchangeRate controller) ──────────────────────────────────
 // Rates are naira-per-dollar and versioned rather than overwritten: setting a new
 // rate closes the current row (`effectiveTo`) and opens a new one. A brand row
@@ -1384,6 +1424,25 @@ export interface StaffAdminResponse {
   lastLoginAt: string | null;
   /** For a Pending row this is when access was requested (first sign-in). */
   dateCreated: string;
+  /**
+   * The D365 worker this staff member is linked to; all three are null when
+   * unlinked. Unlinked staff can still place orders, but D365 won't record
+   * them as the sales taker. Approve/Reactivate auto-link on a unique email match.
+   */
+  referralId: string | null;
+  salesTakerName: string | null;
+  salesTakerPersonnelNumber: string | null;
+}
+
+// GET Staff/Workers?search= — up to 25 active D365 workers, for the link dialog.
+export interface StaffWorkerResponse {
+  referralId: string;
+  personnelNumber: string | null;
+  fullName: string | null;
+  /** Usually null: most D365 workers have no email on file. */
+  email: string | null;
+  /** Set when another staff account already holds this worker. */
+  linkedStaffEmail: string | null;
 }
 
 // GET Staff/GetAssignments/{id}; every assign/unassign endpoint returns the

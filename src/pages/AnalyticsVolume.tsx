@@ -7,6 +7,7 @@ import {
   Row,
   Statistic,
   Table,
+  Tag,
   Typography,
 } from "antd";
 import type { TableColumnsType } from "antd";
@@ -32,9 +33,11 @@ import type {
   AnalyticsPage,
   AnalyticsParams,
   AnalyticsReport,
+  AnalyticsStaffOrderRow,
+  AnalyticsStaffOrders,
   UpdateSearch,
 } from "@/lib/analytics";
-import { money, usdMoney } from "@/lib/analyticsFormat";
+import { count, money, percent, usdMoney } from "@/lib/analyticsFormat";
 
 // ---------------------------------------------------------------------------
 // Table columns
@@ -66,6 +69,93 @@ const growthColumns: TableColumnsType<AnalyticsGrowth> = [
       value == null ? "No previous revenue" : `${value.toFixed(1)}%`,
   },
 ];
+
+const staffOrderColumns: TableColumnsType<AnalyticsStaffOrderRow> = [
+  {
+    title: "Staff member",
+    key: "who",
+    render: (_, r) => (
+      <div className="flex flex-col">
+        <span>{r.name || r.email || "—"}</span>
+        {r.name && r.email && (
+          <Typography.Text type="secondary" className="text-xs">
+            {r.email}
+          </Typography.Text>
+        )}
+      </div>
+    ),
+  },
+  {
+    title: "D365 sales taker",
+    dataIndex: "salesTakerReferralId",
+    render: (v: string | null) =>
+      v ? <span className="font-mono text-xs">{v}</span> : <Tag color="warning">Not linked</Tag>,
+  },
+  {
+    title: "Orders",
+    dataIndex: "orderCount",
+    align: "right",
+    render: (v: number) => count(v),
+  },
+  {
+    title: "Eligible",
+    dataIndex: "eligibleOrders",
+    align: "right",
+    render: (v: number) => count(v),
+  },
+  {
+    title: "Net order value",
+    dataIndex: "revenueNaira",
+    align: "right",
+    render: (v: number, r) => <MoneyValue naira={v} usd={r.revenueUsd} />,
+  },
+];
+
+function StaffOrders({ data }: { data: AnalyticsStaffOrders }) {
+  const { selfService, staffPlaced } = data;
+  const totalOrders = selfService.orderCount + staffPlaced.orderCount;
+  const totalRevenue = selfService.revenueNaira + staffPlaced.revenueNaira;
+  const share = (part: number, whole: number) => (whole ? part / whole : null);
+
+  const channels = [
+    { label: "Partner self-service", totals: selfService },
+    { label: "Placed by staff", totals: staffPlaced },
+  ];
+
+  return (
+    <Card title="Self-service vs staff-placed orders">
+      <Row gutter={[16, 16]} className="mb-4">
+        {channels.map(({ label, totals }) => (
+          <Col key={label} xs={24} md={12}>
+            <Card size="small" className="h-full">
+              <Statistic title={label} value={count(totals.orderCount)} suffix="orders" />
+              <Typography.Text type="secondary" className="text-xs">
+                {percent(share(totals.orderCount, totalOrders))} of orders ·{" "}
+                {count(totals.eligibleOrders)} eligible
+              </Typography.Text>
+              <div className="mt-2">
+                <MoneyValue naira={totals.revenueNaira} usd={totals.revenueUsd} />
+              </div>
+              <Typography.Text type="secondary" className="text-xs">
+                {percent(share(totals.revenueNaira, totalRevenue))} of net order value
+              </Typography.Text>
+            </Card>
+          </Col>
+        ))}
+      </Row>
+
+      <Table<AnalyticsStaffOrderRow>
+        rowKey="staffId"
+        size="small"
+        columns={staffOrderColumns}
+        dataSource={data.byStaff}
+        scroll={{ x: 700 }}
+        pagination={data.byStaff.length > 10 ? { pageSize: 10, size: "small" } : false}
+        locale={{ emptyText: "No staff-placed orders in this window." }}
+      />
+    </Card>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Paged sections
@@ -275,6 +365,8 @@ export default function AnalyticsVolumePanel({
       <Card title="Orders and net order value">
         <OrderValueChart points={overview.timeseries} />
       </Card>
+
+      {overview.staffOrders && <StaffOrders data={overview.staffOrders} />}
 
       {/* Brand & category breakdowns */}
       <Row gutter={[16, 16]}>

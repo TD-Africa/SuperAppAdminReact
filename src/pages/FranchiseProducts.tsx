@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   App as AntdApp,
+  Alert,
   Avatar,
   Button,
   Card,
@@ -34,6 +35,7 @@ import {
   getStorefrontBrandProductsForAdmin,
   getStorefrontBrandExcludedProducts,
   getStorefrontBrands,
+  getStorefrontEligibleBrandProducts,
   setStorefrontBrandExcludedProducts,
   setProductVisibility,
 } from "@/lib/storefrontApi";
@@ -80,6 +82,7 @@ export default function FranchiseProductsPage() {
   const [exclusionBusyId, setExclusionBusyId] = useState<string | null>(null);
   const [addBrandOpen, setAddBrandOpen] = useState(false);
   const [savingBrand, setSavingBrand] = useState(false);
+  const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
   const [brandForm] = Form.useForm<{
     catalogBrandId: string;
     name: string;
@@ -97,7 +100,7 @@ export default function FranchiseProductsPage() {
   const brandsQuery = useQuery({
     queryKey: ["storefront", "manage-brands"],
     queryFn: async () => {
-      const res = await getStorefrontBrands({ PageSize: 500, PageNumber: 1, isActive: true });
+      const res = await getStorefrontBrands({ PageSize: 500, PageNumber: 1 });
       if (!res.status) throw new Error(res.message ?? "Failed to load storefront brands");
       return res.data?.data ?? [];
     },
@@ -111,6 +114,39 @@ export default function FranchiseProductsPage() {
       return res.data?.data ?? [];
     },
   });
+
+  const previewBrandId = Form.useWatch("catalogBrandId", brandForm);
+  const previewProductsQuery = useQuery({
+    queryKey: ["storefront", "add-brand-preview-products", previewBrandId],
+    queryFn: async () => {
+      if (!previewBrandId) return [] as ProductReturnDto[];
+      const products: ProductReturnDto[] = [];
+      let pageNumber = 1;
+      const pageSize = 100;
+
+      while (true) {
+        const res = await getStorefrontEligibleBrandProducts(previewBrandId, {
+          PageSize: pageSize,
+          PageNumber: pageNumber,
+        });
+        if (!res.status) {
+          throw new Error(res.message ?? "Failed to load products for this brand");
+        }
+        const page = res.data?.data ?? [];
+        products.push(...page);
+        if (page.length === 0 || products.length >= Number(res.data?.count ?? products.length)) {
+          return products;
+        }
+        pageNumber += 1;
+      }
+    },
+    enabled: addBrandOpen && Boolean(previewBrandId),
+  });
+
+  useEffect(() => {
+    if (!addBrandOpen || !previewBrandId || !previewProductsQuery.data) return;
+    setSelectedProductIds(previewProductsQuery.data.map((product) => product.id));
+  }, [addBrandOpen, previewBrandId, previewProductsQuery.data]);
 
   const queryParams = useMemo(
     () => ({
@@ -204,11 +240,40 @@ export default function FranchiseProductsPage() {
   const totalItems = Number(productsQuery.data?.count ?? 0);
 
   const brandOptions = useMemo(() => {
-    return (brandsQuery.data ?? []).map((b) => ({
+    return (brandsQuery.data ?? [])
+      .filter((b) => b.isActive)
+      .map((b) => ({
       value: b.id,
       label: b.name,
-    }));
+      }));
   }, [brandsQuery.data]);
+
+  const configuredCatalogBrandIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const brand of brandsQuery.data ?? []) {
+      for (const id of brand.catalogBrandIds ?? []) ids.add(id);
+      if (brand.brandId) ids.add(brand.brandId);
+    }
+    return ids;
+  }, [brandsQuery.data]);
+
+  const addBrandOptions = useMemo(
+    () =>
+      (catalogBrandsQuery.data ?? []).map((brand) => {
+        const alreadyAdded = configuredCatalogBrandIds.has(brand.id)
+          || (brandsQuery.data ?? []).some(
+            (existing) =>
+              existing.name.trim().toLowerCase() === brand.name.trim().toLowerCase()
+              || (brand.dynamicsId && existing.dynamicsId === brand.dynamicsId),
+          );
+        return {
+          value: brand.id,
+          label: alreadyAdded ? `${brand.name} (already added)` : brand.name,
+          disabled: alreadyAdded,
+        };
+      }),
+    [catalogBrandsQuery.data, configuredCatalogBrandIds, brandsQuery.data],
+  );
 
   const selectedBrandLabel =
     brandId
@@ -251,6 +316,22 @@ export default function FranchiseProductsPage() {
     const values = await brandForm.validateFields();
     const source = catalogBrandsQuery.data?.find((brand) => brand.id === values.catalogBrandId);
     if (!source) return;
+    if (configuredCatalogBrandIds.has(source.id)) {
+      message.error("This SuperApp brand has already been added to the storefront");
+      return;
+    }
+    const normalizedName = values.name.trim().toLowerCase();
+    const normalizedDynamicsId = values.dynamicsId.trim().toLowerCase();
+    const duplicate = (brandsQuery.data ?? []).some(
+      (existing) =>
+        existing.name.trim().toLowerCase() === normalizedName
+        || (normalizedDynamicsId.length > 0
+          && (existing.dynamicsId ?? "").trim().toLowerCase() === normalizedDynamicsId),
+    );
+    if (duplicate) {
+      message.error("A storefront brand with this name or Dynamics ID already exists");
+      return;
+    }
     setSavingBrand(true);
     try {
       const res = await addStorefrontBrand({
@@ -265,9 +346,28 @@ export default function FranchiseProductsPage() {
         message.error(res.message ?? "Failed to add storefront brand");
         return;
       }
-      message.success("Brand added. Its products and categories are now available to configure.");
+
+      const excludedProductIds = (previewProductsQuery.data ?? [])
+        .map((product) => product.id)
+        .filter((productId) => !selectedProductIds.includes(productId));
+      let exclusionsSaved = true;
+      if (excludedProductIds.length > 0) {
+        const exclusionRes = await setStorefrontBrandExcludedProducts(
+          res.data.id,
+          excludedProductIds,
+        );
+        if (!exclusionRes.status) {
+          exclusionsSaved = false;
+          message.error(
+            `Brand was created, but product exclusions could not be saved: ${exclusionRes.message ?? "try again"}`,
+          );
+        }
+      }
+
+      if (exclusionsSaved) message.success("Brand added with the selected products.");
       setAddBrandOpen(false);
       brandForm.resetFields();
+      setSelectedProductIds([]);
       await queryClient.invalidateQueries({ queryKey: ["storefront", "manage-brands"] });
       selectBrand(res.data.id);
     } finally {
@@ -772,12 +872,20 @@ export default function FranchiseProductsPage() {
       <Modal
         open={addBrandOpen}
         title="Add storefront brand"
+        width={900}
         onCancel={() => {
           setAddBrandOpen(false);
           brandForm.resetFields();
+          setSelectedProductIds([]);
         }}
         onOk={() => void addBrand()}
         confirmLoading={savingBrand}
+        okButtonProps={{
+          disabled:
+            !previewBrandId
+            || previewProductsQuery.isLoading
+            || previewProductsQuery.isError,
+        }}
         destroyOnClose
         okText="Add brand"
       >
@@ -796,6 +904,7 @@ export default function FranchiseProductsPage() {
               loading={catalogBrandsQuery.isLoading}
               placeholder="Select the source brand"
               onChange={(value: string) => {
+                setSelectedProductIds([]);
                 const source = catalogBrandsQuery.data?.find((brand) => brand.id === value);
                 if (!source) return;
                 brandForm.setFieldsValue({
@@ -804,12 +913,81 @@ export default function FranchiseProductsPage() {
                   brandImageUrl: source.brandImageUrl ?? "",
                 });
               }}
-              options={(catalogBrandsQuery.data ?? []).map((brand) => ({
-                value: brand.id,
-                label: brand.name,
-              }))}
+              options={addBrandOptions}
             />
           </Form.Item>
+          {previewBrandId && (
+            <div className="mb-4 space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <Typography.Text strong>
+                  Products to add ({selectedProductIds.length} of {previewProductsQuery.data?.length ?? 0} selected)
+                </Typography.Text>
+                <Typography.Text type="secondary">
+                  Uncheck products you do not want this brand to sell.
+                </Typography.Text>
+              </div>
+              {previewProductsQuery.isError ? (
+                <Alert
+                  type="error"
+                  showIcon
+                  message={
+                    previewProductsQuery.error instanceof Error
+                      ? previewProductsQuery.error.message
+                      : "Unable to load products for this brand"
+                  }
+                />
+              ) : (
+                <Table<ProductReturnDto>
+                  size="small"
+                  rowKey="id"
+                  loading={previewProductsQuery.isLoading || previewProductsQuery.isFetching}
+                  dataSource={previewProductsQuery.data ?? []}
+                  pagination={false}
+                  scroll={{ y: 300 }}
+                  rowSelection={{
+                    selectedRowKeys: selectedProductIds,
+                    onChange: (keys) => setSelectedProductIds(keys.map(String)),
+                  }}
+                  locale={{ emptyText: "No eligible products for this brand" }}
+                  columns={[
+                    {
+                      title: "Product",
+                      key: "product",
+                      render: (_, product) => (
+                        <Space>
+                          <Avatar
+                            shape="square"
+                            src={productThumbnail(product)}
+                            icon={!productThumbnail(product) ? <AppstoreOutlined /> : undefined}
+                          />
+                          <div>
+                            <div className="font-medium">{product.productName}</div>
+                            <Typography.Text type="secondary" className="text-xs">
+                              {product.dynamicsId ?? product.id}
+                            </Typography.Text>
+                          </div>
+                        </Space>
+                      ),
+                    },
+                    {
+                      title: "Price (NGN)",
+                      key: "naira",
+                      align: "right",
+                      width: 130,
+                      render: (_, product) => formatCurrency(effectiveProductPrice(product, "naira"), "NGN"),
+                    },
+                    {
+                      title: "Price (USD)",
+                      key: "dollar",
+                      align: "right",
+                      width: 120,
+                      render: (_, product) => formatCurrency(effectiveProductPrice(product, "dollar"), "USD"),
+                    },
+                  ]}
+                />
+              )}
+            </div>
+          )}
           <Form.Item
             name="name"
             label="Storefront brand name"

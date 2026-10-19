@@ -1,5 +1,10 @@
 import { apiDelete, apiGet, apiPost, apiPut } from "./storefrontHttp";
-import type { ApiResult, PaginationResponse, TicketResponse } from "./types";
+import type {
+  ApiResult,
+  PaginationResponse,
+  ProductReturnDto,
+  TicketResponse,
+} from "./types";
 import type {
   AddStorefrontBrandRequest,
   AddStorefrontCategoryRequest,
@@ -1303,7 +1308,7 @@ export function getStorefrontEligibleBrandProducts(
     SearchString?: string;
   } = {},
 ) {
-  return apiGet<PaginationResponse<BrandProductDto>>(
+  return apiGet<PaginationResponse<ProductReturnDto>>(
     `Brand/GetStorefrontEligibleProducts/${brandId}/products${toQuery(params)}`,
   );
 }

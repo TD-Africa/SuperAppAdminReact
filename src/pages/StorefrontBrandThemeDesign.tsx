@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Alert,
@@ -25,7 +25,6 @@ const DEFAULT_THEME_NAME = "brand-default";
 const DEFAULT_THEME_JSON = "{}";
 
 export default function StorefrontBrandThemeDesignPage() {
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { message } = AntdApp.useApp();
   const canEdit = useAuthStore((s) => s.hasPermission(Permission.CanEditBrands));
@@ -126,9 +125,19 @@ export default function StorefrontBrandThemeDesignPage() {
       return res;
     },
     onSuccess: () => {
-      message.success("Theme removed");
+      message.success("Theme removed. You can now create a new theme for this brand.");
+      if (storefrontBrandId) {
+        queryClient.setQueryData(themeQueryKey, {
+          theme: {
+            storefrontBrandId,
+            themeName: DEFAULT_THEME_NAME,
+            themeJson: DEFAULT_THEME_JSON,
+            isActive: false,
+          },
+          exists: false,
+        });
+      }
       void queryClient.invalidateQueries({ queryKey: ["storefront", "brand-themes"] });
-      navigate("/franchise-brand-themes");
     },
     onError: (err) => message.error(err instanceof Error ? err.message : "Failed to remove theme"),
   });
@@ -243,7 +252,7 @@ export default function StorefrontBrandThemeDesignPage() {
               disabled={!canEdit || !dirty || mutation.isPending}
               onClick={() => void mutation.mutate()}
             >
-              Save changes
+              {themeQuery.data?.exists ? "Save changes" : "Create theme"}
             </Button>
             <Button
               disabled={!canEdit || mutation.isPending || deleteMutation.isPending}

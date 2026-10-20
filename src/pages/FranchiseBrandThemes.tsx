@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   App as AntdApp,
   Button,
@@ -14,10 +14,14 @@ import {
   Typography,
 } from "antd";
 import type { TableColumnsType } from "antd";
-import { EditOutlined, PlusOutlined } from "@ant-design/icons";
+import { DeleteOutlined, EditOutlined, PlusOutlined } from "@ant-design/icons";
 import { useAuthStore } from "@/stores/auth";
 import { Permission } from "@/lib/permissions";
-import { getStorefrontBrands } from "@/lib/storefrontApi";
+import {
+  deleteStorefrontBrandTheme,
+  getStorefrontBrandTheme,
+  getStorefrontBrands,
+} from "@/lib/storefrontApi";
 import type { StorefrontBrandAdminDto } from "@/lib/storefrontTypes";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 
@@ -25,8 +29,11 @@ function statusTag(isActive: boolean) {
   return <Tag color={isActive ? "success" : "default"}>{isActive ? "Active" : "Inactive"}</Tag>;
 }
 
+type BrandThemeRow = StorefrontBrandAdminDto & { hasTheme: boolean };
+
 export default function FranchiseBrandThemesPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { message } = AntdApp.useApp();
   const canEdit = useAuthStore((s) => s.hasPermission(Permission.CanEditBrands));
 
@@ -54,10 +61,18 @@ export default function FranchiseBrandThemesPage() {
         pageNumber += 1;
       }
 
-      if (keywordFilter) {
-        return all.filter((b) => (b.name ?? "").toLowerCase().includes(keywordFilter));
-      }
-      return all;
+      const filtered = keywordFilter
+        ? all.filter((b) => (b.name ?? "").toLowerCase().includes(keywordFilter))
+        : all;
+
+      // Brand activation and theme activation are separate records. Resolve the
+      // theme state for display while keeping deletion idempotent for every row.
+      return Promise.all(
+        filtered.map(async (brand): Promise<BrandThemeRow> => {
+          const theme = await getStorefrontBrandTheme(brand.id);
+          return { ...brand, hasTheme: Boolean(theme.status && theme.data) };
+        }),
+      );
     },
     staleTime: 30_000,
   });
@@ -73,7 +88,32 @@ export default function FranchiseBrandThemesPage() {
     navigate(`/franchise-brands/${selectedBrandId}/theme`);
   };
 
-  const columns: TableColumnsType<StorefrontBrandAdminDto> = [
+  const removeTheme = useMutation({
+    mutationFn: async (brand: StorefrontBrandAdminDto) => {
+      const res = await deleteStorefrontBrandTheme(brand.id);
+      if (!res.status) throw new Error(res.message ?? "Failed to remove theme");
+      return brand;
+    },
+    onSuccess: (brand) => {
+      message.success(`${brand.name} theme removed. You can create a new one from Add theme.`);
+      void queryClient.invalidateQueries({ queryKey: ["storefront", "brand-themes"] });
+    },
+    onError: (error) => {
+      message.error(error instanceof Error ? error.message : "Failed to remove theme");
+    },
+  });
+
+  const confirmRemoveTheme = (brand: StorefrontBrandAdminDto) => {
+    Modal.confirm({
+      title: `Remove ${brand.name} theme?`,
+      content: "The current theme will be removed. You can create a replacement afterward.",
+      okText: "Remove theme",
+      okButtonProps: { danger: true },
+      onOk: () => removeTheme.mutateAsync(brand),
+    });
+  };
+
+  const columns: TableColumnsType<BrandThemeRow> = [
     {
       title: "Brand",
       dataIndex: "name",
@@ -93,9 +133,19 @@ export default function FranchiseBrandThemesPage() {
       render: (v: boolean) => statusTag(v),
     },
     {
+      title: "Theme",
+      dataIndex: "hasTheme",
+      width: 150,
+      render: (hasTheme: boolean) => (
+        <Tag color={hasTheme ? "success" : "default"}>
+          {hasTheme ? "Configured" : "Not configured"}
+        </Tag>
+      ),
+    },
+    {
       title: "",
       key: "actions",
-      width: 140,
+      width: 260,
       align: "right",
       render: (_, row) => (
         <Space size={4}>
@@ -106,6 +156,15 @@ export default function FranchiseBrandThemesPage() {
             onClick={() => navigate(`/franchise-brands/${row.id}/theme`)}
           >
             Edit theme
+          </Button>
+          <Button
+            size="small"
+            danger
+            icon={<DeleteOutlined />}
+            disabled={!canEdit || removeTheme.isPending}
+            onClick={() => confirmRemoveTheme(row)}
+          >
+            Remove theme
           </Button>
         </Space>
       ),
@@ -150,7 +209,7 @@ export default function FranchiseBrandThemesPage() {
         />
       </div>
 
-      <Table<StorefrontBrandAdminDto>
+      <Table<BrandThemeRow>
         rowKey={(row) => row.id}
         columns={columns}
         dataSource={rows}

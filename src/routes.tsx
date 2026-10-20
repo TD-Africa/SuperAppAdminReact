@@ -61,6 +61,7 @@ const RolesPage = lazy(() => import("@/pages/Roles"));
 const StaffAccessPage = lazy(() => import("@/pages/StaffAccess"));
 const DebtCollectionPage = lazy(() => import("@/pages/DebtCollection"));
 const CreditReservationsPage = lazy(() => import("@/pages/CreditReservations"));
+const StockHoldsPage = lazy(() => import("@/pages/StockHolds"));
 const WalletsPage = lazy(() => import("@/pages/Wallets"));
 const TransactionSettingsPage = lazy(() => import("@/pages/TransactionSettings"));
 const ExchangeRatesPage = lazy(() => import("@/pages/ExchangeRates"));
@@ -188,6 +189,15 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute permission={Permission.CanViewUser}>
             {withSuspense(<CreditReservationsPage />)}
+          </ProtectedRoute>
+        ),
+      },
+      {
+        // The order-holds tab additionally needs CanViewOrders; the page hides it otherwise.
+        path: "stock-holds",
+        element: (
+          <ProtectedRoute permission={Permission.CanViewCarts}>
+            {withSuspense(<StockHoldsPage />)}
           </ProtectedRoute>
         ),
       },

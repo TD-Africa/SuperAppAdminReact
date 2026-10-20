@@ -39,6 +39,21 @@ function marginLabel(margin: number) {
   return `${margin.toFixed(2)}%`;
 }
 
+function catalogBrandLabel(brand: StorefrontBrandAdminDto) {
+  const names = (brand.catalogBrands ?? [])
+    .map((source) => source.name?.trim())
+    .filter((name): name is string => Boolean(name));
+
+  if (names.length > 0) return names.join(", ");
+
+  const ids = (brand.catalogBrandIds ?? []).filter(Boolean);
+  if (ids.length > 0) return `Source catalog brand IDs: ${ids.join(", ")}`;
+
+  if (brand.brandId) return `Legacy catalog brand ID: ${brand.brandId}`;
+
+  return "No catalog brands linked";
+}
+
 export default function FranchiseBrandsPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -53,7 +68,7 @@ export default function FranchiseBrandsPage() {
     name: string;
     brandImageUrl: string;
     dynamicsId: string;
-    catalogBrandIds: string[];
+    catalogBrandId: string;
     storefrontPriceMargin: number;
     isActive: boolean;
   }>();
@@ -121,7 +136,7 @@ export default function FranchiseBrandsPage() {
       name: "",
       brandImageUrl: "",
       dynamicsId: "",
-      catalogBrandIds: [],
+      catalogBrandId: "",
       storefrontPriceMargin: 0,
       isActive: true,
     });
@@ -133,7 +148,7 @@ export default function FranchiseBrandsPage() {
     setSaving(true);
     try {
       const res = await addStorefrontBrand({
-        catalogBrandIds: values.catalogBrandIds,
+        catalogBrandIds: [values.catalogBrandId],
         brandImageUrl: values.brandImageUrl,
         name: values.name,
         dynamicsId: values.dynamicsId,
@@ -145,7 +160,7 @@ export default function FranchiseBrandsPage() {
         return;
       }
 
-      message.success(res.message ?? "Storefront brand added");
+      message.success("Storefront brand added. All matching products are included by default; remove any products you do not want to sell.");
       setAddConfigOpen(false);
       form.resetFields();
 
@@ -165,7 +180,9 @@ export default function FranchiseBrandsPage() {
     return (storefrontBrandsAllQuery.data ?? []).filter((brand) =>
       !search
       || brand.name.toLowerCase().includes(search)
-      || brand.catalogBrands?.some((source) => source.name?.toLowerCase().includes(search)),
+      || brand.catalogBrands?.some((source) => source.name?.toLowerCase().includes(search))
+      || brand.catalogBrandIds?.some((id) => id.toLowerCase().includes(search))
+      || brand.brandId?.toLowerCase().includes(search),
     );
   }, [brandSearch, storefrontBrandsAllQuery.data]);
 
@@ -191,7 +208,7 @@ export default function FranchiseBrandsPage() {
         <div>
           <div className="font-medium">{row.name}</div>
           <div className="text-xs text-muted-foreground">
-            {row.catalogBrands?.map((source) => source.name).filter(Boolean).join(", ") || "No catalog brands linked"}
+            {catalogBrandLabel(row)}
           </div>
         </div>
       ),
@@ -329,29 +346,40 @@ export default function FranchiseBrandsPage() {
         okText="Add brand"
       >
         <div className="space-y-2">
-          <Form form={form} layout="vertical">
+            <Form form={form} layout="vertical">
+              <Typography.Text type="secondary" className="mb-3 block">
+                Adding a brand includes all valid products for that exact SuperApp brand. You can remove individual products on the next screen; categories are derived automatically from the included products.
+              </Typography.Text>
             <Form.Item
-              name="name"
-              label="Storefront brand name"
-              rules={[{ required: true, message: "Enter a storefront brand name" }]}
-            >
-              <Input placeholder="e.g. Samsung OEM" />
-            </Form.Item>
-            <Form.Item
-              name="catalogBrandIds"
-              label="SuperApp catalog brands"
-              rules={[{ required: true, message: "Select at least one catalog brand" }]}
+              name="catalogBrandId"
+              label="SuperApp brand"
+              rules={[{ required: true, message: "Select a SuperApp brand" }]}
             >
               <Select
-                mode="multiple"
                 showSearch
                 optionFilterProp="label"
-                placeholder="Select the brands grouped by this storefront brand"
+                placeholder="Select the source brand"
+                onChange={(value: string) => {
+                  const source = catalogBrandsQuery.data?.find((brand) => brand.id === value);
+                  if (!source) return;
+                  form.setFieldsValue({
+                    name: source.name,
+                    dynamicsId: source.dynamicsId ?? "",
+                    brandImageUrl: source.brandImageUrl ?? "",
+                  });
+                }}
                 options={(catalogBrandsQuery.data ?? []).map((brand) => ({
                   value: brand.id,
                   label: brand.name,
                 }))}
               />
+            </Form.Item>
+            <Form.Item
+              name="name"
+              label="Storefront brand name"
+              rules={[{ required: true, message: "Enter a storefront brand name" }]}
+            >
+              <Input placeholder="Defaults to the selected SuperApp brand" />
             </Form.Item>
             <Form.Item name="brandImageUrl" label="Logo URL">
               <Input placeholder="Optional storefront logo URL" />

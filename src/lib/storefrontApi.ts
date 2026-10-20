@@ -1,5 +1,10 @@
 import { apiDelete, apiGet, apiPost, apiPut } from "./storefrontHttp";
-import type { ApiResult, PaginationResponse, TicketResponse } from "./types";
+import type {
+  ApiResult,
+  PaginationResponse,
+  ProductReturnDto,
+  TicketResponse,
+} from "./types";
 import type {
   AddStorefrontBrandRequest,
   AddStorefrontCategoryRequest,
@@ -287,6 +292,12 @@ export function getStorefrontBrandProductsForAdmin(
 ) {
   return apiGet<StorefrontPagedProducts>(
     `Storefront/GetStorefrontBrandProductsForAdmin/${encodeURIComponent(storefrontBrandId)}${toQuery(params)}`,
+  );
+}
+
+export function getStorefrontBrandCategoriesForAdmin(storefrontBrandId: string) {
+  return apiGet<StorefrontCategoryReturnDto[]>(
+    `Storefront/GetStorefrontBrandCategoriesForAdmin/${encodeURIComponent(storefrontBrandId)}`,
   );
 }
 
@@ -1012,6 +1023,12 @@ export function setStorefrontBrandTheme(
   );
 }
 
+export function deleteStorefrontBrandTheme(storefrontBrandId: string) {
+  return apiDelete<boolean>(
+    `Storefront/DeleteStorefrontBrandTheme/${encodeURIComponent(storefrontBrandId)}`,
+  );
+}
+
 // —— Per-owner catalog & quote ——
 
 export function getOwnerBrands(ownerId: string) {
@@ -1284,7 +1301,7 @@ export function getBrandProducts(
     SearchString?: string;
   } = {},
 ) {
-  return apiGet<PaginationResponse<BrandProductDto>>(
+  return apiGet<PaginationResponse<ProductReturnDto>>(
     `Brand/GetBrandProducts/${brandId}/products${toQuery(params)}`,
   );
 }
@@ -1297,7 +1314,7 @@ export function getStorefrontEligibleBrandProducts(
     SearchString?: string;
   } = {},
 ) {
-  return apiGet<PaginationResponse<BrandProductDto>>(
+  return apiGet<PaginationResponse<ProductReturnDto>>(
     `Brand/GetStorefrontEligibleProducts/${brandId}/products${toQuery(params)}`,
   );
 }

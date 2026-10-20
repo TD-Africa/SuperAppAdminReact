@@ -36,6 +36,7 @@ import {
   VerifiedOutlined,
   ContactsOutlined,
   SafetyOutlined,
+  InboxOutlined,
 } from "@ant-design/icons";
 import { useAuthStore } from "@/stores/auth";
 import { Permission } from "@/lib/permissions";
@@ -65,6 +66,7 @@ const NAV_TREE: NavNode[] = [
   { type: "leaf", to: "/analytics", label: "Analytics and insights", icon: <LineChartOutlined />, permission: Permission.CanViewAnalytics },
   { type: "leaf", to: "/products", label: "Products", icon: <AppstoreOutlined />, permission: Permission.CanViewProducts },
   { type: "leaf", to: "/orders", label: "Orders", icon: <ShoppingCartOutlined />, permission: Permission.CanViewOrders },
+  { type: "leaf", to: "/stock-holds", label: "Carts & Stock Holds", icon: <InboxOutlined />, permission: Permission.CanViewCarts },
   { type: "leaf", to: "/debt-collection", label: "Debt Collection", icon: <AccountBookOutlined />, permission: Permission.CanViewOrders },
   { type: "leaf", to: "/credit-reservations", label: "Credit Reservations", icon: <SafetyOutlined />, permission: Permission.CanViewUser },
   { type: "leaf", to: "/wallets", label: "Wallets", icon: <WalletOutlined />, permission: Permission.CanViewTransactions },

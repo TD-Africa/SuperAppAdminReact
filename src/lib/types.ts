@@ -1469,3 +1469,187 @@ export interface StaffBrandAssignmentResponse {
   assignedBy: string | null;
   assignedAt: string;
 }
+
+// ---- Cart admin (api/v1/carts) ----
+// Mirrors TDSuperApp.DTOs.Response.CartAdminResponses. Carts reserve no stock;
+// stockAtLocation here is units on hand, which is what checkout competes for.
+export interface CartAdminSummaryResponse {
+  carts: number;
+  lines: number;
+  units: number;
+  variants: number;
+  variantsExceedingStock: number;
+  oldestLineAddedAt: string | null;
+}
+
+export interface CartAdminProductResponse {
+  productId: string;
+  variantId: string;
+  productName: string | null;
+  sku: string | null;
+  colorId: string | null;
+  configId: string | null;
+  locationId: string;
+  locationName: string | null;
+  quantityInCarts: number;
+  carts: number;
+  stockAtLocation: number;
+  exceedsStock: boolean;
+  oldestAddedAt: string;
+  latestAddedAt: string;
+}
+
+export interface CartAdminLineResponse {
+  cartProductId: string;
+  cartId: string;
+  userId: string | null;
+  email: string | null;
+  customerName: string | null;
+  companyName: string | null;
+  customerId: string | null;
+  productId: string;
+  variantId: string;
+  productName: string | null;
+  sku: string | null;
+  colorId: string | null;
+  configId: string | null;
+  locationId: string;
+  locationName: string | null;
+  quantity: number;
+  stockAtLocation: number;
+  dateAdded: string;
+}
+
+export interface CartAdminCartResponse {
+  cartId: string;
+  userId: string | null;
+  email: string | null;
+  customerName: string | null;
+  companyName: string | null;
+  customerId: string | null;
+  lines: number;
+  units: number;
+  lastActivity: string;
+  /** Filled on the single-cart view only. */
+  items: CartAdminLineResponse[] | null;
+}
+
+/**
+ * Pick one: cartProductIds; variantId (+ optional locationId and/or userId);
+ * or userId alone to empty that customer's cart.
+ */
+export interface ReleaseCartProductsRequest {
+  cartProductIds?: string[];
+  variantId?: string;
+  locationId?: string;
+  userId?: string;
+  reason?: string;
+}
+
+export interface ReleaseCartProductsResponse {
+  linesReleased: number;
+  unitsReleased: number;
+  cartsAffected: number;
+  released: CartAdminLineResponse[];
+}
+
+// ---- Stock held by pending orders (api/v1/carts/order-holds) ----
+// Unlike cart lines these do reserve stock; stockAtLocation is already net of it.
+export interface OrderStockHoldSummaryResponse {
+  orders: number;
+  units: number;
+  variants: number;
+  oldestOrderPlacedAt: string | null;
+  autoReleaseAfterHours: number;
+  cancelledOrdersWithPayments: number;
+}
+
+export interface OrderStockHoldProductResponse {
+  productId: string;
+  variantId: string;
+  productName: string | null;
+  sku: string | null;
+  colorId: string | null;
+  configId: string | null;
+  locationId: string;
+  locationName: string | null;
+  unitsHeld: number;
+  orders: number;
+  stockAtLocation: number;
+  oldestOrderPlacedAt: string;
+}
+
+export interface OrderStockHoldLineResponse {
+  orderProductId: string;
+  productId: string;
+  variantId: string;
+  productName: string | null;
+  sku: string | null;
+  colorId: string | null;
+  configId: string | null;
+  locationId: string;
+  locationName: string | null;
+  quantity: number;
+}
+
+export interface OrderStockHoldOrderResponse {
+  orderId: string;
+  orderReference: string | null;
+  userId: string | null;
+  email: string | null;
+  customerName: string | null;
+  companyName: string | null;
+  customerId: string | null;
+  placedByStaffId: string | null;
+  placedAt: string;
+  /** When the hourly sweep would cancel it on its own. */
+  autoReleaseAt: string;
+  units: number;
+  lines: OrderStockHoldLineResponse[];
+}
+
+/**
+ * Pick one: orderIds, or variantId (+ optional locationId). Whole orders are
+ * cancelled; only unpaid, unposted, non-credit pending orders qualify.
+ */
+export interface ReleaseOrderStockRequest {
+  orderIds?: string[];
+  variantId?: string;
+  locationId?: string;
+  reason?: string;
+  notifyCustomer?: boolean;
+}
+
+export interface ReleasedOrderResponse {
+  orderId: string;
+  orderReference: string | null;
+  email: string | null;
+  lines: number;
+  units: number;
+  customerNotified: boolean;
+}
+
+export interface SkippedOrderResponse {
+  orderId: string;
+  orderReference: string | null;
+  reason: string;
+}
+
+export interface ReleaseOrderStockResponse {
+  ordersReleased: number;
+  unitsReturned: number;
+  released: ReleasedOrderResponse[];
+  skipped: SkippedOrderResponse[];
+}
+
+export interface CancelledOrderPaymentResponse {
+  orderId: string;
+  orderReference: string | null;
+  email: string | null;
+  companyName: string | null;
+  placedAt: string;
+  lastModified: string | null;
+  amountPaid: number;
+  paymentReferences: string[];
+  lastPaymentAt: string;
+}

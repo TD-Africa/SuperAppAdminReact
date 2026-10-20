@@ -33,7 +33,14 @@ export default function FranchiseCategoryDetailPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { message } = AntdApp.useApp();
-  const categoryFromNav = (location.state as { category?: StorefrontCategoryDto } | null)?.category;
+  const navigationState = (location.state as {
+    category?: StorefrontCategoryDto;
+    storefrontBrandId?: string;
+    storefrontBrandName?: string;
+  } | null) ?? {};
+  const categoryFromNav = navigationState.category;
+  const storefrontBrandId = navigationState.storefrontBrandId;
+  const storefrontBrandName = navigationState.storefrontBrandName;
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebouncedValue(search, 350);
   const [page, setPage] = useState(1);
@@ -58,16 +65,23 @@ export default function FranchiseCategoryDetailPage() {
       "storefront",
       "category-products-admin",
       storefrontCategoryId,
+      storefrontBrandId,
       debouncedSearch,
     ],
     queryFn: async () => {
       if (!storefrontCategoryId) return { data: [] as StorefrontProductDto[], count: 0, pageNumber: 1 };
 
-      const brandRes = await getStorefrontBrands({ PageSize: 500, PageNumber: 1, isActive: true });
-      if (!brandRes.status) throw new Error(brandRes.message ?? "Failed to load storefront brands");
+      let brandRows: Array<{ id: string; name: string }>;
+      if (storefrontBrandId) {
+        brandRows = [{ id: storefrontBrandId, name: storefrontBrandName ?? "Storefront brand" }];
+      } else {
+        const brandRes = await getStorefrontBrands({ PageSize: 500, PageNumber: 1, isActive: true });
+        if (!brandRes.status) throw new Error(brandRes.message ?? "Failed to load storefront brands");
+        brandRows = (brandRes.data?.data ?? []).map((brand) => ({ id: brand.id, name: brand.name }));
+      }
 
       const productsByBrand = await Promise.all(
-        (brandRes.data?.data ?? []).map(async (brand) => {
+        brandRows.map(async (brand) => {
           const products: StorefrontProductDto[] = [];
           let productPage = 1;
           let productCount = Number.POSITIVE_INFINITY;
@@ -169,14 +183,18 @@ export default function FranchiseCategoryDetailPage() {
 
   return (
     <div className="space-y-6">
-      <Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/franchise-categories")}>
-        All categories
+      <Button
+        icon={<ArrowLeftOutlined />}
+        onClick={() => navigate(storefrontBrandId ? `/franchise-brands/${storefrontBrandId}` : "/franchise-categories")}
+      >
+        {storefrontBrandId ? "Back to brand" : "All categories"}
       </Button>
 
       <div>
         <Typography.Title level={3} className="!m-0">{category.name}</Typography.Title>
         <Typography.Text type="secondary">
           Mirrored from SuperApp. Product membership follows the source category and the configured storefront brands.
+          {storefrontBrandName ? ` Showing products included in ${storefrontBrandName}.` : ""}
         </Typography.Text>
       </div>
 

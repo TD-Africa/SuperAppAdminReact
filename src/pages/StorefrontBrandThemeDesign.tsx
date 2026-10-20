@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Alert,
@@ -7,6 +7,7 @@ import {
   Button,
   Card,
   Input,
+  Modal,
   Skeleton,
   Space,
   Switch,
@@ -15,6 +16,7 @@ import {
 import { useAuthStore } from "@/stores/auth";
 import { Permission } from "@/lib/permissions";
 import {
+  deleteStorefrontBrandTheme,
   getStorefrontBrandTheme,
   setStorefrontBrandTheme,
 } from "@/lib/storefrontApi";
@@ -23,6 +25,7 @@ const DEFAULT_THEME_NAME = "brand-default";
 const DEFAULT_THEME_JSON = "{}";
 
 export default function StorefrontBrandThemeDesignPage() {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { message } = AntdApp.useApp();
   const canEdit = useAuthStore((s) => s.hasPermission(Permission.CanEditBrands));
@@ -44,17 +47,20 @@ export default function StorefrontBrandThemeDesignPage() {
     queryFn: async () => {
       if (!storefrontBrandId) return null;
       const res = await getStorefrontBrandTheme(storefrontBrandId);
-      if (res.status && res.data) return res.data;
+      if (res.status && res.data) return { theme: res.data, exists: true };
 
       // A theme is optional until an admin saves one. The backend's 404 is
       // therefore a valid first-load state, not a page error. Keep the draft
       // local; SetStorefrontBrandTheme creates the record on the first save.
       if (res.message?.toLowerCase().includes("storefront brand theme not found")) {
         return {
-          storefrontBrandId,
-          themeName: DEFAULT_THEME_NAME,
-          themeJson: DEFAULT_THEME_JSON,
-          isActive: false,
+          theme: {
+            storefrontBrandId,
+            themeName: DEFAULT_THEME_NAME,
+            themeJson: DEFAULT_THEME_JSON,
+            isActive: false,
+          },
+          exists: false,
         };
       }
 
@@ -64,10 +70,11 @@ export default function StorefrontBrandThemeDesignPage() {
 
   // Load the “backend truth” into our local draft.
   useEffect(() => {
-    if (!themeQuery.data) return;
-    setThemeName(themeQuery.data.themeName ?? "");
-    setThemeJson(themeQuery.data.themeJson ?? "");
-    setIsActive(themeQuery.data.isActive);
+    const theme = themeQuery.data?.theme;
+    if (!theme) return;
+    setThemeName(theme.themeName ?? "");
+    setThemeJson(theme.themeJson ?? "");
+    setIsActive(theme.isActive);
   }, [themeQuery.data]);
 
   const jsonParseError = useMemo(() => {
@@ -82,7 +89,7 @@ export default function StorefrontBrandThemeDesignPage() {
   }, [themeJson]);
 
   const dirty = useMemo(() => {
-    const base = themeQuery.data;
+    const base = themeQuery.data?.theme;
     if (!base) return false;
     return (
       themeName !== (base.themeName ?? "") ||
@@ -110,6 +117,31 @@ export default function StorefrontBrandThemeDesignPage() {
     },
     onError: (err) => message.error(err instanceof Error ? err.message : "Failed to save theme"),
   });
+
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      if (!storefrontBrandId) throw new Error("Missing storefrontBrandId");
+      const res = await deleteStorefrontBrandTheme(storefrontBrandId);
+      if (!res.status) throw new Error(res.message ?? "Failed to remove theme");
+      return res;
+    },
+    onSuccess: () => {
+      message.success("Theme removed");
+      void queryClient.invalidateQueries({ queryKey: ["storefront", "brand-themes"] });
+      navigate("/franchise-brand-themes");
+    },
+    onError: (err) => message.error(err instanceof Error ? err.message : "Failed to remove theme"),
+  });
+
+  const confirmDelete = () => {
+    Modal.confirm({
+      title: "Remove this theme?",
+      content: "The theme will no longer be used by this storefront brand. You can add it again later.",
+      okText: "Remove theme",
+      okButtonProps: { danger: true },
+      onOk: () => deleteMutation.mutateAsync(),
+    });
+  };
 
   if (themeQuery.isLoading) {
     return (
@@ -146,8 +178,7 @@ export default function StorefrontBrandThemeDesignPage() {
         <Typography.Text type="secondary">
           Edit the theme JSON for this storefront brand. Toggle activation with “isActive”.
         </Typography.Text>
-        {themeQuery.data?.themeName === DEFAULT_THEME_NAME &&
-        themeQuery.data?.themeJson === DEFAULT_THEME_JSON ? (
+        {!themeQuery.data?.exists ? (
           <Typography.Paragraph type="secondary" className="!mb-0 !mt-2">
             No theme has been saved for this brand yet. Update the draft and save it to create
             the brand theme.
@@ -215,15 +246,25 @@ export default function StorefrontBrandThemeDesignPage() {
               Save changes
             </Button>
             <Button
-              disabled={!canEdit || mutation.isPending}
+              disabled={!canEdit || mutation.isPending || deleteMutation.isPending}
               onClick={() => {
-                setThemeName(themeQuery.data?.themeName ?? "");
-                setThemeJson(themeQuery.data?.themeJson ?? "");
-                setIsActive(themeQuery.data?.isActive ?? true);
+                setThemeName(themeQuery.data?.theme.themeName ?? "");
+                setThemeJson(themeQuery.data?.theme.themeJson ?? "");
+                setIsActive(themeQuery.data?.theme.isActive ?? true);
               }}
             >
               Discard
             </Button>
+            {themeQuery.data?.exists ? (
+              <Button
+                danger
+                disabled={!canEdit || mutation.isPending || deleteMutation.isPending}
+                loading={deleteMutation.isPending}
+                onClick={confirmDelete}
+              >
+                Remove theme
+              </Button>
+            ) : null}
           </Space>
         </div>
       </Card>

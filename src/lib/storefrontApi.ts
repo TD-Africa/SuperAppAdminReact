@@ -1023,6 +1023,12 @@ export function setStorefrontBrandTheme(
   );
 }
 
+export function deleteStorefrontBrandTheme(storefrontBrandId: string) {
+  return apiDelete<boolean>(
+    `Storefront/DeleteStorefrontBrandTheme/${encodeURIComponent(storefrontBrandId)}`,
+  );
+}
+
 // —— Per-owner catalog & quote ——
 
 export function getOwnerBrands(ownerId: string) {

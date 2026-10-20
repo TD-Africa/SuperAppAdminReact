@@ -1,9 +1,20 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { App as AntdApp, Button, Empty, Input, Space, Table, Tag, Typography } from "antd";
+import {
+  App as AntdApp,
+  Button,
+  Empty,
+  Input,
+  Modal,
+  Select,
+  Space,
+  Table,
+  Tag,
+  Typography,
+} from "antd";
 import type { TableColumnsType } from "antd";
-import { EditOutlined } from "@ant-design/icons";
+import { EditOutlined, PlusOutlined } from "@ant-design/icons";
 import { useAuthStore } from "@/stores/auth";
 import { Permission } from "@/lib/permissions";
 import { getStorefrontBrands } from "@/lib/storefrontApi";
@@ -20,6 +31,8 @@ export default function FranchiseBrandThemesPage() {
   const canEdit = useAuthStore((s) => s.hasPermission(Permission.CanEditBrands));
 
   const [keyword, setKeyword] = useState("");
+  const [addModalOpen, setAddModalOpen] = useState(false);
+  const [selectedBrandId, setSelectedBrandId] = useState<string>();
   const debouncedKeyword = useDebouncedValue(keyword, 350);
   const keywordFilter = debouncedKeyword.trim().toLowerCase();
 
@@ -50,6 +63,15 @@ export default function FranchiseBrandThemesPage() {
   });
 
   const rows = query.data ?? [];
+
+  const openTheme = () => {
+    if (!selectedBrandId) {
+      message.warning("Select a storefront brand first");
+      return;
+    }
+    setAddModalOpen(false);
+    navigate(`/franchise-brands/${selectedBrandId}/theme`);
+  };
 
   const columns: TableColumnsType<StorefrontBrandAdminDto> = [
     {
@@ -105,6 +127,17 @@ export default function FranchiseBrandThemesPage() {
             Configure theme JSON for each storefront brand. Toggle activation from the theme editor.
           </Typography.Text>
         </div>
+        <Button
+          type="primary"
+          icon={<PlusOutlined />}
+          disabled={!canEdit || query.isLoading || rows.length === 0}
+          onClick={() => {
+            setSelectedBrandId(undefined);
+            setAddModalOpen(true);
+          }}
+        >
+          Add theme
+        </Button>
       </div>
 
       <div>
@@ -126,7 +159,32 @@ export default function FranchiseBrandThemesPage() {
         pagination={false}
         scroll={{ x: 800 }}
       />
+
+      <Modal
+        open={addModalOpen}
+        title="Add storefront brand theme"
+        okText="Open theme editor"
+        onCancel={() => setAddModalOpen(false)}
+        onOk={openTheme}
+        okButtonProps={{ disabled: !selectedBrandId }}
+      >
+        <Typography.Paragraph type="secondary">
+          Select the storefront brand that should receive a theme. If it already has one, the
+          existing theme will open for editing instead of creating a duplicate.
+        </Typography.Paragraph>
+        <Select
+          className="w-full"
+          showSearch
+          optionFilterProp="label"
+          placeholder="Select a storefront brand"
+          value={selectedBrandId}
+          onChange={setSelectedBrandId}
+          options={rows.map((brand) => ({
+            value: brand.id,
+            label: brand.name,
+          }))}
+        />
+      </Modal>
     </div>
   );
 }
-

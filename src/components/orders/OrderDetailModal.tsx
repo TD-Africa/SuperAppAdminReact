@@ -19,7 +19,7 @@ import {
   Statistic,
 } from "antd";
 import type { DescriptionsProps, TableColumnsType } from "antd";
-import { CloudUploadOutlined, FilePdfOutlined } from "@ant-design/icons";
+import { CloudUploadOutlined, FilePdfOutlined, WalletOutlined } from "@ant-design/icons";
 import { apiGet, apiPatch, apiPost } from "@/lib/api";
 import { downloadOrderInvoice } from "@/lib/orderExports";
 import type { OrderProductReturnDto, OrderReturnDto } from "@/lib/types";
@@ -29,6 +29,7 @@ import {
   formatPercent,
   hasInvoice,
   hasSettlementDiscrepancy,
+  OrderStatusId,
   orderStatusColor,
   paymentSummary,
 } from "@/lib/orderStatus";
@@ -56,6 +57,14 @@ interface InvoiceRow {
   isFullyPosted: boolean;
 }
 
+// What Order/PayFromWallet did: naira debited, naira still owed, and whether
+// that settled the order.
+interface WalletOrderPayment {
+  amountDebited: number;
+  outstanding: number;
+  isFullyPaid: boolean;
+}
+
 export function OrderDetailModal({
   orderId,
   open,
@@ -75,6 +84,8 @@ export function OrderDetailModal({
   const [retrying, setRetrying] = useState(false);
   const [downloadingInvoice, setDownloadingInvoice] = useState(false);
   const [retryOpen, setRetryOpen] = useState(false);
+  const [payingFromWallet, setPayingFromWallet] = useState(false);
+  const [walletPayOpen, setWalletPayOpen] = useState(false);
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [productOpen, setProductOpen] = useState(false);
 
@@ -279,6 +290,31 @@ export function OrderDetailModal({
     }
   }
 
+  // Debits the customer's (main account's) wallet for everything the order
+  // still owes. The server works out the amount and refuses without charging
+  // if the wallet can't cover it all.
+  async function handlePayFromWallet() {
+    if (!data || !canEdit) return;
+    setPayingFromWallet(true);
+    try {
+      const res = await apiPost<WalletOrderPayment>(`Order/PayFromWallet/${data.id}`);
+      if (!res.status || !res.data) {
+        message.error(res.message ?? "Wallet payment failed");
+        return;
+      }
+      const { amountDebited, outstanding, isFullyPaid: settled } = res.data;
+      message.success(
+        settled
+          ? `${formatCurrency(amountDebited, "NGN")} debited from the wallet — order paid in full`
+          : `${formatCurrency(amountDebited, "NGN")} debited from the wallet — ${formatCurrency(outstanding, "NGN")} still outstanding`,
+      );
+      onUpdated?.();
+      await refetch();
+    } finally {
+      setPayingFromWallet(false);
+    }
+  }
+
   async function handleDownloadInvoice() {
     if (!data) return;
     setDownloadingInvoice(true);
@@ -291,6 +327,15 @@ export function OrderDetailModal({
   }
 
   const invoiceAvailable = !!data && hasInvoice(data);
+
+  // Mirrors the server's own guards so the button only shows where it can
+  // work; storefront orders aren't flagged on the DTO, so the API rejects those.
+  const canPayFromWallet =
+    canEdit &&
+    !!data &&
+    data.paymentMethod?.id === PaymentMethodId.CashOrCard &&
+    data.orderStatus?.id !== OrderStatusId.Cancelled &&
+    !data.isFullyPaid;
 
   const hasDirtyEdits =
     !!data &&
@@ -412,6 +457,16 @@ export function OrderDetailModal({
               onClick={() => setRetryOpen(true)}
             >
               Post to Dynamics
+            </Button>
+          ),
+          canPayFromWallet && (
+            <Button
+              key="wallet"
+              icon={<WalletOutlined />}
+              loading={payingFromWallet}
+              onClick={() => setWalletPayOpen(true)}
+            >
+              Pay from wallet
             </Button>
           ),
           <Button key="close" onClick={() => onOpenChange(false)}>
@@ -656,6 +711,15 @@ export function OrderDetailModal({
         description="Creates the sales order, posts the payment journal, and attempts auto-settlement in D365. Records created there cannot be undone from this console."
         confirmLabel="Post to Dynamics"
         onConfirm={handleRetry}
+      />
+
+      <ConfirmDialog
+        open={canPayFromWallet && walletPayOpen}
+        onOpenChange={setWalletPayOpen}
+        title="Pay this order from the customer's wallet?"
+        description="Debits the customer's wallet for the full outstanding balance (worked out by the server, dollar lines converted to naira). If the wallet can't cover all of it, nothing is charged. The debit can't be reversed from this console."
+        confirmLabel="Pay from wallet"
+        onConfirm={handlePayFromWallet}
       />
 
       <ProductDetailModal

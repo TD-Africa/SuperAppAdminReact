@@ -474,28 +474,35 @@ function OrdersView({
   const [pageSize, setPageSize] = useState(25);
   const [selected, setSelected] = useState<string[]>([]);
 
-  const params = useMemo(() => {
+  const filters = useMemo(() => {
     const p = new URLSearchParams();
-    p.set("pageNumber", String(page));
-    p.set("pageSize", String(pageSize));
     if (search.trim()) p.set("Search", search.trim());
     if (locationId !== ALL) p.set("LocationId", locationId);
     if (olderThanHours) p.set("OlderThanHours", String(olderThanHours));
     return p.toString();
-  }, [page, pageSize, search, locationId, olderThanHours]);
+  }, [search, locationId, olderThanHours]);
 
+  // The API only pages oldest-first (capped at 200 per page), so pull every
+  // match and show newest first here. The sweep keeps this list short.
   const { data, isLoading, isFetching, error } = useQuery({
-    queryKey: ["order-holds", "orders", params],
+    queryKey: ["order-holds", "orders", filters],
     queryFn: async () => {
-      const res = await apiGet<PaginationResponse<OrderStockHoldOrderResponse>>(
-        `carts/order-holds/orders?${params}`,
-      );
-      if (!res.status) throw new Error(res.message ?? "Failed to load pending orders");
-      return res.data;
+      const all: OrderStockHoldOrderResponse[] = [];
+      for (let n = 1; ; n++) {
+        const res = await apiGet<PaginationResponse<OrderStockHoldOrderResponse>>(
+          `carts/order-holds/orders?pageNumber=${n}&pageSize=200${filters ? `&${filters}` : ""}`,
+        );
+        if (!res.status) throw new Error(res.message ?? "Failed to load pending orders");
+        const batch = res.data?.data ?? [];
+        all.push(...batch);
+        if (!batch.length || all.length >= (res.data?.count ?? 0)) break;
+      }
+      return all.sort((a, b) => new Date(b.placedAt).getTime() - new Date(a.placedAt).getTime());
     },
     placeholderData: (prev) => prev,
   });
-  const orders = data?.data ?? [];
+  const allOrders = data ?? [];
+  const orders = allOrders.slice((page - 1) * pageSize, page * pageSize);
 
   return (
     <>
@@ -558,7 +565,7 @@ function OrdersView({
           pagination={{
             current: page,
             pageSize,
-            total: data?.count ?? 0,
+            total: allOrders.length,
             showSizeChanger: true,
             onChange: (p, ps) => {
               setPage(p);
@@ -593,7 +600,10 @@ function ProductOrdersDrawer({
         `carts/order-holds/products/${product!.variantId}/orders?locationId=${product!.locationId}`,
       );
       if (!res.status) throw new Error(res.message ?? "Failed to load orders");
-      return res.data ?? [];
+      // Newest first, matching the orders view.
+      return (res.data ?? []).sort(
+        (a, b) => new Date(b.placedAt).getTime() - new Date(a.placedAt).getTime(),
+      );
     },
   });
   const orders = data ?? [];

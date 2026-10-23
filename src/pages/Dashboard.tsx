@@ -84,16 +84,16 @@ function KpiCard({ title, value, icon, onClick, accentClass }: KpiCardProps) {
       className={onClick ? "cursor-pointer" : undefined}
       styles={{ body: { padding: 20 } }}
     >
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex items-center justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <div className="truncate text-sm text-muted-foreground">{title}</div>
-          <div className="mt-2 truncate text-2xl font-semibold tracking-tight">
+          <div className="break-words text-sm text-muted-foreground">{title}</div>
+          <div className="mt-2 break-words text-lg font-semibold leading-snug tracking-tight tabular-nums 2xl:text-xl">
             {value}
           </div>
         </div>
         <div
           className={
-            "grid h-11 w-11 shrink-0 place-items-center rounded-full bg-secondary text-lg " +
+            "grid h-10 w-10 shrink-0 place-items-center rounded-full bg-secondary text-base " +
             (accentClass ?? "text-primary")
           }
         >

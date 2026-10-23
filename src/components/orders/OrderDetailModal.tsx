@@ -19,7 +19,12 @@ import {
   Statistic,
 } from "antd";
 import type { DescriptionsProps, TableColumnsType } from "antd";
-import { CloudUploadOutlined, FilePdfOutlined, WalletOutlined } from "@ant-design/icons";
+import {
+  CloseCircleOutlined,
+  CloudUploadOutlined,
+  FilePdfOutlined,
+  WalletOutlined,
+} from "@ant-design/icons";
 import { apiGet, apiPatch, apiPost } from "@/lib/api";
 import { downloadOrderInvoice } from "@/lib/orderExports";
 import type { OrderProductReturnDto, OrderReturnDto } from "@/lib/types";
@@ -38,6 +43,7 @@ import { Permission } from "@/lib/permissions";
 import { formatCurrency, formatDate, formatNumber } from "@/lib/utils";
 import { ProductDetailModal } from "@/components/products/ProductDetailModal";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { CancelOrderModal, type AdminCancelOrderResponse } from "./CancelOrderModal";
 
 interface Props {
   orderId: string | null;
@@ -86,6 +92,7 @@ export function OrderDetailModal({
   const [retryOpen, setRetryOpen] = useState(false);
   const [payingFromWallet, setPayingFromWallet] = useState(false);
   const [walletPayOpen, setWalletPayOpen] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [productOpen, setProductOpen] = useState(false);
 
@@ -337,6 +344,32 @@ export function OrderDetailModal({
     data.orderStatus?.id !== OrderStatusId.Cancelled &&
     !data.isFullyPaid;
 
+  // Order/CancelOrder refuses cancelled orders and ones already in fulfilment
+  // (those are returns). Storefront orders aren't flagged on the DTO, so the
+  // API rejects those itself.
+  const statusId = data?.orderStatus?.id?.toLowerCase();
+  const canCancel =
+    canEdit &&
+    !!data &&
+    statusId !== OrderStatusId.Cancelled &&
+    statusId !== OrderStatusId.InProgress &&
+    statusId !== OrderStatusId.Shipped &&
+    statusId !== OrderStatusId.Completed;
+
+  function handleCancelled(result: AdminCancelOrderResponse) {
+    const notes = [
+      result.stockReturnedNow
+        ? "stock returned now"
+        : "stock returns at the next stock sync",
+      result.couponReleased && "coupon released",
+      result.walletNote,
+      !result.customerNotified && "customer not emailed",
+    ].filter(Boolean);
+    if (notes.length) message.info(notes.join(" · "), 8);
+    onUpdated?.();
+    refetch();
+  }
+
   const hasDirtyEdits =
     !!data &&
     (isPDCCollected !== data.isPDCCollected ||
@@ -467,6 +500,16 @@ export function OrderDetailModal({
               onClick={() => setWalletPayOpen(true)}
             >
               Pay from wallet
+            </Button>
+          ),
+          canCancel && (
+            <Button
+              key="cancel-order"
+              danger
+              icon={<CloseCircleOutlined />}
+              onClick={() => setCancelOpen(true)}
+            >
+              Cancel order
             </Button>
           ),
           <Button key="close" onClick={() => onOpenChange(false)}>
@@ -721,6 +764,18 @@ export function OrderDetailModal({
         confirmLabel="Pay from wallet"
         onConfirm={handlePayFromWallet}
       />
+
+      {data && (
+        <CancelOrderModal
+          orderId={data.id}
+          open={canCancel && cancelOpen}
+          onOpenChange={setCancelOpen}
+          postedToDynamics={postedToDynamics}
+          salesIds={salesIds}
+          amountPaid={data.amountPaid}
+          onCancelled={handleCancelled}
+        />
+      )}
 
       <ProductDetailModal
         productId={selectedProductId}

@@ -23,7 +23,7 @@ import {
   Typography,
 } from "antd";
 import type { TableColumnsType } from "antd";
-import { ArrowLeftOutlined, DeleteOutlined, EditOutlined, SettingOutlined } from "@ant-design/icons";
+import { ArrowLeftOutlined, DeleteOutlined, EditOutlined } from "@ant-design/icons";
 import {
   deleteStorefrontBrand,
   getStorefrontBrandExcludedProducts,
@@ -569,15 +569,6 @@ export default function FranchiseBrandDetailPage() {
               Brand default margin applies to products without an override.
             </Typography.Text>
           </div>
-          {canEdit && storefrontBrandId ? (
-            <Button
-              type="default"
-              icon={<SettingOutlined />}
-              onClick={() => navigate(`/franchise-brands/${storefrontBrandId}/theme`)}
-            >
-              Theme design
-            </Button>
-          ) : null}
         </div>
       </div>
 

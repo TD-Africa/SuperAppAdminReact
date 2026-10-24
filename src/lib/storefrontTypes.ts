@@ -797,8 +797,6 @@ export interface StorefrontOwnerBrandDto {
   isPrimary: boolean;
   storefrontPriceMargin: number | null;
   globalStorefrontPriceMargin: number;
-  themeName: string | null;
-  themeJson: string | null;
   ownerDefaultStorefrontPriceMargin: number | null;
 }
 
@@ -826,18 +824,20 @@ export interface StorefrontOwnerConfigurationRequest {
   brandMargins?: StorefrontOwnerBrandMarginEntry[] | null;
 }
 
-// —— Brand theme ——
+// —— Standalone storefront themes ——
 
-/** GET Storefront/GetStorefrontBrandTheme/{storefrontBrandId} */
-export interface StorefrontBrandThemeDto {
-  storefrontBrandId: string;
+/** GET Storefront/GetStorefrontThemes | GetStorefrontTheme/{id} */
+export interface StorefrontThemeDto {
+  id: string;
   themeName: string | null;
   themeJson: string | null;
   isActive: boolean;
+  dateCreated: string;
+  dateModified: string | null;
 }
 
-/** PUT Storefront/SetStorefrontBrandTheme/{storefrontBrandId} */
-export interface StorefrontBrandThemeRequest {
+/** POST Storefront/CreateStorefrontTheme | PUT Storefront/UpdateStorefrontTheme/{id} */
+export interface StorefrontThemeRequest {
   themeName: string;
   themeJson: string;
   isActive?: boolean;

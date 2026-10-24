@@ -1,17 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import {
   App as AntdApp,
   Avatar,
   Button,
   Card,
   Empty,
-  Form,
   Input,
-  InputNumber,
-  Modal,
-  Select,
   Space,
   Switch,
   Table,
@@ -24,13 +20,8 @@ import {
   SettingOutlined,
   ShopOutlined,
 } from "@ant-design/icons";
-import { apiGet } from "@/lib/api";
-import {
-  addStorefrontBrand,
-  getStorefrontBrands,
-} from "@/lib/storefrontApi";
+import { getStorefrontBrands } from "@/lib/storefrontApi";
 import type { StorefrontBrandAdminDto } from "@/lib/storefrontTypes";
-import type { BrandReturnDTO, PaginationResponse } from "@/lib/types";
 import { Permission } from "@/lib/permissions";
 import { useAuthStore } from "@/stores/auth";
 
@@ -56,40 +47,10 @@ function catalogBrandLabel(brand: StorefrontBrandAdminDto) {
 
 export default function FranchiseBrandsPage() {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const { message } = AntdApp.useApp();
   const canEdit = useAuthStore((s) => s.hasPermission(Permission.CanEditBrands));
 
   const [brandSearch, setBrandSearch] = useState("");
-
-  const [addConfigOpen, setAddConfigOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [form] = Form.useForm<{
-    name: string;
-    brandImageUrl: string;
-    dynamicsId: string;
-    catalogBrandId: string;
-    storefrontPriceMargin: number;
-    isActive: boolean;
-  }>();
-
-  const catalogBrandsQuery = useQuery({
-    queryKey: ["catalog-brands-admin", "all"],
-    queryFn: async () => {
-      const all: BrandReturnDTO[] = [];
-      let pageNumber = 1;
-      const pageSize = 500;
-      while (true) {
-        const res = await apiGet<PaginationResponse<BrandReturnDTO>>(
-          `brand/getAllBrands?PageSize=${pageSize}&PageNumber=${pageNumber}`,
-        );
-        if (!res.status) throw new Error(res.message ?? "Failed to load catalog brands");
-        all.push(...(res.data?.data ?? []));
-        if (pageNumber * pageSize >= Number(res.data?.count ?? 0)) return all;
-        pageNumber += 1;
-      }
-    },
-  });
 
   const storefrontBrandsAllQueryKey = ["storefront", "brands-admin-all"] as const;
   const storefrontBrandsAllQuery = useQuery({
@@ -112,16 +73,6 @@ export default function FranchiseBrandsPage() {
   });
 
   useEffect(() => {
-    if (catalogBrandsQuery.isError) {
-      message.error(
-        catalogBrandsQuery.error instanceof Error
-          ? catalogBrandsQuery.error.message
-          : "Unable to load catalog brands.",
-      );
-    }
-  }, [catalogBrandsQuery.isError, catalogBrandsQuery.error, message]);
-
-  useEffect(() => {
     if (storefrontBrandsAllQuery.isError) {
       message.error(
         storefrontBrandsAllQuery.error instanceof Error
@@ -130,50 +81,6 @@ export default function FranchiseBrandsPage() {
       );
     }
   }, [storefrontBrandsAllQuery.isError, storefrontBrandsAllQuery.error, message]);
-
-  function openAddConfig() {
-    form.setFieldsValue({
-      name: "",
-      brandImageUrl: "",
-      dynamicsId: "",
-      catalogBrandId: "",
-      storefrontPriceMargin: 0,
-      isActive: true,
-    });
-    setAddConfigOpen(true);
-  }
-
-  async function addFromConfig() {
-    const values = await form.validateFields();
-    setSaving(true);
-    try {
-      const res = await addStorefrontBrand({
-        catalogBrandIds: [values.catalogBrandId],
-        brandImageUrl: values.brandImageUrl,
-        name: values.name,
-        dynamicsId: values.dynamicsId,
-        storefrontPriceMargin: values.storefrontPriceMargin,
-        isActive: values.isActive,
-      });
-      if (!res.status) {
-        message.error(res.message ?? "Failed to add storefront brand");
-        return;
-      }
-
-      message.success("Storefront brand added. All matching products are included by default; remove any products you do not want to sell.");
-      setAddConfigOpen(false);
-      form.resetFields();
-
-      void queryClient.invalidateQueries({ queryKey: storefrontBrandsAllQueryKey });
-      void queryClient.invalidateQueries({ queryKey: ["storefront", "brands-admin"] });
-      void queryClient.invalidateQueries({ queryKey: ["storefront", "brands"] });
-      if (res.data?.id) {
-        navigate(`/franchise-brands/${res.data.id}`, { state: { brand: res.data } });
-      }
-    } finally {
-      setSaving(false);
-    }
-  }
 
   const rows = useMemo(() => {
     const search = brandSearch.trim().toLowerCase();
@@ -299,7 +206,7 @@ export default function FranchiseBrandsPage() {
             Create explicit storefront brands and group the SuperApp catalog brands they represent. Themes and owner catalog selection use these storefront brands.
           </Typography.Text>
         </div>
-        <Button type="primary" disabled={!canEdit} onClick={openAddConfig} icon={<ShopOutlined />}>
+        <Button type="primary" disabled={!canEdit} onClick={() => navigate("/franchise-products/add-brand?from=brands")} icon={<ShopOutlined />}>
           Create storefront brand
         </Button>
       </div>
@@ -323,8 +230,6 @@ export default function FranchiseBrandsPage() {
           columns={columns}
           dataSource={rows}
           loading={
-            catalogBrandsQuery.isLoading ||
-            catalogBrandsQuery.isFetching ||
             storefrontBrandsAllQuery.isLoading ||
             storefrontBrandsAllQuery.isFetching
           }
@@ -333,74 +238,6 @@ export default function FranchiseBrandsPage() {
         />
       </Card>
 
-      <Modal
-        open={addConfigOpen}
-        title="Add storefront brand"
-        onCancel={() => {
-          setAddConfigOpen(false);
-          form.resetFields();
-        }}
-        onOk={() => void addFromConfig()}
-        confirmLoading={saving}
-        destroyOnClose
-        okText="Add brand"
-      >
-        <div className="space-y-2">
-            <Form form={form} layout="vertical">
-              <Typography.Text type="secondary" className="mb-3 block">
-                Adding a brand includes all valid products for that exact SuperApp brand. You can remove individual products on the next screen; categories are derived automatically from the included products.
-              </Typography.Text>
-            <Form.Item
-              name="catalogBrandId"
-              label="SuperApp brand"
-              rules={[{ required: true, message: "Select a SuperApp brand" }]}
-            >
-              <Select
-                showSearch
-                optionFilterProp="label"
-                placeholder="Select the source brand"
-                onChange={(value: string) => {
-                  const source = catalogBrandsQuery.data?.find((brand) => brand.id === value);
-                  if (!source) return;
-                  form.setFieldsValue({
-                    name: source.name,
-                    dynamicsId: source.dynamicsId ?? "",
-                    brandImageUrl: source.brandImageUrl ?? "",
-                  });
-                }}
-                options={(catalogBrandsQuery.data ?? []).map((brand) => ({
-                  value: brand.id,
-                  label: brand.name,
-                }))}
-              />
-            </Form.Item>
-            <Form.Item
-              name="name"
-              label="Storefront brand name"
-              rules={[{ required: true, message: "Enter a storefront brand name" }]}
-            >
-              <Input placeholder="Defaults to the selected SuperApp brand" />
-            </Form.Item>
-            <Form.Item name="brandImageUrl" label="Logo URL">
-              <Input placeholder="Optional storefront logo URL" />
-            </Form.Item>
-            <Form.Item name="dynamicsId" label="Storefront Dynamics ID">
-              <Input placeholder="Optional" />
-            </Form.Item>
-            <Form.Item
-              name="storefrontPriceMargin"
-              label="Default margin %"
-              rules={[{ required: true, message: "Enter a margin" }]}
-            >
-              <InputNumber min={0} max={100} precision={2} addonAfter="%" className="w-full" />
-            </Form.Item>
-
-            <Form.Item name="isActive" label="Active" valuePropName="checked">
-              <Switch checkedChildren="Active" unCheckedChildren="Inactive" />
-            </Form.Item>
-          </Form>
-        </div>
-      </Modal>
     </div>
   );
 }

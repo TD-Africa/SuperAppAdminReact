@@ -567,8 +567,9 @@ export default function FranchiseProductsPage() {
     {
       title: "Price (NGN)",
       key: "priceNgn",
-      width: 130,
+      width: 150,
       align: "right",
+      onCell: () => ({ style: { whiteSpace: "nowrap" } }),
       render: (_, { storefront, catalog }) => {
         if (catalog) return formatCurrency(effectiveProductPrice(catalog, "naira"), "NGN");
         const v = pickDisplayVariant(storefront);
@@ -578,8 +579,9 @@ export default function FranchiseProductsPage() {
     {
       title: "Price (USD)",
       key: "priceUsd",
-      width: 110,
+      width: 120,
       align: "right",
+      onCell: () => ({ style: { whiteSpace: "nowrap" } }),
       render: (_, { catalog }) =>
         catalog ? formatCurrency(effectiveProductPrice(catalog, "dollar"), "USD") : "—",
     },
@@ -1002,7 +1004,8 @@ export default function FranchiseProductsPage() {
                       title: "Price (NGN)",
                       key: "naira",
                       align: "right",
-                      width: 130,
+                      width: 150,
+                      onCell: () => ({ style: { whiteSpace: "nowrap" } }),
                       render: (_, product) => formatCurrency(effectiveProductPrice(product, "naira"), "NGN"),
                     },
                     {
@@ -1010,6 +1013,7 @@ export default function FranchiseProductsPage() {
                       key: "dollar",
                       align: "right",
                       width: 120,
+                      onCell: () => ({ style: { whiteSpace: "nowrap" } }),
                       render: (_, product) => formatCurrency(effectiveProductPrice(product, "dollar"), "USD"),
                     },
                   ]}

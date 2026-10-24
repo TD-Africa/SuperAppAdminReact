@@ -15,6 +15,7 @@ const DashboardPage = lazy(() => import("@/pages/Dashboard"));
 const AnalyticsPage = lazy(() => import("@/pages/Analytics"));
 const ProductsPage = lazy(() => import("@/pages/Products"));
 const FranchiseProductsPage = lazy(() => import("@/pages/FranchiseProducts"));
+const FranchiseAddStorefrontBrandPage = lazy(() => import("@/pages/FranchiseAddStorefrontBrand"));
 const OrdersPage = lazy(() => import("@/pages/Orders"));
 const FranchiseOrdersPage = lazy(() => import("@/pages/FranchiseOrders"));
 const BrandsPage = lazy(() => import("@/pages/Brands"));
@@ -156,6 +157,14 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute permission={Permission.CanViewProducts}>
             {withSuspense(<FranchiseProductsPage />)}
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "franchise-products/add-brand",
+        element: (
+          <ProtectedRoute permission={Permission.CanEditBrands}>
+            {withSuspense(<FranchiseAddStorefrontBrandPage />)}
           </ProtectedRoute>
         ),
       },

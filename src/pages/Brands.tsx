@@ -12,10 +12,16 @@ import {
   Button,
   Tooltip,
   Space,
+  Popconfirm,
 } from "antd";
 import type { TableColumnsType } from "antd";
-import { ShopOutlined, AppstoreOutlined, SyncOutlined } from "@ant-design/icons";
-import { apiGet, apiPatch, apiPost } from "@/lib/api";
+import {
+  ShopOutlined,
+  AppstoreOutlined,
+  SyncOutlined,
+  DeleteOutlined,
+} from "@ant-design/icons";
+import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api";
 import type { BrandReturnDTO, PaginationResponse } from "@/lib/types";
 import { Permission } from "@/lib/permissions";
 import { useAuthStore } from "@/stores/auth";
@@ -42,6 +48,7 @@ export default function BrandsPage() {
   const [productsBrand, setProductsBrand] = useState<BrandReturnDTO | null>(null);
   const [productsOpen, setProductsOpen] = useState(false);
   const [syncingId, setSyncingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const queryParams = useMemo(() => {
     const params = new URLSearchParams();
@@ -115,6 +122,23 @@ export default function BrandsPage() {
     } finally {
       hide();
       setSyncingId(null);
+    }
+  }
+
+  async function removeBrand(id: string, name: string) {
+    setDeletingId(id);
+    try {
+      const res = await apiDelete<boolean>(`Brand/DeleteBrand/${id}`);
+      if (!res.status) {
+        message.error(res.message ?? "Brand deletion failed");
+        return;
+      }
+
+      message.success(`${name} deleted`);
+      await queryClient.invalidateQueries({ queryKey: ["brands"] });
+      await queryClient.invalidateQueries({ queryKey: ["exchange-rates-effective"] });
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -218,6 +242,24 @@ export default function BrandsPage() {
                 onClick={() => syncPrices(r.id)}
               />
             </Tooltip>
+          )}
+          {canEdit && r.isActive && (
+            <Popconfirm
+              title="Delete this brand?"
+              description="Its products keep their SuperApp identity but will no longer be active or available through the storefront."
+              okText="Delete"
+              okButtonProps={{ danger: true }}
+              onConfirm={() => removeBrand(r.id, r.name)}
+            >
+              <Tooltip title="Delete brand">
+                <Button
+                  size="small"
+                  danger
+                  icon={<DeleteOutlined />}
+                  loading={deletingId === r.id}
+                />
+              </Tooltip>
+            </Popconfirm>
           )}
         </Space>
       ),

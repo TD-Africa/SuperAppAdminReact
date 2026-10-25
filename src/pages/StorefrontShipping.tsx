@@ -34,12 +34,14 @@ import {
   deleteStorefrontShippingRate,
   getStorefrontShippingQuote,
   getStorefrontShippingRates,
+  updateStorefrontShippingBaseWeight,
   updateStorefrontShippingRate,
 } from "@/lib/storefrontApi";
 import { useStorefrontShippingOptions } from "@/hooks/useStorefrontShippingOptions";
 import type {
   StorefrontShippingQuoteDto,
   StorefrontShippingQuoteRequest,
+  StorefrontShippingBaseWeightRequest,
   StorefrontShippingRateDto,
   StorefrontShippingRateRequest,
 } from "@/lib/storefrontTypes";
@@ -66,8 +68,11 @@ export default function StorefrontShippingPage() {
 
   const [rateModalOpen, setRateModalOpen] = useState(false);
   const [editingRate, setEditingRate] = useState<StorefrontShippingRateDto | null>(null);
+  const [baseWeightModalOpen, setBaseWeightModalOpen] = useState(false);
+  const [updatingBaseWeight, setUpdatingBaseWeight] = useState(false);
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [baseWeightForm] = Form.useForm<StorefrontShippingBaseWeightRequest>();
 
   const optionsQuery = useStorefrontShippingOptions();
 
@@ -152,6 +157,35 @@ export default function StorefrontShippingPage() {
       queryClient.invalidateQueries({ queryKey: ["storefront", "shipping-options"] });
     } finally {
       setDeletingId(null);
+    }
+  }
+
+  function openBaseWeightModal() {
+    baseWeightForm.setFieldsValue({ baseWeightKg: options?.baseWeightKg ?? 2 });
+    setBaseWeightModalOpen(true);
+  }
+
+  async function handleBaseWeightSave() {
+    let values: StorefrontShippingBaseWeightRequest;
+    try {
+      values = await baseWeightForm.validateFields();
+    } catch {
+      return;
+    }
+
+    setUpdatingBaseWeight(true);
+    try {
+      const res = await updateStorefrontShippingBaseWeight(values);
+      if (!res.status) {
+        message.error(res.message ?? "Could not update base weight");
+        return;
+      }
+      message.success(res.message ?? "Base weight updated");
+      setBaseWeightModalOpen(false);
+      setQuote(null);
+      await queryClient.invalidateQueries({ queryKey: ["storefront", "shipping-options"] });
+    } finally {
+      setUpdatingBaseWeight(false);
     }
   }
 
@@ -309,12 +343,21 @@ export default function StorefrontShippingPage() {
             <Empty description="No shipping options configured." />
           ) : (
             <div className="space-y-4">
-              <Statistic
-                title="Base weight"
-                value={options.baseWeightKg}
-                suffix="kg"
-                precision={2}
-              />
+              <div className="flex items-end justify-between gap-3">
+                <Statistic
+                  title="Base weight"
+                  value={options.baseWeightKg}
+                  suffix="kg"
+                  precision={2}
+                />
+                <Button
+                  size="small"
+                  icon={<EditOutlined />}
+                  onClick={openBaseWeightModal}
+                >
+                  Edit
+                </Button>
+              </div>
               <div>
                 <Typography.Text type="secondary" className="text-xs uppercase">
                   Origin regions
@@ -495,6 +538,37 @@ export default function StorefrontShippingPage() {
           queryClient.invalidateQueries({ queryKey: ["storefront", "shipping-options"] });
         }}
       />
+
+      <Modal
+        open={baseWeightModalOpen}
+        title="Edit base shipping weight"
+        okText="Save changes"
+        confirmLoading={updatingBaseWeight}
+        onCancel={() => setBaseWeightModalOpen(false)}
+        onOk={handleBaseWeightSave}
+        destroyOnClose
+      >
+        <Form form={baseWeightForm} layout="vertical" className="mt-4">
+          <Form.Item
+            name="baseWeightKg"
+            label="Base weight (kg)"
+            extra="The base fee covers this weight. Prepaid orders are charged the extra-kilogram fee above it."
+            rules={[
+              { required: true, message: "Base weight is required" },
+              { type: "number", min: 0.01, max: 2000000, message: "Enter a value between 0.01 and 2,000,000 kg" },
+            ]}
+          >
+            <InputNumber
+              className="!w-full"
+              min={0.01}
+              max={2000000}
+              step={0.01}
+              precision={2}
+              placeholder="Weight in kilograms"
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
 
       <ShippingRatesImportModal
         open={importModalOpen}

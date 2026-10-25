@@ -1,4 +1,5 @@
 import { OrderDetailModal } from "@/components/orders/OrderDetailModal";
+import { StorefrontUrl } from "@/components/storefront/StorefrontUrl";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { apiGet } from "@/lib/api";
 import {
@@ -607,6 +608,9 @@ export default function FranchiseStoreOwnerDetailPage() {
           {[ownerName, userName].filter(Boolean).join(" · ") ||
             "Read-only storefront activity for this owner"}
         </Typography.Text>
+        <div>
+          <StorefrontUrl userName={ownerQuery.data?.userName ?? userName} />
+        </div>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -673,6 +677,12 @@ export default function FranchiseStoreOwnerDetailPage() {
         {overviewOpen ? (
           <div className="space-y-4">
           <Descriptions column={{ xs: 1, sm: 2, lg: 3 }} size="small" colon={false}>
+            <Descriptions.Item label="Username">
+              {ownerQuery.data?.userName ?? "—"}
+            </Descriptions.Item>
+            <Descriptions.Item label="Storefront URL" span={2}>
+              <StorefrontUrl userName={ownerQuery.data?.userName} />
+            </Descriptions.Item>
             <Descriptions.Item label="Email">
               {ownerQuery.data?.email ?? "—"}
             </Descriptions.Item>

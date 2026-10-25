@@ -25,6 +25,7 @@ import { getStorefrontOwners, getStorefrontOwnerDashboard } from "@/lib/storefro
 import type { StorefrontOwnerDetailDto, StorefrontDashboardDto } from "@/lib/storefrontTypes";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { formatCurrency } from "@/lib/utils";
+import { StorefrontUrl } from "@/components/storefront/StorefrontUrl";
 
 type OwnerRow = {
   id: string;
@@ -183,6 +184,11 @@ export default function FranchiseStoreOwnersPage() {
       title: "Owner",
       key: "owner",
       render: (_, row) => ownerDisplayName(row) || "—",
+    },
+    {
+      title: "Storefront",
+      key: "storefront",
+      render: (_, row) => <StorefrontUrl userName={row.userName} />,
     },
     {
       title: "Total Orders",

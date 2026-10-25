@@ -61,6 +61,7 @@ import type {
   StorefrontQuoteRequest,
   StorefrontSettlementCancellationRequest,
   StorefrontShippingOptionsDto,
+  StorefrontShippingBaseWeightRequest,
   StorefrontShippingQuoteDto,
   StorefrontShippingQuoteRequest,
   StorefrontShippingRateDto,
@@ -403,6 +404,15 @@ export function quoteStorefront(body: StorefrontQuoteRequest): Promise<ApiResult
 
 export function getStorefrontShippingOptions() {
   return apiGet<StorefrontShippingOptionsDto>("Storefront/GetShippingOptions");
+}
+
+export function updateStorefrontShippingBaseWeight(
+  body: StorefrontShippingBaseWeightRequest,
+) {
+  return apiPut<StorefrontShippingOptionsDto>(
+    "Storefront/UpdateShippingBaseWeight",
+    body,
+  );
 }
 
 export function getStorefrontShippingQuote(body: StorefrontShippingQuoteRequest) {

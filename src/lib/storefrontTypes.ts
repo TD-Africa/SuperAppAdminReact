@@ -299,6 +299,11 @@ export interface StorefrontShippingOptionsDto {
   baseWeightKg: number;
 }
 
+/** PUT Storefront/UpdateShippingBaseWeight request */
+export interface StorefrontShippingBaseWeightRequest {
+  baseWeightKg: number;
+}
+
 /** POST Storefront/GetShippingQuote request */
 export interface StorefrontShippingQuoteRequest {
   originRegion: string;

@@ -13,8 +13,6 @@ import type {
   SetVariantStorefrontMarginRequest,
   StorefrontBrandAdminDto,
   StorefrontBrandDto,
-  StorefrontBrandThemeDto,
-  StorefrontBrandThemeRequest,
   StorefrontCategoryDto,
   StorefrontCategoryProductsRequest,
   StorefrontCategoryReturnDto,
@@ -30,6 +28,8 @@ import type {
   StorefrontOwnerInvitationResponse,
   StorefrontOwnerInvitationValidationResponse,
   StorefrontOwnerInvitationTokenRequest,
+  StorefrontThemeDto,
+  StorefrontThemeRequest,
   StorefrontCouponRequestDecision,
   StorefrontCouponRequestResponse,
   StorefrontCouponRequestStatus,
@@ -61,6 +61,7 @@ import type {
   StorefrontQuoteRequest,
   StorefrontSettlementCancellationRequest,
   StorefrontShippingOptionsDto,
+  StorefrontShippingBaseWeightRequest,
   StorefrontShippingQuoteDto,
   StorefrontShippingQuoteRequest,
   StorefrontShippingRateDto,
@@ -403,6 +404,15 @@ export function quoteStorefront(body: StorefrontQuoteRequest): Promise<ApiResult
 
 export function getStorefrontShippingOptions() {
   return apiGet<StorefrontShippingOptionsDto>("Storefront/GetShippingOptions");
+}
+
+export function updateStorefrontShippingBaseWeight(
+  body: StorefrontShippingBaseWeightRequest,
+) {
+  return apiPut<StorefrontShippingOptionsDto>(
+    "Storefront/UpdateShippingBaseWeight",
+    body,
+  );
 }
 
 export function getStorefrontShippingQuote(body: StorefrontShippingQuoteRequest) {
@@ -1007,25 +1017,30 @@ export function getStorefrontOwnerPrimaryBrand(ownerId: string) {
   );
 }
 
-export function getStorefrontBrandTheme(storefrontBrandId: string) {
-  return apiGet<StorefrontBrandThemeDto>(
-    `Storefront/GetStorefrontBrandTheme/${encodeURIComponent(storefrontBrandId)}`,
+export function getStorefrontThemes() {
+  return apiGet<StorefrontThemeDto[]>("Storefront/GetStorefrontThemes");
+}
+
+export function getStorefrontTheme(themeId: string) {
+  return apiGet<StorefrontThemeDto>(
+    `Storefront/GetStorefrontTheme/${encodeURIComponent(themeId)}`,
   );
 }
 
-export function setStorefrontBrandTheme(
-  storefrontBrandId: string,
-  body: StorefrontBrandThemeRequest,
-) {
-  return apiPut<StorefrontBrandThemeDto>(
-    `Storefront/SetStorefrontBrandTheme/${encodeURIComponent(storefrontBrandId)}`,
+export function createStorefrontTheme(body: StorefrontThemeRequest) {
+  return apiPost<StorefrontThemeDto>("Storefront/CreateStorefrontTheme", body);
+}
+
+export function updateStorefrontTheme(themeId: string, body: StorefrontThemeRequest) {
+  return apiPut<StorefrontThemeDto>(
+    `Storefront/UpdateStorefrontTheme/${encodeURIComponent(themeId)}`,
     body,
   );
 }
 
-export function deleteStorefrontBrandTheme(storefrontBrandId: string) {
+export function deleteStorefrontTheme(themeId: string) {
   return apiDelete<boolean>(
-    `Storefront/DeleteStorefrontBrandTheme/${encodeURIComponent(storefrontBrandId)}`,
+    `Storefront/DeleteStorefrontTheme/${encodeURIComponent(themeId)}`,
   );
 }
 

@@ -278,8 +278,7 @@ export default function FranchiseBrandDetailPage() {
         return;
       }
       message.success(res.message ?? "Brand deleted");
-      void queryClient.invalidateQueries({ queryKey: ["storefront", "brands-admin"] });
-      void queryClient.invalidateQueries({ queryKey: ["storefront", "brands"] });
+      void queryClient.invalidateQueries({ queryKey: ["storefront"] });
       navigate("/franchise-brands");
     } finally {
       setDeletingBrand(false);

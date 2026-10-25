@@ -1,21 +1,24 @@
 import { useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  App as AntdApp,
   Avatar,
   Button,
   Card,
   Collapse,
   Empty,
   Input,
+  Popconfirm,
   Segmented,
   Select,
   Space,
   Tag,
   Typography,
 } from "antd";
-import { AppstoreOutlined, SearchOutlined } from "@ant-design/icons";
-import { getStorefrontBrands } from "@/lib/storefrontApi";
+import { AppstoreOutlined, DeleteOutlined, SearchOutlined } from "@ant-design/icons";
+import { deleteStorefrontBrand, getStorefrontBrands } from "@/lib/storefrontApi";
+import type { StorefrontBrandAdminDto } from "@/lib/storefrontTypes";
 import { Permission } from "@/lib/permissions";
 import { useAuthStore } from "@/stores/auth";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
@@ -32,6 +35,8 @@ type BrandStatusFilter = "all" | "active" | "inactive";
 
 export default function FranchiseProductsPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { message } = AntdApp.useApp();
   const [searchParams, setSearchParams] = useSearchParams();
   const canEdit = useAuthStore((s) => s.hasPermission(Permission.CanEditProducts));
   const canEditBrands = useAuthStore((s) => s.hasPermission(Permission.CanEditBrands));
@@ -104,6 +109,23 @@ export default function FranchiseProductsPage() {
     else next.delete("open");
     setSearchParams(next, { replace: true });
   }
+
+  const deleteBrand = useMutation({
+    mutationFn: async (brand: StorefrontBrandAdminDto) => {
+      const res = await deleteStorefrontBrand(brand.id);
+      if (!res.status) throw new Error(res.message ?? "Failed to delete brand");
+      return brand;
+    },
+    onSuccess: (brand) => {
+      message.success(`${brand.name} deleted`);
+      setBrandFilter((prev) => prev.filter((id) => id !== brand.id));
+      if (openBrandIds.includes(brand.id)) {
+        setOpenBrands(openBrandIds.filter((id) => id !== brand.id));
+      }
+      void queryClient.invalidateQueries({ queryKey: ["storefront"] });
+    },
+    onError: (err) => message.error(err instanceof Error ? err.message : "Failed to delete brand"),
+  });
 
   const brandOptions = useMemo(() => {
     return (brandsQuery.data ?? [])
@@ -274,6 +296,27 @@ export default function FranchiseProductsPage() {
                 <Tag color={brand.isActive ? "success" : "default"}>
                   {brand.isActive ? "Active" : "Inactive"}
                 </Tag>
+                {/* Popconfirm portals still bubble React clicks to the Collapse header. */}
+                <span onClick={(e) => e.stopPropagation()}>
+                  <Popconfirm
+                    title={`Delete ${brand.name}?`}
+                    description="This removes the storefront brand. This cannot be undone."
+                    okText="Delete"
+                    okButtonProps={{ danger: true }}
+                    onConfirm={() => deleteBrand.mutateAsync(brand)}
+                    disabled={!canEditBrands}
+                  >
+                    <Button
+                      size="small"
+                      danger
+                      icon={<DeleteOutlined />}
+                      disabled={!canEditBrands}
+                      loading={deleteBrand.isPending && deleteBrand.variables?.id === brand.id}
+                    >
+                      Delete
+                    </Button>
+                  </Popconfirm>
+                </span>
               </Space>
             ),
             children: (

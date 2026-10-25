@@ -183,7 +183,7 @@ export default function FranchiseBrandThemesPage() {
             Brand Themes
           </Typography.Title>
           <Typography.Text type="secondary">
-            Configure theme JSON for each storefront brand. Toggle activation from the theme editor.
+            Set the theme and hero image for each storefront brand.
           </Typography.Text>
         </div>
         <Button

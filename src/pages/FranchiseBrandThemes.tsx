@@ -1,8 +1,8 @@
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { Permission } from "@/lib/permissions";
 import {
-  deleteStorefrontBrandTheme,
-  getStorefrontBrandTheme,
+  deleteStorefrontTheme,
+  getStorefrontTheme,
   getStorefrontBrands,
 } from "@/lib/storefrontApi";
 import type { StorefrontBrandAdminDto } from "@/lib/storefrontTypes";
@@ -69,7 +69,7 @@ export default function FranchiseBrandThemesPage() {
       // theme state for display while keeping deletion idempotent for every row.
       return Promise.all(
         filtered.map(async (brand): Promise<BrandThemeRow> => {
-          const theme = await getStorefrontBrandTheme(brand.id);
+          const theme = await getStorefrontTheme(brand.id);
           return { ...brand, hasTheme: Boolean(theme.status && theme.data) };
         }),
       );
@@ -90,7 +90,7 @@ export default function FranchiseBrandThemesPage() {
 
   const removeTheme = useMutation({
     mutationFn: async (brand: StorefrontBrandAdminDto) => {
-      const res = await deleteStorefrontBrandTheme(brand.id);
+      const res = await deleteStorefrontTheme(brand.id);
       if (!res.status) throw new Error(res.message ?? "Failed to remove theme");
       return brand;
     },

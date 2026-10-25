@@ -17,11 +17,8 @@ import {
 import { DeleteOutlined, UploadOutlined } from "@ant-design/icons";
 import { useAuthStore } from "@/stores/auth";
 import { Permission } from "@/lib/permissions";
-import {
-  deleteStorefrontBrandTheme,
-  getStorefrontBrandTheme,
-  setStorefrontBrandTheme,
-} from "@/lib/storefrontApi";
+import { createStorefrontTheme, deleteStorefrontTheme, getStorefrontTheme } from "@/lib/storefrontApi";
+
 
 const THEME_PRESETS = [{ value: "samsung", label: "Samsung" }] as const;
 type ThemePreset = (typeof THEME_PRESETS)[number]["value"];
@@ -83,7 +80,7 @@ export default function StorefrontBrandThemeDesignPage() {
     enabled: Boolean(storefrontBrandId),
     queryFn: async () => {
       if (!storefrontBrandId) return null;
-      const res = await getStorefrontBrandTheme(storefrontBrandId);
+      const res = await getStorefrontTheme(storefrontBrandId);
       if (res.status && res.data) return { theme: res.data, exists: true };
 
       // A theme is optional until an admin saves one. The backend's 404 is
@@ -131,7 +128,7 @@ export default function StorefrontBrandThemeDesignPage() {
       // themeJson is the only storage the backend offers; keep unknown keys intact.
       const existing = parseThemeJsonObject(themeQuery.data?.theme.themeJson);
       const presetLabel = THEME_PRESETS.find((p) => p.value === preset)?.label ?? DEFAULT_THEME_NAME;
-      const res = await setStorefrontBrandTheme(storefrontBrandId, {
+      const res = await createStorefrontTheme({
         themeName: presetLabel,
         themeJson: JSON.stringify({ ...existing, preset, heroImageUrl }),
         isActive,
@@ -150,7 +147,7 @@ export default function StorefrontBrandThemeDesignPage() {
   const deleteMutation = useMutation({
     mutationFn: async () => {
       if (!storefrontBrandId) throw new Error("Missing storefrontBrandId");
-      const res = await deleteStorefrontBrandTheme(storefrontBrandId);
+      const res = await deleteStorefrontTheme(storefrontBrandId);
       if (!res.status) throw new Error(res.message ?? "Failed to remove theme");
       return res;
     },

@@ -1330,6 +1330,6 @@ export function getStorefrontEligibleBrandProducts(
   } = {},
 ) {
   return apiGet<PaginationResponse<ProductReturnDto>>(
-    `Brand/GetStorefrontEligibleProducts/${brandId}/products${toQuery(params)}`,
+    `Brand/GetStorefrontEligibleProducts/${brandId}/storefront-products${toQuery(params)}`,
   );
 }

@@ -26,12 +26,13 @@ import {
   getAllBrands,
   getBrandProducts,
   getStorefrontBrands,
+  getStorefrontEligibleBrandProducts,
   setStorefrontBrandExcludedProducts,
   type BrandDto,
 } from "@/lib/storefrontApi";
 import type { StorefrontBrandAdminDto } from "@/lib/storefrontTypes";
 import { effectiveProductPrice, productThumbnail } from "@/lib/productHelpers";
-import type { ProductReturnDto } from "@/lib/types";
+import type { ApiResult, PaginationResponse, ProductReturnDto } from "@/lib/types";
 import { Permission } from "@/lib/permissions";
 import { useAuthStore } from "@/stores/auth";
 import { formatCurrency } from "@/lib/utils";
@@ -47,6 +48,24 @@ interface BrandFormValues {
 }
 
 const normalize = (value: string | null | undefined) => (value ?? "").trim().toLowerCase();
+
+async function loadAllPages(
+  fetchPage: (page: { PageSize: number; PageNumber: number }) => Promise<ApiResult<PaginationResponse<ProductReturnDto>>>,
+) {
+  const products: ProductReturnDto[] = [];
+  const pageSize = 100;
+  let pageNumber = 1;
+  while (true) {
+    const res = await fetchPage({ PageSize: pageSize, PageNumber: pageNumber });
+    if (!res.status) throw new Error(res.message ?? "Failed to load products for this brand");
+    const page = res.data?.data ?? [];
+    products.push(...page);
+    if (page.length === 0 || products.length >= Number(res.data?.count ?? products.length)) {
+      return products;
+    }
+    pageNumber += 1;
+  }
+}
 
 function findExistingStorefrontBrand(
   source: BrandDto,
@@ -378,32 +397,18 @@ function BrandSetupForm({
   const productsQuery = useQuery({
     queryKey: ["storefront", "add-brand-preview-products", source.id],
     queryFn: async () => {
-      const products: ProductReturnDto[] = [];
-      const pageSize = 100;
-      let pageNumber = 1;
-      while (true) {
-        const res = await getBrandProducts(source.id, { PageSize: pageSize, PageNumber: pageNumber });
-        if (!res.status) throw new Error(res.message ?? "Failed to load products for this brand");
-        const page = res.data?.data ?? [];
-        products.push(
-          ...page.filter(
-            (product) =>
-              product.isActive
-              && !product.adminDisabled
-              && product.showNairaCurrency
-              && product.priceInDollar > 0,
-          ),
-        );
-        if (page.length === 0 || products.length >= Number(res.data?.count ?? products.length)) {
-          return products;
-        }
-        pageNumber += 1;
-      }
+      const [all, eligible] = await Promise.all([
+        loadAllPages((page) => getBrandProducts(source.id, page)),
+        loadAllPages((page) => getStorefrontEligibleBrandProducts(source.id, page)),
+      ]);
+      return { all, eligible };
     },
   });
 
   useEffect(() => {
-    if (productsQuery.data) setSelectedProductIds(productsQuery.data.map((product) => product.id));
+    if (productsQuery.data) {
+      setSelectedProductIds(productsQuery.data.eligible.map((product) => product.id));
+    }
   }, [productsQuery.data]);
 
   async function save() {
@@ -435,7 +440,10 @@ function BrandSetupForm({
         return;
       }
 
-      const excluded = (productsQuery.data ?? [])
+      // The new storefront brand includes every catalog product of the source
+      // brand, so anything not selected — including ineligible products the
+      // picker never showed — must be excluded explicitly.
+      const excluded = (productsQuery.data?.all ?? [])
         .map((product) => product.id)
         .filter((id) => !selectedProductIds.includes(id));
       if (excluded.length > 0) {
@@ -456,7 +464,7 @@ function BrandSetupForm({
     }
   }
 
-  const products = productsQuery.data ?? [];
+  const products = productsQuery.data?.eligible ?? [];
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(320px,400px)_1fr]">
@@ -573,7 +581,7 @@ function BrandSetupForm({
 
       <div className="sticky bottom-0 z-10 rounded-lg border bg-white px-4 py-3 shadow-[0_-2px_8px_rgba(0,0,0,0.06)] lg:col-span-2">
         <div className="flex items-center justify-end gap-3">
-          {canGoBack && <Button onClick={onBack}>Back to brands</Button>}
+          {canGoBack && <Button onClick={onBack}>Back to brands page</Button>}
           <Button onClick={onSkip} disabled={saving}>
             Skip
           </Button>

@@ -143,8 +143,9 @@ export function DealImagesManager({ dealId }: { dealId: string }) {
       <div className="flex items-center justify-between gap-3">
         <span className="text-xs text-muted-foreground">
           {list.length}/{MAX_IMAGES} pictures · {shown} shown to customers. Changes save
-          immediately. The web shop shows these as 2:1 banners on the deals tab (cropped
-          to fill, as previewed here), so use wide pictures, e.g. 1600×800.
+          immediately. Each one is a slide in the web shop's home-page banner slider
+          that opens this deal. Slides are 2:1 and cropped to fill, as previewed here, so
+          use wide pictures, e.g. 1600×800.
         </span>
         <input
           ref={inputRef}

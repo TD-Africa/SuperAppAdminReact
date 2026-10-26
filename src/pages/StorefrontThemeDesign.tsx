@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, App as AntdApp, Button, Card, Input, Modal, Skeleton, Space, Switch, Typography } from "antd";
@@ -10,8 +10,23 @@ import {
   getStorefrontTheme,
   updateStorefrontTheme,
 } from "@/lib/storefrontApi";
+import ImageUploadField from "@/components/storefront/ImageUploadField";
 
-const DEFAULT_THEME_JSON = "{}";
+function parseThemeJson(raw: string | null | undefined): Record<string, unknown> {
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function readHeroImage(raw: string | null | undefined) {
+  const obj = parseThemeJson(raw);
+  const value = obj.heroImage ?? obj.heroImageUrl;
+  return typeof value === "string" && value ? value : null;
+}
 
 export default function StorefrontThemeDesignPage() {
   const navigate = useNavigate();
@@ -21,7 +36,8 @@ export default function StorefrontThemeDesignPage() {
   const { themeId } = useParams();
   const isNew = !themeId || themeId === "new";
   const [themeName, setThemeName] = useState("");
-  const [themeJson, setThemeJson] = useState(DEFAULT_THEME_JSON);
+  const [heroImage, setHeroImage] = useState<string | null>(null);
+  const [uploadingHero, setUploadingHero] = useState(false);
   const [isActive, setIsActive] = useState(true);
 
   const query = useQuery({
@@ -37,25 +53,19 @@ export default function StorefrontThemeDesignPage() {
   useEffect(() => {
     if (!query.data) return;
     setThemeName(query.data.themeName ?? "");
-    setThemeJson(query.data.themeJson ?? DEFAULT_THEME_JSON);
+    setHeroImage(readHeroImage(query.data.themeJson));
     setIsActive(query.data.isActive);
   }, [query.data]);
 
-  const jsonParseError = useMemo(() => {
-    try {
-      JSON.parse(themeJson);
-      return null;
-    } catch (error) {
-      return error instanceof Error ? error.message : "Invalid JSON";
-    }
-  }, [themeJson]);
-
   const dirty = isNew || !query.data || themeName !== (query.data.themeName ?? "")
-    || themeJson !== (query.data.themeJson ?? DEFAULT_THEME_JSON) || isActive !== query.data.isActive;
+    || heroImage !== readHeroImage(query.data.themeJson) || isActive !== query.data.isActive;
 
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!themeName.trim()) throw new Error("Theme name is required");
+      // Keep any other keys stored in themeJson; heroImageUrl is the legacy key for heroImage.
+      const { heroImage: _previous, heroImageUrl: _legacy, ...rest } = parseThemeJson(query.data?.themeJson);
+      const themeJson = JSON.stringify(heroImage ? { ...rest, heroImage } : rest);
       const body = { themeName: themeName.trim(), themeJson, isActive };
       const res = isNew
         ? await createStorefrontTheme(body)
@@ -66,6 +76,7 @@ export default function StorefrontThemeDesignPage() {
     onSuccess: () => {
       message.success(isNew ? "Theme created" : "Theme updated");
       void queryClient.invalidateQueries({ queryKey: ["storefront", "themes"] });
+      void queryClient.invalidateQueries({ queryKey: ["storefront", "theme", themeId] });
       navigate("/storefront-themes");
     },
     onError: (error) => message.error(error instanceof Error ? error.message : "Failed to save theme"),
@@ -119,13 +130,22 @@ export default function StorefrontThemeDesignPage() {
               <div><Switch checked={isActive} disabled={!canEdit} onChange={setIsActive} checkedChildren="Active" unCheckedChildren="Inactive" /></div>
             </div>
           </div>
-          {jsonParseError ? <Alert type="warning" showIcon message="themeJson is not valid JSON" description={jsonParseError} /> : null}
           <div className="space-y-2">
-            <Typography.Text strong>themeJson</Typography.Text>
-            <Input.TextArea value={themeJson} disabled={!canEdit} onChange={(e) => setThemeJson(e.target.value)} rows={16} className="font-mono" placeholder='Paste theme JSON here…' />
+            <div>
+              <Typography.Text strong>Hero image</Typography.Text>
+              <Typography.Text type="secondary"> (optional)</Typography.Text>
+            </div>
+            <ImageUploadField
+              variant="hero"
+              value={heroImage}
+              onChange={setHeroImage}
+              onUploadingChange={setUploadingHero}
+              disabled={!canEdit}
+              hint="Wide image recommended (e.g. 1920×600), max 1.5 MB."
+            />
           </div>
           <Space>
-            <Button type="primary" loading={saveMutation.isPending} disabled={!canEdit || !dirty || Boolean(jsonParseError)} onClick={() => void saveMutation.mutate()}>{isNew ? "Create theme" : "Save changes"}</Button>
+            <Button type="primary" loading={saveMutation.isPending} disabled={!canEdit || !dirty || uploadingHero || !themeName.trim()} onClick={() => void saveMutation.mutate()}>{isNew ? "Create theme" : "Save changes"}</Button>
             <Button disabled={saveMutation.isPending || deleteMutation.isPending} onClick={() => navigate("/storefront-themes")}>Cancel</Button>
             {!isNew ? <Button danger loading={deleteMutation.isPending} disabled={!canEdit || saveMutation.isPending} onClick={confirmDelete}>Remove theme</Button> : null}
           </Space>

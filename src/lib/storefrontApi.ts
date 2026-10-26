@@ -154,6 +154,12 @@ export function deleteStorefrontBrand(storefrontBrandId: string) {
   return apiDelete<boolean>(`Storefront/DeleteStorefrontBrand/${storefrontBrandId}`);
 }
 
+export function uploadStorefrontImage(file: File) {
+  const fd = new FormData();
+  fd.append("file", file, file.name);
+  return apiPost<{ imageUrl: string }>("Storefront/UploadStorefrontImage", fd);
+}
+
 // —— Storefront commission settings (OEM) ——
 
 export function getStorefrontCommissionSettings() {

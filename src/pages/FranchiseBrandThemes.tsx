@@ -1,6 +1,15 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { Permission } from "@/lib/permissions";
+import {
+  deleteStorefrontTheme,
+  getStorefrontTheme,
+  getStorefrontBrands,
+} from "@/lib/storefrontApi";
+import type { StorefrontBrandAdminDto } from "@/lib/storefrontTypes";
+import { useAuthStore } from "@/stores/auth";
+import { DeleteOutlined, EditOutlined, PlusOutlined } from "@ant-design/icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { TableColumnsType } from "antd";
 import {
   App as AntdApp,
   Button,
@@ -13,17 +22,8 @@ import {
   Tag,
   Typography,
 } from "antd";
-import type { TableColumnsType } from "antd";
-import { DeleteOutlined, EditOutlined, PlusOutlined } from "@ant-design/icons";
-import { useAuthStore } from "@/stores/auth";
-import { Permission } from "@/lib/permissions";
-import {
-  deleteStorefrontBrandTheme,
-  getStorefrontBrandTheme,
-  getStorefrontBrands,
-} from "@/lib/storefrontApi";
-import type { StorefrontBrandAdminDto } from "@/lib/storefrontTypes";
-import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 function statusTag(isActive: boolean) {
   return <Tag color={isActive ? "success" : "default"}>{isActive ? "Active" : "Inactive"}</Tag>;
@@ -69,7 +69,7 @@ export default function FranchiseBrandThemesPage() {
       // theme state for display while keeping deletion idempotent for every row.
       return Promise.all(
         filtered.map(async (brand): Promise<BrandThemeRow> => {
-          const theme = await getStorefrontBrandTheme(brand.id);
+          const theme = await getStorefrontTheme(brand.id);
           return { ...brand, hasTheme: Boolean(theme.status && theme.data) };
         }),
       );
@@ -90,7 +90,7 @@ export default function FranchiseBrandThemesPage() {
 
   const removeTheme = useMutation({
     mutationFn: async (brand: StorefrontBrandAdminDto) => {
-      const res = await deleteStorefrontBrandTheme(brand.id);
+      const res = await deleteStorefrontTheme(brand.id);
       if (!res.status) throw new Error(res.message ?? "Failed to remove theme");
       return brand;
     },
@@ -183,7 +183,7 @@ export default function FranchiseBrandThemesPage() {
             Brand Themes
           </Typography.Title>
           <Typography.Text type="secondary">
-            Configure theme JSON for each storefront brand. Toggle activation from the theme editor.
+            Set the theme and hero image for each storefront brand.
           </Typography.Text>
         </div>
         <Button

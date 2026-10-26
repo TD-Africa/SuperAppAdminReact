@@ -6,23 +6,58 @@ import {
   App as AntdApp,
   Button,
   Card,
-  Input,
   Modal,
+  Radio,
   Skeleton,
   Space,
   Switch,
   Typography,
+  Upload,
 } from "antd";
+import { DeleteOutlined, UploadOutlined } from "@ant-design/icons";
 import { useAuthStore } from "@/stores/auth";
 import { Permission } from "@/lib/permissions";
-import {
-  deleteStorefrontBrandTheme,
-  getStorefrontBrandTheme,
-  setStorefrontBrandTheme,
-} from "@/lib/storefrontApi";
+import { createStorefrontTheme, deleteStorefrontTheme, getStorefrontTheme } from "@/lib/storefrontApi";
 
-const DEFAULT_THEME_NAME = "brand-default";
-const DEFAULT_THEME_JSON = "{}";
+
+const THEME_PRESETS = [{ value: "samsung", label: "Samsung" }] as const;
+type ThemePreset = (typeof THEME_PRESETS)[number]["value"];
+
+const DEFAULT_PRESET: ThemePreset = "samsung";
+const DEFAULT_THEME_NAME = "Samsung";
+const MAX_HERO_BYTES = 1.5 * 1024 * 1024;
+
+type ThemeConfig = { preset: ThemePreset; heroImageUrl: string | null };
+
+function parseThemeJsonObject(raw: string | null | undefined): Record<string, unknown> {
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function parseThemeConfig(raw: string | null | undefined): ThemeConfig {
+  const obj = parseThemeJsonObject(raw);
+  const preset = THEME_PRESETS.some((p) => p.value === obj.preset)
+    ? (obj.preset as ThemePreset)
+    : DEFAULT_PRESET;
+  const heroImageUrl = typeof obj.heroImageUrl === "string" ? obj.heroImageUrl : null;
+  return { preset, heroImageUrl };
+}
+
+function readAsDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
+const DEFAULT_THEME_JSON = JSON.stringify({ preset: DEFAULT_PRESET, heroImageUrl: null });
 
 export default function StorefrontBrandThemeDesignPage() {
   const queryClient = useQueryClient();
@@ -31,8 +66,8 @@ export default function StorefrontBrandThemeDesignPage() {
 
   const { storefrontBrandId } = useParams();
 
-  const [themeName, setThemeName] = useState("");
-  const [themeJson, setThemeJson] = useState("");
+  const [preset, setPreset] = useState<ThemePreset>(DEFAULT_PRESET);
+  const [heroImageUrl, setHeroImageUrl] = useState<string | null>(null);
   const [isActive, setIsActive] = useState(true);
 
   const themeQueryKey = useMemo(
@@ -45,7 +80,7 @@ export default function StorefrontBrandThemeDesignPage() {
     enabled: Boolean(storefrontBrandId),
     queryFn: async () => {
       if (!storefrontBrandId) return null;
-      const res = await getStorefrontBrandTheme(storefrontBrandId);
+      const res = await getStorefrontTheme(storefrontBrandId);
       if (res.status && res.data) return { theme: res.data, exists: true };
 
       // A theme is optional until an admin saves one. The backend's 404 is
@@ -67,52 +102,44 @@ export default function StorefrontBrandThemeDesignPage() {
     },
   });
 
-  // Load the “backend truth” into our local draft.
-  useEffect(() => {
+  const resetFromServer = () => {
     const theme = themeQuery.data?.theme;
     if (!theme) return;
-    setThemeName(theme.themeName ?? "");
-    setThemeJson(theme.themeJson ?? "");
+    const cfg = parseThemeConfig(theme.themeJson);
+    setPreset(cfg.preset);
+    setHeroImageUrl(cfg.heroImageUrl);
     setIsActive(theme.isActive);
-  }, [themeQuery.data]);
+  };
 
-  const jsonParseError = useMemo(() => {
-    const raw = themeJson.trim();
-    if (!raw) return null;
-    try {
-      JSON.parse(raw);
-      return null;
-    } catch (e) {
-      return e instanceof Error ? e.message : "Invalid JSON";
-    }
-  }, [themeJson]);
+  useEffect(resetFromServer, [themeQuery.data]);
 
   const dirty = useMemo(() => {
     const base = themeQuery.data?.theme;
     if (!base) return false;
+    const cfg = parseThemeConfig(base.themeJson);
     return (
-      themeName !== (base.themeName ?? "") ||
-      themeJson !== (base.themeJson ?? "") ||
-      isActive !== base.isActive
+      preset !== cfg.preset || heroImageUrl !== cfg.heroImageUrl || isActive !== base.isActive
     );
-  }, [themeName, themeJson, isActive, themeQuery.data]);
+  }, [preset, heroImageUrl, isActive, themeQuery.data]);
 
   const mutation = useMutation({
     mutationFn: async () => {
       if (!storefrontBrandId) throw new Error("Missing storefrontBrandId");
-      const body = {
-        themeName: themeName.trim() || "Untitled",
-        themeJson,
-        // Backend expects a boolean “isActive”; keep the switch synced to this.
+      // themeJson is the only storage the backend offers; keep unknown keys intact.
+      const existing = parseThemeJsonObject(themeQuery.data?.theme.themeJson);
+      const presetLabel = THEME_PRESETS.find((p) => p.value === preset)?.label ?? DEFAULT_THEME_NAME;
+      const res = await createStorefrontTheme({
+        themeName: presetLabel,
+        themeJson: JSON.stringify({ ...existing, preset, heroImageUrl }),
         isActive,
-      };
-      const res = await setStorefrontBrandTheme(storefrontBrandId, body);
+      });
       if (!res.status || !res.data) throw new Error(res.message ?? "Failed to save theme");
       return res.data;
     },
     onSuccess: () => {
       message.success("Theme saved");
       void queryClient.invalidateQueries({ queryKey: themeQueryKey });
+      void queryClient.invalidateQueries({ queryKey: ["storefront", "brand-themes"] });
     },
     onError: (err) => message.error(err instanceof Error ? err.message : "Failed to save theme"),
   });
@@ -120,7 +147,7 @@ export default function StorefrontBrandThemeDesignPage() {
   const deleteMutation = useMutation({
     mutationFn: async () => {
       if (!storefrontBrandId) throw new Error("Missing storefrontBrandId");
-      const res = await deleteStorefrontBrandTheme(storefrontBrandId);
+      const res = await deleteStorefrontTheme(storefrontBrandId);
       if (!res.status) throw new Error(res.message ?? "Failed to remove theme");
       return res;
     },
@@ -185,12 +212,12 @@ export default function StorefrontBrandThemeDesignPage() {
           Storefront brand theme
         </Typography.Title>
         <Typography.Text type="secondary">
-          Edit the theme JSON for this storefront brand. Toggle activation with “isActive”.
+          Pick a theme and upload a hero image for this storefront brand.
         </Typography.Text>
         {!themeQuery.data?.exists ? (
           <Typography.Paragraph type="secondary" className="!mb-0 !mt-2">
-            No theme has been saved for this brand yet. Update the draft and save it to create
-            the brand theme.
+            No theme has been saved for this brand yet. Choose a theme, upload a hero image, and
+            save to create it.
           </Typography.Paragraph>
         ) : null}
       </div>
@@ -198,15 +225,17 @@ export default function StorefrontBrandThemeDesignPage() {
       <Card>
         <div className="space-y-6">
           <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
-            <div className="min-w-[240px] flex-1 space-y-2">
+            <div className="space-y-2">
               <div>
-                <Typography.Text strong>Theme name</Typography.Text>
+                <Typography.Text strong>Theme</Typography.Text>
               </div>
-              <Input
-                value={themeName}
+              <Radio.Group
+                value={preset}
                 disabled={!canEdit}
-                onChange={(e) => setThemeName(e.target.value)}
-                placeholder="Theme name"
+                onChange={(e) => setPreset(e.target.value)}
+                optionType="button"
+                buttonStyle="solid"
+                options={THEME_PRESETS.map((p) => ({ value: p.value, label: p.label }))}
               />
             </div>
 
@@ -224,25 +253,64 @@ export default function StorefrontBrandThemeDesignPage() {
             </div>
           </div>
 
-          {jsonParseError ? (
-            <Alert
-              type="warning"
-              showIcon
-              message="themeJson is not valid JSON"
-              description="This UI treats themeJson as an opaque string, but JSON parsing failed. If your backend expects a raw serialized payload, keep it as-is; otherwise fix the JSON."
-            />
-          ) : null}
-
           <div className="space-y-2">
-            <Typography.Text strong>themeJson</Typography.Text>
-            <Input.TextArea
-              value={themeJson}
-              disabled={!canEdit}
-              onChange={(e) => setThemeJson(e.target.value)}
-              rows={16}
-              className="font-mono"
-              placeholder='Paste theme JSON here...'
-            />
+            <div>
+              <Typography.Text strong>Hero image</Typography.Text>
+            </div>
+            {heroImageUrl ? (
+              <div className="overflow-hidden rounded-md border">
+                <img src={heroImageUrl} alt="Hero" className="max-h-72 w-full object-cover" />
+              </div>
+            ) : (
+              <Upload.Dragger
+                accept="image/*"
+                showUploadList={false}
+                disabled={!canEdit}
+                beforeUpload={async (file) => {
+                  if (file.size > MAX_HERO_BYTES) {
+                    message.error("Image is too large. Maximum size is 1.5 MB.");
+                    return Upload.LIST_IGNORE;
+                  }
+                  setHeroImageUrl(await readAsDataUrl(file));
+                  return false;
+                }}
+              >
+                <p className="ant-upload-drag-icon">
+                  <UploadOutlined />
+                </p>
+                <p className="ant-upload-text">Click or drag an image here to upload</p>
+                <p className="ant-upload-hint">Wide image recommended (e.g. 1920×600), max 1.5 MB.</p>
+              </Upload.Dragger>
+            )}
+            {heroImageUrl ? (
+              <Space>
+                <Upload
+                  accept="image/*"
+                  showUploadList={false}
+                  disabled={!canEdit}
+                  beforeUpload={async (file) => {
+                    if (file.size > MAX_HERO_BYTES) {
+                      message.error("Image is too large. Maximum size is 1.5 MB.");
+                      return Upload.LIST_IGNORE;
+                    }
+                    setHeroImageUrl(await readAsDataUrl(file));
+                    return false;
+                  }}
+                >
+                  <Button icon={<UploadOutlined />} disabled={!canEdit}>
+                    Replace image
+                  </Button>
+                </Upload>
+                <Button
+                  danger
+                  icon={<DeleteOutlined />}
+                  disabled={!canEdit}
+                  onClick={() => setHeroImageUrl(null)}
+                >
+                  Remove image
+                </Button>
+              </Space>
+            ) : null}
           </div>
 
           <Space>
@@ -256,11 +324,7 @@ export default function StorefrontBrandThemeDesignPage() {
             </Button>
             <Button
               disabled={!canEdit || mutation.isPending || deleteMutation.isPending}
-              onClick={() => {
-                setThemeName(themeQuery.data?.theme.themeName ?? "");
-                setThemeJson(themeQuery.data?.theme.themeJson ?? "");
-                setIsActive(themeQuery.data?.theme.isActive ?? true);
-              }}
+              onClick={resetFromServer}
             >
               Discard
             </Button>

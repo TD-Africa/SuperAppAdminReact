@@ -797,6 +797,28 @@ export interface DealResponse {
   rewardItems?: DealRewardItemResponse[];
   // Optional so an older API build that omits it reads as "no minimums".
   qualifyingQuantities?: DealQualifyingQuantityResponse[];
+  // In display order. Admins get every picture with its on/off state; customers
+  // only see the ones switched on. Optional for older API builds.
+  images?: DealImageResponse[];
+}
+
+// Deal/Images/{id}, Deal/UploadImages/{id}, Deal/UpdateImage/{id}/{imageId}.
+// `url` is an absolute Component/DownloadImage link.
+export interface DealImageResponse {
+  id: string;
+  url: string;
+  caption: string | null;
+  isActive: boolean;
+  sortOrder: number;
+  dateCreated: string;
+}
+
+// PATCH Deal/UpdateImage/{id}/{imageId}: only the fields given change; an empty
+// caption clears it.
+export interface UpdateDealImageRequest {
+  isActive?: boolean;
+  sortOrder?: number;
+  caption?: string;
 }
 
 export interface DealRequest {

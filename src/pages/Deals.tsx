@@ -55,6 +55,7 @@ import {
   toQualifyingQuantities,
   type QualifyingMinimums,
 } from "@/components/deals/DealQualifyingQuantitiesEditor";
+import { DealImagesManager } from "@/components/deals/DealImagesManager";
 
 const ALL = "__all__";
 
@@ -160,6 +161,7 @@ export default function DealsPage() {
       dataIndex: "name",
       render: (v, r) => (
         <div className="flex items-center gap-2">
+          <DealThumb deal={r} />
           <span className="truncate font-medium">{v}</span>
           {isExpired(r) && <Tag>Expired</Tag>}
         </div>
@@ -347,6 +349,16 @@ export default function DealsPage() {
         }}
       />
     </div>
+  );
+}
+
+// First picture customers see; a placeholder box keeps the names aligned.
+function DealThumb({ deal }: { deal: DealResponse }) {
+  const first = (deal.images ?? []).find((i) => i.isActive);
+  return first ? (
+    <img src={first.url} alt="" className="h-8 w-8 shrink-0 rounded object-cover" />
+  ) : (
+    <div className="h-8 w-8 shrink-0 rounded bg-muted" />
   );
 }
 
@@ -735,6 +747,15 @@ function DealFormModal({
               />
             </Form.Item>
           )}
+          <Form.Item label="Pictures" className="!mb-0">
+            {mode === "edit" && dealId ? (
+              <DealImagesManager dealId={dealId} />
+            ) : (
+              <Typography.Text type="secondary" className="text-xs">
+                Create the deal first, then edit it to add pictures.
+              </Typography.Text>
+            )}
+          </Form.Item>
         </Form>
       )}
     </Modal>
@@ -806,6 +827,21 @@ function DetailDealModal({
         <Skeleton active paragraph={{ rows: 6 }} />
       ) : (
         <div className="space-y-4">
+          {(data.images?.length ?? 0) > 0 && (
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {data.images!.map((img) => (
+                <div key={img.id} className="relative shrink-0">
+                  <img
+                    src={img.url}
+                    alt={img.caption ?? ""}
+                    title={img.caption ?? undefined}
+                    className={`aspect-[2/1] h-24 rounded border bg-muted object-cover ${img.isActive ? "" : "opacity-40"}`}
+                  />
+                  {!img.isActive && <Tag className="!absolute left-1 top-1">Hidden</Tag>}
+                </div>
+              ))}
+            </div>
+          )}
           <Descriptions column={2} size="small" colon={false}>
             <Descriptions.Item label="Type">
               {DEAL_TYPE_LABELS[data.dealType]}

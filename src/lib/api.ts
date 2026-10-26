@@ -115,6 +115,13 @@ function fail<T>(err: unknown): ApiResult<T> {
   if (data && typeof data === "object" && "status" in data) {
     return data;
   }
+  // `StatusCode(code, result.Message)` answers with the bare message as text.
+  // Keep it, unless it's an HTML error page.
+  const raw: unknown = axiosErr.response?.data;
+  const text = typeof raw === "string" ? raw.trim() : "";
+  if (text && !text.startsWith("<") && text.length <= 500) {
+    return { data: null, message: text, status: false };
+  }
   return {
     data: null,
     message: axiosErr.message ?? "An error occurred",

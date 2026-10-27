@@ -609,7 +609,7 @@ export default function FranchiseStoreOwnerDetailPage() {
             "Read-only storefront activity for this owner"}
         </Typography.Text>
         <div>
-          <StorefrontUrl userName={ownerQuery.data?.userName ?? userName} />
+          <StorefrontUrl companyName={companyName} />
         </div>
       </div>
 
@@ -681,7 +681,7 @@ export default function FranchiseStoreOwnerDetailPage() {
               {ownerQuery.data?.userName ?? "—"}
             </Descriptions.Item>
             <Descriptions.Item label="Storefront URL" span={2}>
-              <StorefrontUrl userName={ownerQuery.data?.userName} />
+              <StorefrontUrl companyName={companyName} />
             </Descriptions.Item>
             <Descriptions.Item label="Email">
               {ownerQuery.data?.email ?? "—"}

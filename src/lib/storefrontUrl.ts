@@ -9,7 +9,12 @@ const isProductionApi = /\/\/tdadminapi\.azurewebsites\.net/i.test(API_BASE_URL)
 
 export const STOREFRONT_PUBLIC_URL = isProductionApi ? PROD_STOREFRONT_URL : DEV_STOREFRONT_URL;
 
-export function storefrontUrlFor(userName: string | null | undefined): string | null {
-  const slug = userName?.trim();
+export function storefrontSlug(companyName: string | null | undefined): string | null {
+  const slug = companyName?.trim().toLowerCase().replace(/\s+/g, "-");
+  return slug || null;
+}
+
+export function storefrontUrlFor(companyName: string | null | undefined): string | null {
+  const slug = storefrontSlug(companyName);
   return slug ? `${STOREFRONT_PUBLIC_URL}${encodeURIComponent(slug)}` : null;
 }

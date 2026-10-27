@@ -31,6 +31,7 @@ import {
   type BrandDto,
 } from "@/lib/storefrontApi";
 import type { StorefrontBrandAdminDto } from "@/lib/storefrontTypes";
+import ImageUploadField from "@/components/storefront/ImageUploadField";
 import { effectiveProductPrice, productThumbnail } from "@/lib/productHelpers";
 import type { ApiResult, PaginationResponse, ProductReturnDto } from "@/lib/types";
 import { Permission } from "@/lib/permissions";
@@ -41,7 +42,7 @@ type AddedFilter = "not-added" | "added" | "all";
 
 interface BrandFormValues {
   name: string;
-  brandImageUrl: string;
+  brandImageUrl: string | null;
   dynamicsId: string;
   storefrontPriceMargin: number;
   isActive: boolean;
@@ -392,6 +393,8 @@ function BrandSetupForm({
   const { message } = AntdApp.useApp();
   const [form] = Form.useForm<BrandFormValues>();
   const [saving, setSaving] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [productSearch, setProductSearch] = useState("");
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
 
   const productsQuery = useQuery({
@@ -430,7 +433,7 @@ function BrandSetupForm({
       const res = await addStorefrontBrand({
         catalogBrandIds: [source.id],
         name: values.name,
-        brandImageUrl: values.brandImageUrl || source.brandImageUrl || "",
+        brandImageUrl: values.brandImageUrl ?? "",
         dynamicsId: values.dynamicsId || source.dynamicsId || "",
         storefrontPriceMargin: values.storefrontPriceMargin,
         isActive: values.isActive,
@@ -464,7 +467,16 @@ function BrandSetupForm({
     }
   }
 
-  const products = productsQuery.data?.eligible ?? [];
+  const products = useMemo(() => productsQuery.data?.eligible ?? [], [productsQuery.data]);
+  const filteredProducts = useMemo(() => {
+    const term = normalize(productSearch);
+    if (!term) return products;
+    return products.filter((product) =>
+      [product.productName, product.dynamicsId, product.id].some((value) =>
+        normalize(value).includes(term),
+      ),
+    );
+  }, [products, productSearch]);
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(320px,400px)_1fr]">
@@ -487,8 +499,12 @@ function BrandSetupForm({
           >
             <Input />
           </Form.Item>
-          <Form.Item name="brandImageUrl" label="Logo URL">
-            <Input placeholder="Optional storefront logo URL" />
+          <Form.Item name="brandImageUrl" label="Logo">
+            <ImageUploadField
+              variant="logo"
+              onUploadingChange={setUploadingLogo}
+              hint="Optional. Square PNG or SVG recommended, max 1.5 MB."
+            />
           </Form.Item>
           <Form.Item name="dynamicsId" label="Dynamics ID">
             <Input placeholder="Optional" />
@@ -507,9 +523,23 @@ function BrandSetupForm({
       </Card>
 
       <Card
-        title={`Products to add (${selectedProductIds.length} of ${products.length} selected)`}
+        title={
+          <div className="py-2">
+            <div>{`Products to add (${selectedProductIds.length} of ${products.length} selected)`}</div>
+            <Typography.Text type="secondary" className="text-xs font-normal">
+              Uncheck products you do not want this brand to sell.
+            </Typography.Text>
+          </div>
+        }
         extra={
-          <Typography.Text type="secondary">Uncheck products you do not want this brand to sell.</Typography.Text>
+          <Input
+            allowClear
+            prefix={<SearchOutlined />}
+            placeholder="Search by name or model"
+            value={productSearch}
+            onChange={(e) => setProductSearch(e.target.value)}
+            className="w-64"
+          />
         }
         styles={{ body: { padding: 0 } }}
       >
@@ -530,14 +560,20 @@ function BrandSetupForm({
             size="small"
             rowKey="id"
             loading={productsQuery.isLoading || productsQuery.isFetching}
-            dataSource={products}
+            dataSource={filteredProducts}
             pagination={false}
             scroll={{ y: 480 }}
             rowSelection={{
               selectedRowKeys: selectedProductIds,
+              // Keeps selections for rows hidden by the search filter.
+              preserveSelectedRowKeys: true,
               onChange: (keys) => setSelectedProductIds(keys.map(String)),
             }}
-            locale={{ emptyText: "No eligible products for this brand" }}
+            locale={{
+              emptyText: productSearch.trim()
+                ? `No products match "${productSearch.trim()}"`
+                : "No eligible products for this brand",
+            }}
             columns={[
               {
                 title: "Product",
@@ -588,7 +624,7 @@ function BrandSetupForm({
           <Button
             type="primary"
             loading={saving}
-            disabled={productsQuery.isLoading || productsQuery.isError}
+            disabled={productsQuery.isLoading || productsQuery.isError || uploadingLogo}
             onClick={() => void save()}
           >
             {isLast ? "Save & finish" : "Save & next"}

@@ -12,10 +12,9 @@ import {
   Space,
   Switch,
   Typography,
-  Upload,
 } from "antd";
-import { DeleteOutlined, UploadOutlined } from "@ant-design/icons";
 import { useAuthStore } from "@/stores/auth";
+import ImageUploadField from "@/components/storefront/ImageUploadField";
 import { Permission } from "@/lib/permissions";
 import { createStorefrontTheme, deleteStorefrontTheme, getStorefrontTheme } from "@/lib/storefrontApi";
 
@@ -25,7 +24,6 @@ type ThemePreset = (typeof THEME_PRESETS)[number]["value"];
 
 const DEFAULT_PRESET: ThemePreset = "samsung";
 const DEFAULT_THEME_NAME = "Samsung";
-const MAX_HERO_BYTES = 1.5 * 1024 * 1024;
 
 type ThemeConfig = { preset: ThemePreset; heroImageUrl: string | null };
 
@@ -48,15 +46,6 @@ function parseThemeConfig(raw: string | null | undefined): ThemeConfig {
   return { preset, heroImageUrl };
 }
 
-function readAsDataUrl(file: File) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
-}
-
 const DEFAULT_THEME_JSON = JSON.stringify({ preset: DEFAULT_PRESET, heroImageUrl: null });
 
 export default function StorefrontBrandThemeDesignPage() {
@@ -68,6 +57,7 @@ export default function StorefrontBrandThemeDesignPage() {
 
   const [preset, setPreset] = useState<ThemePreset>(DEFAULT_PRESET);
   const [heroImageUrl, setHeroImageUrl] = useState<string | null>(null);
+  const [uploadingHero, setUploadingHero] = useState(false);
   const [isActive, setIsActive] = useState(true);
 
   const themeQueryKey = useMemo(
@@ -257,67 +247,21 @@ export default function StorefrontBrandThemeDesignPage() {
             <div>
               <Typography.Text strong>Hero image</Typography.Text>
             </div>
-            {heroImageUrl ? (
-              <div className="overflow-hidden rounded-md border">
-                <img src={heroImageUrl} alt="Hero" className="max-h-72 w-full object-cover" />
-              </div>
-            ) : (
-              <Upload.Dragger
-                accept="image/*"
-                showUploadList={false}
-                disabled={!canEdit}
-                beforeUpload={async (file) => {
-                  if (file.size > MAX_HERO_BYTES) {
-                    message.error("Image is too large. Maximum size is 1.5 MB.");
-                    return Upload.LIST_IGNORE;
-                  }
-                  setHeroImageUrl(await readAsDataUrl(file));
-                  return false;
-                }}
-              >
-                <p className="ant-upload-drag-icon">
-                  <UploadOutlined />
-                </p>
-                <p className="ant-upload-text">Click or drag an image here to upload</p>
-                <p className="ant-upload-hint">Wide image recommended (e.g. 1920×600), max 1.5 MB.</p>
-              </Upload.Dragger>
-            )}
-            {heroImageUrl ? (
-              <Space>
-                <Upload
-                  accept="image/*"
-                  showUploadList={false}
-                  disabled={!canEdit}
-                  beforeUpload={async (file) => {
-                    if (file.size > MAX_HERO_BYTES) {
-                      message.error("Image is too large. Maximum size is 1.5 MB.");
-                      return Upload.LIST_IGNORE;
-                    }
-                    setHeroImageUrl(await readAsDataUrl(file));
-                    return false;
-                  }}
-                >
-                  <Button icon={<UploadOutlined />} disabled={!canEdit}>
-                    Replace image
-                  </Button>
-                </Upload>
-                <Button
-                  danger
-                  icon={<DeleteOutlined />}
-                  disabled={!canEdit}
-                  onClick={() => setHeroImageUrl(null)}
-                >
-                  Remove image
-                </Button>
-              </Space>
-            ) : null}
+            <ImageUploadField
+              variant="hero"
+              value={heroImageUrl}
+              onChange={setHeroImageUrl}
+              onUploadingChange={setUploadingHero}
+              disabled={!canEdit}
+              hint="Wide image recommended (e.g. 1920×600), max 1.5 MB."
+            />
           </div>
 
           <Space>
             <Button
               type="primary"
               loading={mutation.isPending}
-              disabled={!canEdit || !dirty || mutation.isPending}
+              disabled={!canEdit || !dirty || mutation.isPending || uploadingHero}
               onClick={() => void mutation.mutate()}
             >
               {themeQuery.data?.exists ? "Save changes" : "Create theme"}

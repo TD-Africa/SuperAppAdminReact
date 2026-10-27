@@ -22,9 +22,8 @@ function parseThemeJson(raw: string | null | undefined): Record<string, unknown>
   }
 }
 
-function readHeroImage(raw: string | null | undefined) {
-  const obj = parseThemeJson(raw);
-  const value = obj.heroImage ?? obj.heroImageUrl;
+function readHeroImageUrl(raw: string | null | undefined) {
+  const value = parseThemeJson(raw).heroImageUrl;
   return typeof value === "string" && value ? value : null;
 }
 
@@ -36,7 +35,7 @@ export default function StorefrontThemeDesignPage() {
   const { themeId } = useParams();
   const isNew = !themeId || themeId === "new";
   const [themeName, setThemeName] = useState("");
-  const [heroImage, setHeroImage] = useState<string | null>(null);
+  const [heroImageUrl, setHeroImageUrl] = useState<string | null>(null);
   const [uploadingHero, setUploadingHero] = useState(false);
   const [isActive, setIsActive] = useState(true);
 
@@ -53,19 +52,19 @@ export default function StorefrontThemeDesignPage() {
   useEffect(() => {
     if (!query.data) return;
     setThemeName(query.data.themeName ?? "");
-    setHeroImage(readHeroImage(query.data.themeJson));
+    setHeroImageUrl(readHeroImageUrl(query.data.themeJson));
     setIsActive(query.data.isActive);
   }, [query.data]);
 
   const dirty = isNew || !query.data || themeName !== (query.data.themeName ?? "")
-    || heroImage !== readHeroImage(query.data.themeJson) || isActive !== query.data.isActive;
+    || heroImageUrl !== readHeroImageUrl(query.data.themeJson) || isActive !== query.data.isActive;
 
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!themeName.trim()) throw new Error("Theme name is required");
-      // Keep any other keys stored in themeJson; heroImageUrl is the legacy key for heroImage.
-      const { heroImage: _previous, heroImageUrl: _legacy, ...rest } = parseThemeJson(query.data?.themeJson);
-      const themeJson = JSON.stringify(heroImage ? { ...rest, heroImage } : rest);
+      // themeJson may carry keys this page does not edit; keep them intact.
+      const { heroImageUrl: _previous, ...rest } = parseThemeJson(query.data?.themeJson);
+      const themeJson = JSON.stringify(heroImageUrl ? { ...rest, heroImageUrl } : rest);
       const body = { themeName: themeName.trim(), themeJson, isActive };
       const res = isNew
         ? await createStorefrontTheme(body)
@@ -137,8 +136,8 @@ export default function StorefrontThemeDesignPage() {
             </div>
             <ImageUploadField
               variant="hero"
-              value={heroImage}
-              onChange={setHeroImage}
+              value={heroImageUrl}
+              onChange={setHeroImageUrl}
               onUploadingChange={setUploadingHero}
               disabled={!canEdit}
               hint="Wide image recommended (e.g. 1920×600), max 1.5 MB."

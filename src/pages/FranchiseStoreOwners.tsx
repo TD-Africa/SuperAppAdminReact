@@ -188,7 +188,7 @@ export default function FranchiseStoreOwnersPage() {
     {
       title: "Storefront",
       key: "storefront",
-      render: (_, row) => <StorefrontUrl userName={row.userName} />,
+      render: (_, row) => <StorefrontUrl companyName={row.companyName} />,
     },
     {
       title: "Total Orders",

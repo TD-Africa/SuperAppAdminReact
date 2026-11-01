@@ -183,7 +183,7 @@ export interface StorefrontStoreOwnerDto {
   userName: string | null;
   firstName: string | null;
   lastName: string | null;
-  isCacVerified: boolean;
+  userStatus: string | null;
   cacVerifiedAt: string | null;
 }
 
@@ -738,7 +738,6 @@ export interface StorefrontOwnerDetailDto {
   lastName: string | null;
   companyName: string | null;
   phoneNumber: string | null;
-  isCacVerified: boolean;
   userStatus: string | null;
   userType: string | null;
   isSuspended: boolean;
@@ -761,7 +760,7 @@ export interface StorefrontOwnerCandidateDto {
   lastName: string | null;
   companyName: string | null;
   phoneNumber: string | null;
-  isCacVerified: boolean;
+  userStatus: string | null;
   isAlreadyInvited: boolean;
   isInvitationAccepted: boolean;
 }
@@ -782,7 +781,7 @@ export interface StorefrontOwnerInvitationValidationResponse {
   userName: string | null;
   companyName: string | null;
   phoneNumber: string | null;
-  isCacVerified: boolean;
+  userStatus: string | null;
   expiresAt: string;
   isAccepted: boolean;
 }

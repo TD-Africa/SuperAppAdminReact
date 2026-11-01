@@ -101,7 +101,7 @@ export default function FranchiseOrdersPage() {
           userName: searchParams.get("user"),
           firstName: searchParams.get("owner"),
           lastName: null,
-          isCacVerified: true,
+          userStatus: "Active",
           cacVerifiedAt: null,
         } satisfies StorefrontStoreOwnerDto,
         ...list,

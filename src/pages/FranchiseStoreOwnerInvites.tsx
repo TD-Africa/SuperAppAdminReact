@@ -45,11 +45,8 @@ import { PromptDialog } from "@/components/PromptDialog";
 /**
  * Two tabs:
  *  - Invited:   store owners with an invitation, from `GetStorefrontOwners`.
- *  - Uninvited: CAC-verified customers (from `User/GetUsers`) who have not
+ *  - Uninvited: active customers (from `User/GetUsers`) who have not
  *               been invited yet.
- *
- * `GetOwnerCandidates` exists in the API but currently returns an empty list
- * on the backend, so we source uninvited owners from the Customers endpoint.
  */
 type OwnerRow = {
   id: string;
@@ -58,7 +55,6 @@ type OwnerRow = {
   firstName: string | null;
   lastName: string | null;
   email: string | null;
-  isCacVerified: boolean | null;
   isInvited: boolean;
   isInvitationAccepted: boolean;
   isSuspended: boolean;
@@ -77,7 +73,6 @@ function detailToRow(d: StorefrontOwnerDetailDto): OwnerRow {
     firstName: d.firstName,
     lastName: d.lastName,
     email: d.email,
-    isCacVerified: d.isCacVerified,
     isInvited: d.isInvited,
     isInvitationAccepted: d.isInvitationAccepted,
     isSuspended: d.isSuspended,
@@ -93,7 +88,6 @@ function customerToRow(c: CustomerResponse): OwnerRow {
     firstName: c.firstName,
     lastName: c.lastName,
     email: c.email,
-    isCacVerified: c.isCacVerified,
     isInvited: false,
     isInvitationAccepted: false,
     isSuspended: c.isSuspended,
@@ -157,9 +151,9 @@ export default function FranchiseStoreOwnerInvitesPage() {
     staleTime: 60_000,
   });
 
-  // CAC-verified customers from User/GetUsers (paged, like Customers.tsx).
+  // Active customers from User/GetUsers (paged, like Customers.tsx).
   const customersQuery = useQuery({
-    queryKey: ["customers", "cac-verified"],
+    queryKey: ["customers", "active"],
     queryFn: async () => {
       const FETCH_SIZE = 200;
       const all: CustomerResponse[] = [];
@@ -167,7 +161,7 @@ export default function FranchiseStoreOwnerInvitesPage() {
       let total = Infinity;
       while (all.length < total) {
         const res = await apiGet<PaginationResponse<CustomerResponse>>(
-          `User/GetUsers?PageSize=${FETCH_SIZE}&PageNumber=${pageNumber}`,
+          `User/GetUsers?PageSize=${FETCH_SIZE}&PageNumber=${pageNumber}&status=Active`,
         );
         if (!res.status) throw new Error(res.message ?? "Failed to load customers");
         const chunk = res.data?.data ?? [];
@@ -176,7 +170,7 @@ export default function FranchiseStoreOwnerInvitesPage() {
         if (chunk.length === 0) break;
         pageNumber += 1;
       }
-      return all.filter((c) => c.isCacVerified === true);
+      return all;
     },
   });
 
@@ -290,7 +284,7 @@ export default function FranchiseStoreOwnerInvitesPage() {
 
   function refreshOwners() {
     queryClient.invalidateQueries({ queryKey: ["storefront", "storefront-owners"] });
-    queryClient.invalidateQueries({ queryKey: ["customers", "cac-verified"] });
+    queryClient.invalidateQueries({ queryKey: ["customers", "active"] });
   }
 
   async function suspendOwner(row: OwnerRow, reason: string) {
@@ -342,14 +336,6 @@ export default function FranchiseStoreOwnerInvitesPage() {
       dataIndex: "userName",
       render: (v: string | null) => (
         <span className="text-xs text-muted-foreground">{v ?? "—"}</span>
-      ),
-    },
-    {
-      title: "CAC verified",
-      dataIndex: "isCacVerified",
-      width: 120,
-      render: (v: boolean | null) => (
-        <Tag color={v ? "success" : "default"}>{v ? "Yes" : "No"}</Tag>
       ),
     },
     {
@@ -482,7 +468,7 @@ export default function FranchiseStoreOwnerInvitesPage() {
             Store owner invites
           </Typography.Title>
           <Typography.Text type="secondary">
-            Manage store owner invitations for CAC-verified businesses
+          Manage store owner invitations for active businesses
           </Typography.Text>
         </div>
         <Button

@@ -689,11 +689,6 @@ export default function FranchiseStoreOwnerDetailPage() {
             <Descriptions.Item label="Phone">
               {ownerQuery.data?.phoneNumber ?? "—"}
             </Descriptions.Item>
-            <Descriptions.Item label="CAC verified">
-              <Tag color={ownerQuery.data?.isCacVerified ? "success" : "default"}>
-                {ownerQuery.data?.isCacVerified ? "Yes" : "No"}
-              </Tag>
-            </Descriptions.Item>
             <Descriptions.Item label="User status">
               {ownerQuery.data ? (
                 <Tag

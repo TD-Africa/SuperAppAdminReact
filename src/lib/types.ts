@@ -1491,6 +1491,57 @@ export interface StaffBrandAssignmentResponse {
   assignedAt: string;
 }
 
+// ---- Staff attendance (ADMIN.API StaffAttendanceController) ----
+// Staff sign in/out from the staff portal; a sign-in outside every active
+// office's radius carries the staff member's message.
+export interface StaffOfficeResponse {
+  id: string;
+  name: string;
+  address: string | null;
+  latitude: number;
+  longitude: number;
+  radiusMetres: number;
+  isActive: boolean;
+}
+
+// Body of CreateOffice / UpdateOffice/{id}. Radius is 25 to 5,000 metres.
+export interface StaffOfficeRequest {
+  name: string;
+  address: string | null;
+  latitude: number;
+  longitude: number;
+  radiusMetres: number;
+  isActive: boolean;
+}
+
+export interface StaffAttendanceResponse {
+  id: string;
+  staffId: string;
+  staffName: string | null;
+  staffEmail: string | null;
+  /** SignIn or SignOut. */
+  type: string;
+  /** Attendance day, Africa/Lagos. */
+  attendanceDate: string;
+  time: string;
+  latitude: number | null;
+  longitude: number | null;
+  accuracyMetres: number | null;
+  address: string | null;
+  locality: string | null;
+  state: string | null;
+  country: string | null;
+  /** Resolved, NoCoordinates, NotConfigured or Failed. */
+  geocodeStatus: string;
+  isAtOffice: boolean;
+  officeId: string | null;
+  officeName: string | null;
+  distanceToOfficeMetres: number | null;
+  message: string | null;
+  ipAddress: string | null;
+  ipCountryCode: string | null;
+}
+
 // ---- Cart admin (api/v1/carts) ----
 // Mirrors TDSuperApp.DTOs.Response.CartAdminResponses. Carts reserve no stock;
 // stockAtLocation here is units on hand, which is what checkout competes for.

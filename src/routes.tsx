@@ -60,6 +60,7 @@ const RequestAppealsPage = lazy(() => import("@/pages/RequestAppeals"));
 const AdminUsersPage = lazy(() => import("@/pages/AdminUsers"));
 const RolesPage = lazy(() => import("@/pages/Roles"));
 const StaffAccessPage = lazy(() => import("@/pages/StaffAccess"));
+const StaffAttendancePage = lazy(() => import("@/pages/StaffAttendance"));
 const DebtCollectionPage = lazy(() => import("@/pages/DebtCollection"));
 const CreditReservationsPage = lazy(() => import("@/pages/CreditReservations"));
 const StockHoldsPage = lazy(() => import("@/pages/StockHolds"));
@@ -538,6 +539,14 @@ export const router = createBrowserRouter([
         element: (
           <ProtectedRoute permission={Permission.CanViewStaff}>
             {withSuspense(<StaffAccessPage />)}
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "staff-attendance",
+        element: (
+          <ProtectedRoute permission={Permission.CanViewStaff}>
+            {withSuspense(<StaffAttendancePage />)}
           </ProtectedRoute>
         ),
       },

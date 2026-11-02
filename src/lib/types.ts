@@ -1429,7 +1429,8 @@ export interface SetExchangeRateRequest {
 export const StaffStatusValues = ["Pending", "Active", "Rejected", "Deactivated"] as const;
 export type StaffStatus = (typeof StaffStatusValues)[number];
 
-export const StaffRoleValues = ["Staff", "Lead"] as const;
+// HR sees attendance reports and everyone's attendance in the staff portal; no partners or orders.
+export const StaffRoleValues = ["Staff", "Lead", "HR"] as const;
 export type StaffRole = (typeof StaffRoleValues)[number];
 
 export interface StaffAdminResponse {

@@ -325,7 +325,7 @@ export function StaffAssignmentsModal({ staff, open, onOpenChange, canEdit }: Pr
                     type="info"
                     showIcon
                     className="mb-3"
-                    message="Leads see every partner in the staff portal, so partner assignments don't limit what this person sees."
+                    message="A Lead sees the partners assigned to them and to their team members."
                   />
                 )}
                 {picker}

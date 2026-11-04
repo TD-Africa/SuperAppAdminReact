@@ -1454,6 +1454,9 @@ export interface StaffAdminResponse {
   referralId: string | null;
   salesTakerName: string | null;
   salesTakerPersonnelNumber: string | null;
+  /** The Lead this person reports to (Staff/SetLead); null when they report to no one. */
+  leadId?: string | null;
+  leadName?: string | null;
 }
 
 // GET Staff/Workers?search= — up to 25 active D365 workers, for the link dialog.

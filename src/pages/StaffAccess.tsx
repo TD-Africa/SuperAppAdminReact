@@ -26,6 +26,7 @@ import {
   LinkOutlined,
   ShopOutlined,
   StopOutlined,
+  TeamOutlined,
   UndoOutlined,
 } from "@ant-design/icons";
 import { apiGet, apiPost, apiPut } from "@/lib/api";
@@ -91,6 +92,8 @@ export default function StaffAccessPage() {
   const [approveRole, setApproveRole] = useState<StaffRole>("Staff");
   const [approving, setApproving] = useState(false);
   const [roleSavingId, setRoleSavingId] = useState<string | null>(null);
+  const [leadSavingId, setLeadSavingId] = useState<string | null>(null);
+  const [leadFilter, setLeadFilter] = useState<string>(ALL);
   const [assignmentsFor, setAssignmentsFor] = useState<StaffAdminResponse | null>(null);
   const [linkFor, setLinkFor] = useState<StaffAdminResponse | null>(null);
   const [unlinkFor, setUnlinkFor] = useState<StaffAdminResponse | null>(null);
@@ -102,8 +105,26 @@ export default function StaffAccessPage() {
     if (debouncedKeyword.trim()) params.set("SearchString", debouncedKeyword.trim());
     if (status !== ALL) params.set("Status", status);
     if (role !== ALL) params.set("Role", role);
+    if (leadFilter !== ALL) params.set("LeadId", leadFilter);
     return params;
-  }, [pageSize, page, debouncedKeyword, status, role]);
+  }, [pageSize, page, debouncedKeyword, status, role, leadFilter]);
+
+  // Active Leads: the "Reports to" choices and the Lead filter.
+  const { data: leads } = useQuery({
+    queryKey: ["staff", "leads"],
+    queryFn: async () => {
+      const res = await apiGet<PaginationResponse<StaffAdminResponse>>(
+        "Staff/Query?Role=Lead&Status=Active&PageSize=200&PageNumber=1",
+      );
+      if (!res.status) return [];
+      return res.data?.data ?? [];
+    },
+    staleTime: 60_000,
+  });
+  const leadOptions = (leads ?? []).map((l) => ({
+    value: l.id,
+    label: l.displayName || l.email || l.id,
+  }));
 
   const { data, isLoading, isFetching } = useQuery({
     queryKey: ["staff", "list", queryParams.toString()],
@@ -179,16 +200,45 @@ export default function StaffAccessPage() {
     }
   }
 
-  async function changeRole(row: StaffAdminResponse, next: StaffRole) {
-    if (next === row.role) return;
+  async function saveRole(row: StaffAdminResponse, next: StaffRole) {
     setRoleSavingId(row.id);
     try {
+      // The response message says how many team members were released.
       await runAction(
         apiPut<StaffAdminResponse>(`Staff/SetRole/${row.id}`, { role: next }),
         "Staff role updated",
       );
     } finally {
       setRoleSavingId(null);
+    }
+  }
+
+  function changeRole(row: StaffAdminResponse, next: StaffRole) {
+    if (next === row.role) return;
+    if (row.role === "Lead") {
+      modal.confirm({
+        title: "Change role from Lead?",
+        content: `${nameOf(row)}'s team members will no longer report to anyone.`,
+        okText: "Change role",
+        okButtonProps: { danger: true },
+        onOk: () => saveRole(row, next),
+      });
+      return;
+    }
+    void saveRole(row, next);
+  }
+
+  async function changeLead(row: StaffAdminResponse, leadId: string | null) {
+    if ((row.leadId ?? null) === leadId) return;
+    setLeadSavingId(row.id);
+    try {
+      // A 400 carries a message like "X isn't a Lead. Make them a Lead first." — show it as-is.
+      await runAction(
+        apiPut<StaffAdminResponse>(`Staff/SetLead/${row.id}`, { leadId }),
+        "Reports-to updated",
+      );
+    } finally {
+      setLeadSavingId(null);
     }
   }
 
@@ -237,6 +287,37 @@ export default function StaffAccessPage() {
         ) : (
           <Tag>{v}</Tag>
         ),
+    },
+    {
+      title: "Reports to",
+      key: "leadName",
+      width: 190,
+      render: (_, r) => {
+        const editable = canManage && (r.status === "Active" || r.status === "Deactivated");
+        // A Lead doesn't report to another Lead, and the API rejects self-reporting.
+        if (!editable || r.role === "Lead") {
+          return <span className="text-sm">{r.leadName || "—"}</span>;
+        }
+        return (
+          <Select<string>
+            size="small"
+            className="w-44"
+            allowClear={false}
+            value={r.leadId ?? "__none__"}
+            loading={leadSavingId === r.id}
+            disabled={leadSavingId === r.id}
+            onChange={(v) => changeLead(r, v === "__none__" ? null : v)}
+            options={[
+              { value: "__none__", label: "None" },
+              ...leadOptions.filter((o) => o.value !== r.id),
+              // Keep the current lead visible even if they're no longer an active Lead.
+              ...(r.leadId && !leadOptions.some((o) => o.value === r.leadId)
+                ? [{ value: r.leadId, label: r.leadName || r.leadId }]
+                : []),
+            ]}
+          />
+        );
+      },
     },
     {
       title: "D365 sales taker",
@@ -321,9 +402,24 @@ export default function StaffAccessPage() {
         // without CanManageStaff can still open them read-only.
         const assignments =
           r.status === "Active" || r.status === "Deactivated" ? (
-            <Button size="small" icon={<ShopOutlined />} onClick={() => setAssignmentsFor(r)}>
-              Assignments
-            </Button>
+            <Space size={4}>
+              {r.role === "Lead" && (
+                <Button
+                  size="small"
+                  icon={<TeamOutlined />}
+                  onClick={() => {
+                    setPage(1);
+                    setStatus(ALL);
+                    setLeadFilter(r.id);
+                  }}
+                >
+                  Team
+                </Button>
+              )}
+              <Button size="small" icon={<ShopOutlined />} onClick={() => setAssignmentsFor(r)}>
+                Assignments
+              </Button>
+            </Space>
           ) : null;
         if (!canManage) return assignments;
         return (
@@ -427,7 +523,7 @@ export default function StaffAccessPage() {
         />
         <div className="grid gap-3 md:grid-cols-12">
           <Input
-            className="md:col-span-9"
+            className="md:col-span-6"
             placeholder="Search by name or email…"
             value={keyword}
             allowClear
@@ -448,6 +544,17 @@ export default function StaffAccessPage() {
               ...StaffRoleValues.map((v) => ({ value: v, label: v })),
             ]}
           />
+          <Select
+            className="md:col-span-3"
+            showSearch
+            optionFilterProp="label"
+            value={leadFilter}
+            onChange={(v) => {
+              setPage(1);
+              setLeadFilter(v);
+            }}
+            options={[{ value: ALL, label: "All leads" }, ...leadOptions]}
+          />
         </div>
       </Card>
 
@@ -457,7 +564,7 @@ export default function StaffAccessPage() {
           dataSource={rows}
           columns={columns}
           loading={isLoading || isFetching}
-          scroll={{ x: 1190 }}
+          scroll={{ x: 1450 }}
           pagination={{
             current: page,
             pageSize,

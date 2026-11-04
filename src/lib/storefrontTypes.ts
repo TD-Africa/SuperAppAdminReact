@@ -749,6 +749,8 @@ export interface StorefrontOwnerDetailDto {
   acceptedAt: string | null;
   primaryStorefrontBrandId: string | null;
   defaultStorefrontPriceMargin: number | null;
+  /** Null means the global OEM commission percentage is used. */
+  storefrontOemCommissionPercent: number | null;
 }
 
 /** GET Storefront/GetOwnerCandidates */
@@ -812,6 +814,12 @@ export interface StorefrontOwnerBrandMarginEntry {
 
 export interface StorefrontOwnerBrandMarginBulkRequest {
   entries: StorefrontOwnerBrandMarginEntry[];
+}
+
+/** PUT Storefront/SetStorefrontOwnerCommission/{ownerId} */
+export interface StorefrontOwnerCommissionRequest {
+  /** Null clears the storefront override and restores the global percentage. */
+  oemCommissionPercent: number | null;
 }
 
 export interface StorefrontOwnerBrandSelectionRequest {

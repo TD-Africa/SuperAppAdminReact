@@ -23,6 +23,7 @@ import type {
   StorefrontOwnerBrandDto,
   StorefrontOwnerBrandMarginBulkRequest,
   StorefrontOwnerBrandSelectionRequest,
+  StorefrontOwnerCommissionRequest,
   StorefrontOwnerConfigurationRequest,
   StorefrontOwnerDetailDto,
   StorefrontOwnerInvitationResponse,
@@ -982,6 +983,16 @@ export function configureStorefrontOwner(
 ) {
   return apiPut<StorefrontOwnerDetailDto>(
     `Storefront/ConfigureStorefrontOwner/${encodeURIComponent(ownerId)}`,
+    body,
+  );
+}
+
+export function setStorefrontOwnerCommission(
+  ownerId: string,
+  body: StorefrontOwnerCommissionRequest,
+) {
+  return apiPut<StorefrontOwnerDetailDto>(
+    `Storefront/SetStorefrontOwnerCommission/${encodeURIComponent(ownerId)}`,
     body,
   );
 }

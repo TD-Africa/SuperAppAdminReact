@@ -20,6 +20,7 @@ import {
   getStorefrontOwnerBrands,
   getStorefrontTicket,
   getStorefrontTickets,
+  setStorefrontOwnerCommission,
 } from "@/lib/storefrontApi";
 import type {
   StorefrontEarningDto,
@@ -724,6 +725,11 @@ export default function FranchiseStoreOwnerDetailPage() {
                 ? `${ownerQuery.data.defaultStorefrontPriceMargin}%`
                 : "—"}
             </Descriptions.Item>
+            <Descriptions.Item label="OEM commission">
+              {ownerQuery.data?.storefrontOemCommissionPercent != null
+                ? `${ownerQuery.data.storefrontOemCommissionPercent}% (storefront override)`
+                : "Global default"}
+            </Descriptions.Item>
           </Descriptions>
 
           <div>
@@ -1183,6 +1189,7 @@ function OwnerConfigModal({
   const [saving, setSaving] = useState(false);
   const [primaryBrandId, setPrimaryBrandId] = useState<string | null>(null);
   const [defaultMargin, setDefaultMargin] = useState<number | null>(null);
+  const [oemCommissionPercent, setOemCommissionPercent] = useState<number | null>(null);
   const [margins, setMargins] = useState<Record<string, number | null>>({});
   const [assignedBrandIds, setAssignedBrandIds] = useState<string[]>([]);
 
@@ -1202,6 +1209,7 @@ function OwnerConfigModal({
     if (!open) return;
     setPrimaryBrandId(owner?.primaryStorefrontBrandId ?? null);
     setDefaultMargin(owner?.defaultStorefrontPriceMargin ?? null);
+    setOemCommissionPercent(owner?.storefrontOemCommissionPercent ?? null);
     const next: Record<string, number | null> = {};
     for (const b of brands) {
       next[b.storefrontBrandId] = b.storefrontPriceMargin;
@@ -1234,6 +1242,13 @@ function OwnerConfigModal({
       const res = await configureStorefrontOwner(ownerId, body);
       if (!res.status) {
         message.error(res.message ?? "Save failed");
+        return;
+      }
+      const commissionRes = await setStorefrontOwnerCommission(ownerId, {
+        oemCommissionPercent,
+      });
+      if (!commissionRes.status) {
+        message.error(commissionRes.message ?? "Commission save failed");
         return;
       }
       message.success(res.message ?? "Configuration saved");
@@ -1315,6 +1330,17 @@ function OwnerConfigModal({
             onChange={(v) => setDefaultMargin(v ?? null)}
             style={{ width: "100%" }}
             placeholder="e.g. 15"
+          />
+        </Form.Item>
+        <Form.Item label="Storefront OEM commission override (%)">
+          <InputNumber
+            min={0}
+            max={100}
+            precision={2}
+            value={oemCommissionPercent}
+            onChange={(v) => setOemCommissionPercent(v ?? null)}
+            style={{ width: "100%" }}
+            placeholder="Uses global OEM commission"
           />
         </Form.Item>
 

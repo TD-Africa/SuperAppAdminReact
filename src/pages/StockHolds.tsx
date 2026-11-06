@@ -6,8 +6,9 @@ import { useAuthStore } from "@/stores/auth";
 import { Permission } from "@/lib/permissions";
 import { CartsTab } from "@/components/carts/CartsTab";
 import { OrderHoldsTab } from "@/components/carts/OrderHoldsTab";
+import { StorefrontReservationsTab } from "@/components/carts/StorefrontReservationsTab";
 
-type Tab = "carts" | "orders";
+type Tab = "carts" | "orders" | "storefront";
 
 /**
  * Customer carts and pending orders, side by side: what's sitting in carts
@@ -19,7 +20,13 @@ export default function StockHoldsPage() {
   const hasPermission = useAuthStore((s) => s.hasPermission);
   const canViewOrders = hasPermission(Permission.CanViewOrders);
   const [search, setSearch] = useSearchParams();
-  const tab: Tab = search.get("tab") === "orders" && canViewOrders ? "orders" : "carts";
+  const requested = search.get("tab");
+  const tab: Tab =
+    requested === "orders" && canViewOrders
+      ? "orders"
+      : requested === "storefront"
+        ? "storefront"
+        : "carts";
 
   return (
     <div className="space-y-6">
@@ -37,7 +44,7 @@ export default function StockHoldsPage() {
           icon={<ReloadOutlined />}
           onClick={() =>
             queryClient.invalidateQueries({
-              queryKey: [tab === "carts" ? "cart-admin" : "order-holds"],
+              queryKey: [tab === "orders" ? "order-holds" : "cart-admin"],
             })
           }
         >
@@ -64,6 +71,13 @@ export default function StockHoldsPage() {
                 },
               ]
             : []),
+          {
+            key: "storefront",
+            label: "Held by storefront carts",
+            children: (
+              <StorefrontReservationsTab canRelease={hasPermission(Permission.CanClearCart)} />
+            ),
+          },
         ]}
       />
     </div>

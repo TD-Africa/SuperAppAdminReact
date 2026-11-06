@@ -1631,8 +1631,18 @@ export interface ReleaseCartProductsResponse {
 
 // ---- Stock held by pending orders (api/v1/carts/order-holds) ----
 // Unlike cart lines these do reserve stock; stockAtLocation is already net of it.
+export type OrderHoldStatus = "Pending" | "Unpaid";
+
 export interface OrderStockHoldSummaryResponse {
   orders: number;
+  /** Instant-payment orders awaiting payment. Their stock is returned on release. */
+  pendingOrders: number;
+  /** Credit orders that never reached D365. */
+  unpaidOrders: number;
+  pendingUnits: number;
+  unpaidUnits: number;
+  /** Unpaid orders already posted to D365: not releasable from here. */
+  unpaidOrdersPostedToD365: number;
   units: number;
   variants: number;
   oldestOrderPlacedAt: string | null;
@@ -1677,9 +1687,10 @@ export interface OrderStockHoldOrderResponse {
   companyName: string | null;
   customerId: string | null;
   placedByStaffId: string | null;
+  status: OrderHoldStatus | null;
   placedAt: string;
-  /** When the hourly sweep would cancel it on its own. */
-  autoReleaseAt: string;
+  /** When the hourly sweep would cancel it on its own. Null for Unpaid (credit) orders. */
+  autoReleaseAt: string | null;
   units: number;
   lines: OrderStockHoldLineResponse[];
 }
@@ -1692,6 +1703,8 @@ export interface ReleaseOrderStockRequest {
   orderIds?: string[];
   variantId?: string;
   locationId?: string;
+  /** With variantId: only Pending or only Unpaid orders (both when omitted). */
+  status?: OrderHoldStatus;
   reason?: string;
   notifyCustomer?: boolean;
 }
@@ -1728,4 +1741,33 @@ export interface CancelledOrderPaymentResponse {
   amountPaid: number;
   paymentReferences: string[];
   lastPaymentAt: string;
+}
+
+
+// ---- Storefront inventory reservations (api/v1/storefront/inventory-reservations) ----
+// Stock a storefront cart holds while the customer shops/checks out. Held and
+// CheckoutPending reserve stock; the expiry sweep returns it.
+export type StorefrontInventoryReservationStatus =
+  | "Held"
+  | "CheckoutPending"
+  | "Released"
+  | "Expired"
+  | "Committed";
+
+export interface StorefrontInventoryReservationReportResponse {
+  reservationId: string;
+  storefrontOwnerId: string | null;
+  storefrontCartKey: string | null;
+  storefrontOrderId: string | null;
+  status: StorefrontInventoryReservationStatus;
+  expiresAtUtc: string;
+  dateCreated: string;
+  dateModified: string | null;
+  lineCount: number;
+}
+
+export interface StorefrontInventoryReservationResponse {
+  reservationId: string;
+  status: StorefrontInventoryReservationStatus;
+  expiresAtUtc: string;
 }

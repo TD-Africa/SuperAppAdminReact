@@ -21,6 +21,7 @@ import { RollbackOutlined, UnorderedListOutlined } from "@ant-design/icons";
 import { apiGet, apiPost } from "@/lib/api";
 import type {
   CancelledOrderPaymentResponse,
+  OrderHoldStatus,
   OrderStockHoldLineResponse,
   OrderStockHoldOrderResponse,
   OrderStockHoldProductResponse,
@@ -57,10 +58,37 @@ function plural(n: number, word: string) {
 }
 
 const RELEASE_RULES =
-  "The whole order is cancelled and every line goes back in stock. Only unpaid, unposted, non-credit pending orders qualify; any others are skipped.";
+  "The whole order is cancelled. Pending orders return their stock straight away; Unpaid (credit) orders never left D365's count, so nothing is added back. Orders that are paid, part-paid or already posted to D365 are skipped.";
+
+const STATUS_ALL = "__all__";
+type StatusFilter = OrderHoldStatus | typeof STATUS_ALL;
+
+const STATUS_OPTIONS = [
+  { value: STATUS_ALL, label: "Pending & Unpaid" },
+  { value: "Pending", label: "Pending (instant payment)" },
+  { value: "Unpaid", label: "Unpaid (credit)" },
+];
+
+function HoldStatusTag({ status }: { status: OrderHoldStatus | null }) {
+  if (!status) return <>—</>;
+  return (
+    <Tooltip
+      title={
+        status === "Pending"
+          ? "Instant-payment order awaiting payment"
+          : "Credit order that never reached D365"
+      }
+    >
+      <Tag color={status === "Pending" ? "gold" : "purple"} className="!m-0">
+        {status}
+      </Tag>
+    </Tooltip>
+  );
+}
 
 /** Time until the hourly sweep cancels the order by itself. */
-function AutoRelease({ at }: { at: string }) {
+function AutoRelease({ at }: { at: string | null }) {
+  if (!at) return <Tooltip title="Credit orders aren't swept; release them manually"><span>—</span></Tooltip>;
   const hours = Math.round((new Date(at).getTime() - Date.now()) / 3_600_000);
   return (
     <Tooltip title={formatDateTime(at)}>
@@ -119,19 +147,29 @@ export function OrderHoldsTab({ canEdit }: { canEdit: boolean }) {
         <Alert type="error" showIcon message={(summary.error as Error).message} />
       )}
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-        <StatTile label="Pending orders holding stock" value={s ? formatNumber(s.orders) : "…"} />
-        <StatTile label="Units held" value={s ? formatNumber(s.units) : "…"} />
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+        <StatTile label="Orders holding stock" value={s ? formatNumber(s.orders) : "…"} />
         <StatTile
-          label="Products (variant × warehouse)"
-          value={s ? formatNumber(s.variants) : "…"}
+          label="Pending (instant payment)"
+          value={s ? `${formatNumber(s.pendingOrders)} · ${formatNumber(s.pendingUnits)}u` : "…"}
+          hint="Orders awaiting payment and the units they hold. Stock returns on release."
         />
         <StatTile
-          label="Oldest pending order"
+          label="Unpaid (credit)"
+          value={s ? `${formatNumber(s.unpaidOrders)} · ${formatNumber(s.unpaidUnits)}u` : "…"}
+          hint={
+            s?.unpaidOrdersPostedToD365
+              ? `Credit orders that never reached D365. A further ${formatNumber(s.unpaidOrdersPostedToD365)} are already posted to D365 and can't be released here.`
+              : "Credit orders that never reached D365."
+          }
+        />
+        <StatTile label="Units held" value={s ? formatNumber(s.units) : "…"} />
+        <StatTile
+          label="Oldest held order"
           value={<Age at={s?.oldestOrderPlacedAt} />}
           hint={
             s
-              ? `Unpaid orders are cancelled automatically ${s.autoReleaseAfterHours}h after they're placed.`
+              ? `Pending orders are cancelled automatically ${s.autoReleaseAfterHours}h after they're placed.`
               : undefined
           }
         />
@@ -149,7 +187,7 @@ export function OrderHoldsTab({ canEdit }: { canEdit: boolean }) {
         showIcon
         message={`Pending orders reserve stock until they're paid or the sweep cancels them${
           s ? ` after ${s.autoReleaseAfterHours}h` : ""
-        }. "Available" below is already net of these holds.`}
+        }. Unpaid credit orders are never swept. "Available" below is already net of these holds.`}
       />
 
       <Segmented
@@ -204,6 +242,7 @@ function ProductsView({
   const search = useDebouncedValue(keyword, 350);
   const [locationId, setLocationId] = useState(ALL);
   const [olderThanHours, setOlderThanHours] = useState<number | null>(null);
+  const [status, setStatus] = useState<StatusFilter>(STATUS_ALL);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
 
@@ -214,8 +253,9 @@ function ProductsView({
     if (search.trim()) p.set("Search", search.trim());
     if (locationId !== ALL) p.set("LocationId", locationId);
     if (olderThanHours) p.set("OlderThanHours", String(olderThanHours));
+    if (status !== STATUS_ALL) p.set("Status", status);
     return p.toString();
-  }, [page, pageSize, search, locationId, olderThanHours]);
+  }, [page, pageSize, search, locationId, olderThanHours, status]);
 
   const { data, isLoading, isFetching, error } = useQuery({
     queryKey: ["order-holds", "products", params],
@@ -273,18 +313,22 @@ function ProductsView({
             />
           </Tooltip>
           {canEdit && (
-            <Tooltip title="Cancel every pending order holding it here">
+            <Tooltip title="Cancel every releasable held order for it here">
               <Button
                 size="small"
                 danger
                 icon={<RollbackOutlined />}
                 onClick={() =>
                   requestRelease({
-                    request: { variantId: r.variantId, locationId: r.locationId },
+                    request: {
+                      variantId: r.variantId,
+                      locationId: r.locationId,
+                      ...(status !== STATUS_ALL ? { status } : {}),
+                    },
                     title: "Release this product's stock",
                     description: (
                       <>
-                        Cancel the {plural(r.orders, "pending order")} holding{" "}
+                        Cancel the {plural(r.orders, status === "Unpaid" ? "unpaid order" : status === "Pending" ? "pending order" : "held order")} holding{" "}
                         <b>{r.productName || r.sku}</b> at {r.locationName} (
                         {plural(r.unitsHeld, "unit")}). {RELEASE_RULES}
                       </>
@@ -324,6 +368,15 @@ function ProductsView({
               { value: ALL, label: "All warehouses" },
               ...(locations ?? []).map((l) => ({ value: l.id, label: l.name })),
             ]}
+          />
+          <Select
+            value={status}
+            onChange={(v) => {
+              setStatus(v);
+              setPage(1);
+            }}
+            className="min-w-[200px]"
+            options={STATUS_OPTIONS}
           />
           <InputNumber
             min={1}
@@ -416,6 +469,7 @@ function HoldOrdersTable({
         </div>
       ),
     },
+    { title: "Status", key: "status", render: (_, r) => <HoldStatusTag status={r.status} /> },
     { title: "Customer", key: "customer", render: (_, r) => <CustomerCell {...r} /> },
     {
       title: "Units",
@@ -454,7 +508,7 @@ function releaseOrdersRequest(ids: string[]): PendingRelease {
   return {
     request: { orderIds: ids },
     title: "Cancel selected orders",
-    description: `Cancel ${plural(ids.length, "pending order")} and return their stock. ${RELEASE_RULES}`,
+    description: `Cancel ${plural(ids.length, "held order")}. ${RELEASE_RULES}`,
   };
 }
 
@@ -470,6 +524,7 @@ function OrdersView({
   const search = useDebouncedValue(keyword, 350);
   const [locationId, setLocationId] = useState(ALL);
   const [olderThanHours, setOlderThanHours] = useState<number | null>(null);
+  const [status, setStatus] = useState<StatusFilter>(STATUS_ALL);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [selected, setSelected] = useState<string[]>([]);
@@ -479,8 +534,9 @@ function OrdersView({
     if (search.trim()) p.set("Search", search.trim());
     if (locationId !== ALL) p.set("LocationId", locationId);
     if (olderThanHours) p.set("OlderThanHours", String(olderThanHours));
+    if (status !== STATUS_ALL) p.set("Status", status);
     return p.toString();
-  }, [search, locationId, olderThanHours]);
+  }, [search, locationId, olderThanHours, status]);
 
   // The API only pages oldest-first (capped at 200 per page), so pull every
   // match and show newest first here. The sweep keeps this list short.
@@ -529,6 +585,15 @@ function OrdersView({
               { value: ALL, label: "All warehouses" },
               ...(locations ?? []).map((l) => ({ value: l.id, label: l.name })),
             ]}
+          />
+          <Select
+            value={status}
+            onChange={(v) => {
+              setStatus(v);
+              setPage(1);
+            }}
+            className="min-w-[200px]"
+            options={STATUS_OPTIONS}
           />
           <InputNumber
             min={1}

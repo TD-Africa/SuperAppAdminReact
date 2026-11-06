@@ -188,7 +188,7 @@ export const router = createBrowserRouter([
       {
         path: "debt-collection",
         element: (
-          <ProtectedRoute permission={Permission.CanViewOrders}>
+          <ProtectedRoute permission={Permission.CanViewDebtCollection}>
             {withSuspense(<DebtCollectionPage />)}
           </ProtectedRoute>
         ),
@@ -230,7 +230,7 @@ export const router = createBrowserRouter([
       {
         path: "employees",
         element: (
-          <ProtectedRoute permission={Permission.CanViewDashboard}>
+          <ProtectedRoute permission={Permission.CanViewOrders}>
             {withSuspense(<EmployeesPage />)}
           </ProtectedRoute>
         ),
@@ -262,7 +262,7 @@ export const router = createBrowserRouter([
       {
         path: "coupons",
         element: (
-          <ProtectedRoute permission={Permission.CanViewPromos}>
+          <ProtectedRoute permission={Permission.CanManageCoupons}>
             {withSuspense(<CouponsPage />)}
           </ProtectedRoute>
         ),
@@ -317,7 +317,7 @@ export const router = createBrowserRouter([
       {
         path: "storefront-themes",
         element: (
-          <ProtectedRoute permission={Permission.CanEditBrands}>
+          <ProtectedRoute permission={Permission.CanViewBrands}>
             {withSuspense(<StorefrontThemesPage />)}
           </ProtectedRoute>
         ),
@@ -413,7 +413,7 @@ export const router = createBrowserRouter([
       {
         path: "storefront-coupon-requests",
         element: (
-          <ProtectedRoute permission={Permission.CanViewPromos}>
+          <ProtectedRoute permission={Permission.CanViewTicket}>
             {withSuspense(<StorefrontCouponRequestsPage />)}
           </ProtectedRoute>
         ),
@@ -437,7 +437,7 @@ export const router = createBrowserRouter([
       {
         path: "storefront-shipping",
         element: (
-          <ProtectedRoute permission={Permission.CanViewDeliveryMethod}>
+          <ProtectedRoute permission={Permission.CanViewProducts}>
             {withSuspense(<StorefrontShippingPage />)}
           </ProtectedRoute>
         ),
@@ -445,7 +445,7 @@ export const router = createBrowserRouter([
       {
         path: "storefront-shipping-wallet",
         element: (
-          <ProtectedRoute permission={Permission.CanViewDeliveryMethod}>
+          <ProtectedRoute permission={Permission.CanChangeSettings}>
             {withSuspense(<StorefrontShippingWalletPage />)}
           </ProtectedRoute>
         ),

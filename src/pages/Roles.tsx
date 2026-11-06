@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Card,
   Input,
@@ -84,6 +84,25 @@ export default function RolesPage() {
   });
 
   const rows = data?.data ?? [];
+
+  // The backend's GetRoles list doesn't load each role's permissions (no Include), so
+  // every row comes back empty. GetRole/{id} does load them, so fetch the detail per
+  // visible row. Shares the ["admin-role", id] cache with the edit modal.
+  const detailQueries = useQueries({
+    queries: rows.map((r) => ({
+      queryKey: ["admin-role", r.id],
+      queryFn: async () => {
+        const res = await apiGet<RoleResponse>(`Authentication/GetRole/${r.id}`);
+        if (!res.status) throw new Error(res.message ?? "Failed to load role");
+        return res.data;
+      },
+      staleTime: 60_000,
+    })),
+  });
+  const permissionCounts = new Map<string, number | undefined>(
+    rows.map((r, i) => [r.id, detailQueries[i]?.data?.permissions?.length]),
+  );
+
   const totalItems = Number(data?.count ?? 0);
 
   const columns: TableColumnsType<RoleResponse> = [
@@ -101,9 +120,12 @@ export default function RolesPage() {
     },
     {
       title: "Permissions",
-      dataIndex: "permissions",
+      key: "permissions",
       align: "right",
-      render: (v: unknown[]) => <Tag>{v?.length ?? 0}</Tag>,
+      render: (_, r) => {
+        const count = permissionCounts.get(r.id);
+        return <Tag>{count ?? "…"}</Tag>;
+      },
     },
     {
       title: "",
@@ -191,7 +213,10 @@ export default function RolesPage() {
         open={!!editId}
         onOpenChange={(v) => !v && setEditId(null)}
         permissions={permissions ?? []}
-        onUpdated={() => queryClient.invalidateQueries({ queryKey: ["admin-roles"] })}
+        onUpdated={() => {
+          queryClient.invalidateQueries({ queryKey: ["admin-roles"] });
+          queryClient.invalidateQueries({ queryKey: ["admin-role"] });
+        }}
       />
 
       <ConfirmDialog

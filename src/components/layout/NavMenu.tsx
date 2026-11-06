@@ -65,13 +65,48 @@ type NavNode = NavLeaf | NavGroup;
 const NAV_TREE: NavNode[] = [
   { type: "leaf", to: "/", label: "Home", icon: <DashboardOutlined />, permission: Permission.CanViewDashboard, exact: true },
   { type: "leaf", to: "/analytics", label: "Analytics and insights", icon: <LineChartOutlined />, permission: Permission.CanViewAnalytics },
-  { type: "leaf", to: "/products", label: "Products", icon: <AppstoreOutlined />, permission: Permission.CanViewProducts },
-  { type: "leaf", to: "/orders", label: "Orders", icon: <ShoppingCartOutlined />, permission: Permission.CanViewOrders },
-  { type: "leaf", to: "/stock-holds", label: "Carts & Stock Holds", icon: <InboxOutlined />, permission: Permission.CanViewCarts },
-  { type: "leaf", to: "/debt-collection", label: "Debt Collection", icon: <AccountBookOutlined />, permission: Permission.CanViewOrders },
-  { type: "leaf", to: "/credit-reservations", label: "Credit Reservations", icon: <SafetyOutlined />, permission: Permission.CanViewUser },
+  {
+    type: "group",
+    key: "sales",
+    label: "Sales",
+    icon: <ShoppingCartOutlined />,
+    children: [
+      { type: "leaf", to: "/orders", label: "Orders", icon: <ShoppingCartOutlined />, permission: Permission.CanViewOrders },
+      { type: "leaf", to: "/stock-holds", label: "Carts & Stock Holds", icon: <InboxOutlined />, permission: Permission.CanViewCarts },
+      { type: "leaf", to: "/debt-collection", label: "Debt Collection", icon: <AccountBookOutlined />, permission: Permission.CanViewOrders },
+      { type: "leaf", to: "/credit-reservations", label: "Credit Reservations", icon: <SafetyOutlined />, permission: Permission.CanViewUser },
+    ],
+  },
+  {
+    type: "group",
+    key: "catalog",
+    label: "Catalog",
+    icon: <AppstoreOutlined />,
+    children: [
+      { type: "leaf", to: "/products", label: "Products", icon: <AppstoreOutlined />, permission: Permission.CanViewProducts },
+      { type: "leaf", to: "/product-groups", label: "Product Groups", icon: <GroupOutlined />, permission: Permission.CanViewProductGroup },
+      { type: "leaf", to: "/brands", label: "Brands", icon: <VerifiedOutlined />, permission: Permission.CanViewBrands },
+      { type: "leaf", to: "/brand-restrictions", label: "Brand Restrictions", icon: <LockOutlined />, permission: Permission.CanViewBrands },
+      { type: "leaf", to: "/deals", label: "Deals", icon: <TagsOutlined />, permission: Permission.CanManageDeals },
+      { type: "leaf", to: "/promos", label: "Promos", icon: <PercentageOutlined />, permission: Permission.CanViewPromos },
+      { type: "leaf", to: "/coupons", label: "Coupons", icon: <GiftOutlined />, permission: Permission.CanViewPromos },
+      { type: "leaf", to: "/warehouses", label: "Warehouses", icon: <ContainerOutlined />, permission: Permission.CanViewWarehouses },
+    ],
+  },
+  {
+    type: "group",
+    key: "customers",
+    label: "Customers",
+    icon: <TeamOutlined />,
+    children: [
+      { type: "leaf", to: "/customers", label: "All Customers", icon: <TeamOutlined />, permission: Permission.CanViewUser },
+      { type: "leaf", to: "/cac-data", label: "CAC Data", icon: <IdcardOutlined />, permission: Permission.CanViewUser },
+      { type: "leaf", to: "/kyc", label: "KYC", icon: <SafetyCertificateOutlined />, permission: Permission.CanEditUser },
+      { type: "leaf", to: "/email-requests", label: "Email Change Requests", icon: <MailOutlined />, permission: Permission.CanViewEmailChangeRequests },
+      { type: "leaf", to: "/request-appeals", label: "Request Appeals", icon: <SolutionOutlined />, permission: Permission.CanViewRequestAppeals },
+    ],
+  },
   { type: "leaf", to: "/wallets", label: "Wallets", icon: <WalletOutlined />, permission: Permission.CanViewTransactions },
-  { type: "leaf", to: "/customers", label: "Customers", icon: <TeamOutlined />, permission: Permission.CanViewUser },
   {
     type: "group",
     key: "staff",
@@ -81,21 +116,6 @@ const NAV_TREE: NavNode[] = [
       { type: "leaf", to: "/employees", label: "Employees", icon: <UsergroupAddOutlined />, permission: Permission.CanViewDashboard },
       { type: "leaf", to: "/staff-access", label: "Staff Access", icon: <ContactsOutlined />, permission: Permission.CanViewStaff },
       { type: "leaf", to: "/staff-attendance", label: "Staff Attendance", icon: <ClockCircleOutlined />, permission: Permission.CanViewStaff },
-    ],
-  },
-  { type: "leaf", to: "/cac-data", label: "CAC Data", icon: <IdcardOutlined />, permission: Permission.CanViewUser },
-  { type: "leaf", to: "/kyc", label: "KYC", icon: <SafetyCertificateOutlined />, permission: Permission.CanEditUser },
-  { type: "leaf", to: "/promos", label: "Promos", icon: <PercentageOutlined />, permission: Permission.CanViewPromos },
-  { type: "leaf", to: "/coupons", label: "Coupons", icon: <GiftOutlined />, permission: Permission.CanViewPromos },
-  { type: "leaf", to: "/product-groups", label: "Product Groups", icon: <GroupOutlined />, permission: Permission.CanViewProductGroup },
-  {
-    type: "group",
-    key: "brands",
-    label: "Brands",
-    icon: <VerifiedOutlined />,
-    children: [
-      { type: "leaf", to: "/brands", label: "All Brands", icon: <VerifiedOutlined />, permission: Permission.CanViewBrands },
-      { type: "leaf", to: "/brand-restrictions", label: "Restrictions", icon: <LockOutlined />, permission: Permission.CanViewBrands },
     ],
   },
   {
@@ -121,33 +141,23 @@ const NAV_TREE: NavNode[] = [
       { type: "leaf", to: "/storefront-tickets", label: "Tickets", icon: <CustomerServiceOutlined />, permission: Permission.CanViewTicket },
     ],
   },
-  { type: "leaf", to: "/deals", label: "Deals", icon: <TagsOutlined />, permission: Permission.CanManageDeals },
-  { type: "leaf", to: "/warehouses", label: "Warehouses", icon: <ContainerOutlined />, permission: Permission.CanViewWarehouses },
-  { type: "leaf", to: "/middleware-events", label: "Middleware Events", icon: <ApiOutlined />, permission: Permission.CanViewProducts },
   { type: "leaf", to: "/tickets", label: "Tickets", icon: <CustomerServiceOutlined />, permission: Permission.CanViewTicket },
   { type: "leaf", to: "/ratings", label: "Ratings", icon: <StarOutlined />, permission: Permission.CanViewRatings },
-  { type: "leaf", to: "/email-requests", label: "Email Change Requests", icon: <MailOutlined />, permission: Permission.CanViewEmailChangeRequests },
-  { type: "leaf", to: "/request-appeals", label: "Request Appeals", icon: <SolutionOutlined />, permission: Permission.CanViewRequestAppeals },
-  { type: "leaf", to: "/admin-users", label: "Admin Users", icon: <UserSwitchOutlined />, permission: Permission.CanViewSubUser },
-  { type: "leaf", to: "/roles", label: "Roles", icon: <KeyOutlined />, permission: Permission.CanViewRoles },
   { type: "leaf", to: "/transaction-settings", label: "Transaction Settings", icon: <SettingOutlined />, permission: Permission.CanChangeSettings },
   { type: "leaf", to: "/exchange-rates", label: "Exchange Rates", icon: <DollarOutlined />, permission: Permission.ManageExchangeRate },
-  { type: "leaf", to: "/audit-trail", label: "Audit Trail", icon: <AuditOutlined />, permission: Permission.CanViewAuditTrail },
+  {
+    type: "group",
+    key: "system",
+    label: "System",
+    icon: <SettingOutlined />,
+    children: [
+      { type: "leaf", to: "/admin-users", label: "Admin Users", icon: <UserSwitchOutlined />, permission: Permission.CanViewSubUser },
+      { type: "leaf", to: "/roles", label: "Roles", icon: <KeyOutlined />, permission: Permission.CanViewRoles },
+      { type: "leaf", to: "/audit-trail", label: "Audit Trail", icon: <AuditOutlined />, permission: Permission.CanViewAuditTrail },
+      { type: "leaf", to: "/middleware-events", label: "Middleware Events", icon: <ApiOutlined />, permission: Permission.CanViewProducts },
+    ],
+  },
 ];
-
-// Storefront-related paths for reference
-// const STOREFRONT_PATHS = [
-//   "/franchise-products",
-//   "/franchise-orders",
-//   "/franchise-brands",
-//   "/franchise-categories",
-//   "/franchise-store-owner-invites",
-//   "/franchise-store-owners",
-//   "/franchise-superadmin-wallet",
-//   "/settlement-recovery",
-//   "/storefront-coupon-requests",
-//   "/storefront-tickets",
-// ];
 
 function collectLeaves(nodes: NavNode[]): NavLeaf[] {
   return nodes.flatMap((node) => (node.type === "leaf" ? [node] : node.children));
